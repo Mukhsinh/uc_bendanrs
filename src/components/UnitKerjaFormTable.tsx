@@ -60,7 +60,6 @@ interface UnitKerja {
 }
 
 const formSchema = z.object({
-  kode: z.string().min(1, { message: "Kode Unit Kerja harus diisi." }),
   nama: z.string().min(1, { message: "Nama Unit Kerja harus diisi." }),
   lokasi: z.string().min(1, { message: "Lokasi Unit Kerja harus diisi." }),
   luas_ruangan: z.coerce.number().min(0, { message: "Luas Ruangan harus angka positif." }),
@@ -80,7 +79,6 @@ const UnitKerjaFormTable: React.FC = () => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      kode: "",
       nama: "",
       lokasi: "",
       luas_ruangan: 0,
@@ -103,7 +101,6 @@ const UnitKerjaFormTable: React.FC = () => {
   useEffect(() => {
     if (editingUnitKerja) {
       form.reset({
-        kode: editingUnitKerja.kode,
         nama: editingUnitKerja.nama,
         lokasi: editingUnitKerja.lokasi,
         luas_ruangan: editingUnitKerja.luas_ruangan,
@@ -111,7 +108,6 @@ const UnitKerjaFormTable: React.FC = () => {
       });
     } else {
       form.reset({
-        kode: "",
         nama: "",
         lokasi: "",
         luas_ruangan: 0,
@@ -137,6 +133,33 @@ const UnitKerjaFormTable: React.FC = () => {
     setLoading(false);
   };
 
+  const generateKodeUnitKerja = async (userId: string) => {
+    // Get the latest unit kerja for this user to determine the next number
+    const { data, error } = await supabase
+      .from('unit_kerja')
+      .select('kode')
+      .eq('user_id', userId)
+      .order('kode', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Error fetching latest kode:', error);
+      // If there's an error, start from UK001
+      return 'UK001';
+    }
+
+    if (!data || data.length === 0) {
+      // If no data exists, start from UK001
+      return 'UK001';
+    }
+
+    // Extract the number from the latest kode and increment
+    const latestKode = data[0].kode;
+    const numberPart = parseInt(latestKode.substring(2));
+    const nextNumber = numberPart + 1;
+    return `UK${nextNumber.toString().padStart(3, '0')}`;
+  };
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!userId) {
       toast.error("User tidak ditemukan. Silakan login kembali.");
@@ -144,18 +167,41 @@ const UnitKerjaFormTable: React.FC = () => {
     }
 
     try {
+      let kode: string;
+      
       if (editingUnitKerja) {
+        // For editing, keep the existing kode
+        kode = editingUnitKerja.kode;
         const { error } = await supabase
           .from('unit_kerja')
-          .update({ ...values, user_id: userId })
+          .update({ ...values, user_id: userId, kode })
           .eq('id', editingUnitKerja.id);
 
         if (error) throw error;
         toast.success("Data Unit Kerja berhasil diperbarui.");
       } else {
+        // Generate new kode for new entries
+        kode = await generateKodeUnitKerja(userId);
+        
+        // Check if kode already exists (shouldn't happen but just in case)
+        const { data: existingData, error: checkError } = await supabase
+          .from('unit_kerja')
+          .select('id')
+          .eq('kode', kode)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (checkError) throw checkError;
+        
+        if (existingData) {
+          // This should be very rare, but if it happens, generate a new one
+          toast.error("Terjadi kesalahan saat membuat kode unit kerja. Silakan coba lagi.");
+          return;
+        }
+
         const { error } = await supabase
           .from('unit_kerja')
-          .insert([{ ...values, user_id: userId }]);
+          .insert([{ ...values, user_id: userId, kode }]);
 
         if (error) throw error;
         toast.success("Data Unit Kerja berhasil ditambahkan.");
@@ -204,14 +250,19 @@ const UnitKerjaFormTable: React.FC = () => {
         skipEmptyLines: true,
         complete: async (results) => {
           try {
-            const importedData: any[] = results.data.map((row: any) => ({
-              kode: row["Kode Unit Kerja"] || "",
-              nama: row["Nama Unit Kerja"] || "",
-              lokasi: row["Lokasi Unit Kerja"] || "",
-              luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
-              kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
-              user_id: userId,
-            }));
+            // Generate unique codes for each imported item
+            const importedData: any[] = [];
+            for (const row of results.data) {
+              const kode = await generateKodeUnitKerja(userId);
+              importedData.push({
+                kode,
+                nama: row["Nama Unit Kerja"] || "",
+                lokasi: row["Lokasi Unit Kerja"] || "",
+                luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
+                kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
+                user_id: userId,
+              });
+            }
 
             const { error } = await supabase
               .from('unit_kerja')
@@ -233,7 +284,7 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Kode Unit Kerja", "Nama Unit Kerja", "Lokasi Unit Kerja", "Luas Ruangan (M2)", "Kategori"];
+    const headers = ["Nama Unit Kerja", "Lokasi Unit Kerja", "Luas Ruangan (M2)", "Kategori"];
     const csv = Papa.unparse([headers]);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     saveAs(blob, "template_unit_kerja.csv");
@@ -287,19 +338,6 @@ const UnitKerjaFormTable: React.FC = () => {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="kode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kode Unit Kerja</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: UK001" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name="nama"
