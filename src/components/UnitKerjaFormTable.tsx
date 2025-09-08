@@ -73,7 +73,6 @@ const UnitKerjaFormTable: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [reportFilter, setReportFilter] = useState<"all" | "Pusat Biaya" | "Pusat Pendapatan">("all");
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
