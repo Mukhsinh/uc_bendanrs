@@ -293,96 +293,98 @@ const BiayaFormTable: React.FC = () => {
 
     const file = event.target.files?.[0];
     if (file) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results: Papa.ParseResult<any>) => {
-          try {
-            const importedData: any[] = [];
-            const duplicateYears: number[] = [];
-            
-            for (const row of results.data) {
-              const tahun = parseInt(row["Tahun"]);
+      file.text().then((text) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results: Papa.ParseResult<any>) => {
+            try {
+              const importedData: any[] = [];
+              const duplicateYears: number[] = [];
               
-              if (isNaN(tahun)) {
-                toast.error("Tahun tidak valid dalam file CSV.");
+              for (const row of results.data) {
+                const tahun = parseInt(row["Tahun"]);
+                
+                if (isNaN(tahun)) {
+                  toast.error("Tahun tidak valid dalam file CSV.");
+                  return;
+                }
+                
+                // Check if tahun already exists in database
+                const { data: existingData, error: checkError } = await supabase
+                  .from('biaya')
+                  .select('id')
+                  .eq('tahun', tahun)
+                  .eq('user_id', userId)
+                  .maybeSingle();
+                
+                if (checkError) throw checkError;
+                
+                if (existingData) {
+                  duplicateYears.push(tahun);
+                  continue;
+                }
+                
+                // Check if tahun already exists in this import batch
+                const isDuplicateInBatch = importedData.some(item => item.tahun === tahun);
+                if (isDuplicateInBatch) {
+                  duplicateYears.push(tahun);
+                  continue;
+                }
+                
+                importedData.push({
+                  tahun,
+                  biaya_gaji_tunjangan: parseFloat(row["Biaya Gaji dan Tunjangan"]) || 0,
+                  biaya_jasa_pelayanan: parseFloat(row["Biaya Jasa Pelayanan"]) || 0,
+                  biaya_obat: parseFloat(row["Biaya Obat"]) || 0,
+                  biaya_bhp: parseFloat(row["Biaya BHP"]) || 0,
+                  biaya_makan_karyawan: parseFloat(row["Biaya Bahan Makanan Karyawan"]) || 0,
+                  biaya_makan_pasien: parseFloat(row["Biaya Bahan Makanan Pasien"]) || 0,
+                  biaya_rumah_tangga: parseFloat(row["Biaya Alat Rumah Tangga"]) || 0,
+                  biaya_cetak: parseFloat(row["Biaya Cetak"]) || 0,
+                  biaya_atk: parseFloat(row["Biaya Alat Tulis Kantor"]) || 0,
+                  biaya_listrik: parseFloat(row["Biaya Listrik"]) || 0,
+                  biaya_air: parseFloat(row["Biaya Air"]) || 0,
+                  biaya_telp: parseFloat(row["Biaya Telepon"]) || 0,
+                  biaya_pemeliharaan_bangunan: parseFloat(row["Biaya Pemeliharaan Gedung dan Bangunan"]) || 0,
+                  biaya_pemeliharaan_alat_medis: parseFloat(row["Biaya Pemeliharaan Alat Medis"]) || 0,
+                  biaya_pemeliharaan_alat_non_medis: parseFloat(row["Biaya Pemeliharaan Alat Non Medis"]) || 0,
+                  biaya_operasional_lainnya: parseFloat(row["Biaya Operasional Lainnya"]) || 0,
+                  biaya_penyusutan_gedung: parseFloat(row["Biaya Penyusutan Gedung dan Bangunan"]) || 0,
+                  biaya_penyusutan_jaringan: parseFloat(row["Biaya Penyusutan Jaringan"]) || 0,
+                  biaya_penyusutan_alat_medis: parseFloat(row["Biaya Penyusutan Alat Medis"]) || 0,
+                  biaya_penyusutan_alat_non_medis: parseFloat(row["Biaya Penyusutan Alat Non Medis"]) || 0,
+                  biaya_pendidikan_pelatihan: parseFloat(row["Biaya Pendidikan Pelatihan"]) || 0,
+                  user_id: userId,
+                });
+              }
+              
+              if (duplicateYears.length > 0) {
+                toast.error(`Data biaya untuk tahun berikut sudah ada: ${duplicateYears.join(", ")}`);
                 return;
               }
               
-              // Check if tahun already exists in database
-              const { data: existingData, error: checkError } = await supabase
+              if (importedData.length === 0) {
+                toast.warning("Tidak ada data valid untuk diimpor.");
+                return;
+              }
+
+              const { error } = await supabase
                 .from('biaya')
-                .select('id')
-                .eq('tahun', tahun)
-                .eq('user_id', userId)
-                .maybeSingle();
-              
-              if (checkError) throw checkError;
-              
-              if (existingData) {
-                duplicateYears.push(tahun);
-                continue;
-              }
-              
-              // Check if tahun already exists in this import batch
-              const isDuplicateInBatch = importedData.some(item => item.tahun === tahun);
-              if (isDuplicateInBatch) {
-                duplicateYears.push(tahun);
-                continue;
-              }
-              
-              importedData.push({
-                tahun,
-                biaya_gaji_tunjangan: parseFloat(row["Biaya Gaji dan Tunjangan"]) || 0,
-                biaya_jasa_pelayanan: parseFloat(row["Biaya Jasa Pelayanan"]) || 0,
-                biaya_obat: parseFloat(row["Biaya Obat"]) || 0,
-                biaya_bhp: parseFloat(row["Biaya BHP"]) || 0,
-                biaya_makan_karyawan: parseFloat(row["Biaya Bahan Makanan Karyawan"]) || 0,
-                biaya_makan_pasien: parseFloat(row["Biaya Bahan Makanan Pasien"]) || 0,
-                biaya_rumah_tangga: parseFloat(row["Biaya Alat Rumah Tangga"]) || 0,
-                biaya_cetak: parseFloat(row["Biaya Cetak"]) || 0,
-                biaya_atk: parseFloat(row["Biaya Alat Tulis Kantor"]) || 0,
-                biaya_listrik: parseFloat(row["Biaya Listrik"]) || 0,
-                biaya_air: parseFloat(row["Biaya Air"]) || 0,
-                biaya_telp: parseFloat(row["Biaya Telepon"]) || 0,
-                biaya_pemeliharaan_bangunan: parseFloat(row["Biaya Pemeliharaan Gedung dan Bangunan"]) || 0,
-                biaya_pemeliharaan_alat_medis: parseFloat(row["Biaya Pemeliharaan Alat Medis"]) || 0,
-                biaya_pemeliharaan_alat_non_medis: parseFloat(row["Biaya Pemeliharaan Alat Non Medis"]) || 0,
-                biaya_operasional_lainnya: parseFloat(row["Biaya Operasional Lainnya"]) || 0,
-                biaya_penyusutan_gedung: parseFloat(row["Biaya Penyusutan Gedung dan Bangunan"]) || 0,
-                biaya_penyusutan_jaringan: parseFloat(row["Biaya Penyusutan Jaringan"]) || 0,
-                biaya_penyusutan_alat_medis: parseFloat(row["Biaya Penyusutan Alat Medis"]) || 0,
-                biaya_penyusutan_alat_non_medis: parseFloat(row["Biaya Penyusutan Alat Non Medis"]) || 0,
-                biaya_pendidikan_pelatihan: parseFloat(row["Biaya Pendidikan Pelatihan"]) || 0,
-                user_id: userId,
-              });
-            }
-            
-            if (duplicateYears.length > 0) {
-              toast.error(`Data biaya untuk tahun berikut sudah ada: ${duplicateYears.join(", ")}`);
-              return;
-            }
-            
-            if (importedData.length === 0) {
-              toast.warning("Tidak ada data valid untuk diimpor.");
-              return;
-            }
+                .insert(importedData);
 
-            const { error } = await supabase
-              .from('biaya')
-              .insert(importedData);
-
-            if (error) throw error;
-            if (userId) await fetchBiaya(userId);
-            toast.success(`${importedData.length} data berhasil diimpor.`);
-          } catch (error: any) {
-            console.error(error);
+              if (error) throw error;
+              if (userId) await fetchBiaya(userId);
+              toast.success(`${importedData.length} data berhasil diimpor.`);
+            } catch (error: any) {
+              console.error(error);
+              toast.error(`Gagal mengimpor data: ${error.message}`);
+            }
+          },
+          error: (error: Papa.ParseError) => {
             toast.error(`Gagal mengimpor data: ${error.message}`);
           }
-        },
-        error: (error: Papa.ParseError) => {
-          toast.error(`Gagal mengimpor data: ${error.message}`);
-        }
+        });
       });
     }
   };

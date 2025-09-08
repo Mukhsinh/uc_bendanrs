@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { v4 as uuidv4 } from "uuid";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
@@ -245,40 +244,42 @@ const UnitKerjaFormTable: React.FC = () => {
 
     const file = event.target.files?.[0];
     if (file) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results: Papa.ParseResult<any>) => {
-          try {
-            // Generate unique codes for each imported item
-            const importedData: any[] = [];
-            for (const row of results.data) {
-              const kode = await generateKodeUnitKerja(userId);
-              importedData.push({
-                kode,
-                nama: row["Nama Unit Kerja"] || "",
-                lokasi: row["Lokasi Unit Kerja"] || "",
-                luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
-                kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
-                user_id: userId,
-              });
+      file.text().then((text) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results: Papa.ParseResult<any>) => {
+            try {
+              // Generate unique codes for each imported item
+              const importedData: any[] = [];
+              for (const row of results.data) {
+                const kode = await generateKodeUnitKerja(userId);
+                importedData.push({
+                  kode,
+                  nama: row["Nama Unit Kerja"] || "",
+                  lokasi: row["Lokasi Unit Kerja"] || "",
+                  luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
+                  kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
+                  user_id: userId,
+                });
+              }
+
+              const { error } = await supabase
+                .from('unit_kerja')
+                .insert(importedData);
+
+              if (error) throw error;
+              if (userId) await fetchUnitKerja(userId);
+              toast.success(`${importedData.length} data berhasil diimpor.`);
+            } catch (error: any) {
+              console.error(error);
+              toast.error(`Gagal mengimpor data: ${error.message}`);
             }
-
-            const { error } = await supabase
-              .from('unit_kerja')
-              .insert(importedData);
-
-            if (error) throw error;
-            if (userId) await fetchUnitKerja(userId);
-            toast.success(`${importedData.length} data berhasil diimpor.`);
-          } catch (error: any) {
-            console.error(error);
+          },
+          error: (error: Papa.ParseError) => {
             toast.error(`Gagal mengimpor data: ${error.message}`);
           }
-        },
-        error: (error: Papa.ParseError) => {
-          toast.error(`Gagal mengimpor data: ${error.message}`);
-        }
+        });
       });
     }
   };

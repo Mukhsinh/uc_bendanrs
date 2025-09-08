@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import BarangFormTable from "@/components/BarangFormTable";
 
 const DataBarang = () => {

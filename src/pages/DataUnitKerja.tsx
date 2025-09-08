@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import UnitKerjaFormTable from "@/components/UnitKerjaFormTable"; // Import the new component
 
 const DataUnitKerja = () => {

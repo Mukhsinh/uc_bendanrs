@@ -265,83 +265,85 @@ const BarangFormTable: React.FC = () => {
 
     const file = event.target.files?.[0];
     if (file) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results: Papa.ParseResult<any>) => {
-          try {
-            const importedData: any[] = [];
-            const duplicateCodes: string[] = [];
-            const unitKerjaMap = new Map(unitKerjaList.map(uk => [uk.kode, uk.id]));
-            
-            for (const row of results.data) {
-              const kode = row["Kode Barang"] || "";
+      file.text().then((text) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          complete: async (results: Papa.ParseResult<any>) => {
+            try {
+              const importedData: any[] = [];
+              const duplicateCodes: string[] = [];
+              const unitKerjaMap = new Map(unitKerjaList.map(uk => [uk.kode, uk.id]));
               
-              if (!kode) {
-                toast.error("Kode Barang tidak boleh kosong dalam file CSV.");
+              for (const row of results.data) {
+                const kode = row["Kode Barang"] || "";
+                
+                if (!kode) {
+                  toast.error("Kode Barang tidak boleh kosong dalam file CSV.");
+                  return;
+                }
+                
+                // Check if kode already exists in database
+                const isKodeExists = await checkKodeExists(kode, userId);
+                
+                if (isKodeExists) {
+                  duplicateCodes.push(kode);
+                  continue;
+                }
+                
+                // Check if kode already exists in this import batch
+                const isDuplicateInBatch = importedData.some(item => item.kode === kode);
+                if (isDuplicateInBatch) {
+                  duplicateCodes.push(kode);
+                  continue;
+                }
+                
+                // Find unit kerja by kode if provided
+                let unitKerjaId = null;
+                const unitKerjaKode = row["Kode Unit Kerja"];
+                if (unitKerjaKode) {
+                  unitKerjaId = unitKerjaMap.get(unitKerjaKode) || null;
+                  if (!unitKerjaId) {
+                    toast.warning(`Kode Unit Kerja '${unitKerjaKode}' tidak ditemukan, melewatkan penautan unit kerja untuk barang ${kode}`);
+                  }
+                }
+                
+                importedData.push({
+                  kode,
+                  klasifikasi: row["Klasifikasi"] === "PERSEDIAAN" ? "PERSEDIAAN" : "ASET",
+                  nama: row["Nama Barang"] || "",
+                  gudang: row["Gudang"] === "Non Medis" ? "Non Medis" : "Medis",
+                  unit_kerja_id: unitKerjaId,
+                  user_id: userId,
+                });
+              }
+              
+              if (duplicateCodes.length > 0) {
+                toast.error(`Kode Barang berikut sudah ada: ${duplicateCodes.join(", ")}`);
                 return;
               }
               
-              // Check if kode already exists in database
-              const isKodeExists = await checkKodeExists(kode, userId);
-              
-              if (isKodeExists) {
-                duplicateCodes.push(kode);
-                continue;
+              if (importedData.length === 0) {
+                toast.warning("Tidak ada data valid untuk diimpor.");
+                return;
               }
-              
-              // Check if kode already exists in this import batch
-              const isDuplicateInBatch = importedData.some(item => item.kode === kode);
-              if (isDuplicateInBatch) {
-                duplicateCodes.push(kode);
-                continue;
-              }
-              
-              // Find unit kerja by kode if provided
-              let unitKerjaId = null;
-              const unitKerjaKode = row["Kode Unit Kerja"];
-              if (unitKerjaKode) {
-                unitKerjaId = unitKerjaMap.get(unitKerjaKode) || null;
-                if (!unitKerjaId) {
-                  toast.warning(`Kode Unit Kerja '${unitKerjaKode}' tidak ditemukan, melewatkan penautan unit kerja untuk barang ${kode}`);
-                }
-              }
-              
-              importedData.push({
-                kode,
-                klasifikasi: row["Klasifikasi"] === "PERSEDIAAN" ? "PERSEDIAAN" : "ASET",
-                nama: row["Nama Barang"] || "",
-                gudang: row["Gudang"] === "Non Medis" ? "Non Medis" : "Medis",
-                unit_kerja_id: unitKerjaId,
-                user_id: userId,
-              });
-            }
-            
-            if (duplicateCodes.length > 0) {
-              toast.error(`Kode Barang berikut sudah ada: ${duplicateCodes.join(", ")}`);
-              return;
-            }
-            
-            if (importedData.length === 0) {
-              toast.warning("Tidak ada data valid untuk diimpor.");
-              return;
-            }
 
-            const { error } = await supabase
-              .from('barang')
-              .insert(importedData);
+              const { error } = await supabase
+                .from('barang')
+                .insert(importedData);
 
-            if (error) throw error;
-            if (userId) await fetchBarang(userId);
-            toast.success(`${importedData.length} data berhasil diimpor.`);
-          } catch (error: any) {
-            console.error(error);
+              if (error) throw error;
+              if (userId) await fetchBarang(userId);
+              toast.success(`${importedData.length} data berhasil diimpor.`);
+            } catch (error: any) {
+              console.error(error);
+              toast.error(`Gagal mengimpor data: ${error.message}`);
+            }
+          },
+          error: (error: Papa.ParseError) => {
             toast.error(`Gagal mengimpor data: ${error.message}`);
           }
-        },
-        error: (error: Papa.ParseError) => {
-          toast.error(`Gagal mengimpor data: ${error.message}`);
-        }
+        });
       });
     }
   };
