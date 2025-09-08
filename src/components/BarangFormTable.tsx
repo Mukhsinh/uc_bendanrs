@@ -34,7 +34,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+}
+from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -437,14 +438,14 @@ const BarangFormTable: React.FC = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Unit Kerja</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <Select onValueChange={(value) => field.onChange(value === "null" ? null : value)} value={field.value || "null"}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Pilih Unit Kerja" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Tidak ada</SelectItem>
+                            <SelectItem value="null">Tidak ada</SelectItem>
                             {unitKerjaList.map((unit) => (
                               <SelectItem key={unit.id} value={unit.id}>
                                 {unit.nama}
