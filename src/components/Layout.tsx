@@ -29,7 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link to="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
-              <span className="">Unit Cost App</span>
+              <span className="">Aplikasi Unit Cost RS</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -57,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col bg-sidebar">
               <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground">
-                <span>Unit Cost App</span>
+                <span>Aplikasi Unit Cost RS</span>
               </Link>
               <nav className="grid gap-2 text-lg font-medium">
                 <SidebarNav isMobile onLinkClick={handleLinkClick} />
@@ -65,7 +65,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </SheetContent>
           </Sheet>
           <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground">
-            <span>Unit Cost App</span>
+            <span>Aplikasi Unit Cost RS</span>
           </Link>
         </header>
 
