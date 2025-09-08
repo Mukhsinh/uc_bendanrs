@@ -48,7 +48,7 @@ import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-re
 
 interface UnitKerja {
   id: string;
-  user_id: string;
+  user_id?: string;
   kode: string;
   nama: string;
   lokasi: string;
@@ -86,15 +86,8 @@ const UnitKerjaFormTable: React.FC = () => {
   });
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
-        fetchUnitKerja(session.user.id);
-      }
-    };
-    
-    fetchUser();
+    // Load all unit_kerja records (shared across users)
+    fetchUnitKerja();
   }, []);
 
   useEffect(() => {
@@ -115,12 +108,11 @@ const UnitKerjaFormTable: React.FC = () => {
     }
   }, [editingUnitKerja, form]);
 
-  const fetchUnitKerja = async (currentUserId: string) => {
+  const fetchUnitKerja = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('unit_kerja')
       .select('*')
-      .eq('user_id', currentUserId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -132,12 +124,11 @@ const UnitKerjaFormTable: React.FC = () => {
     setLoading(false);
   };
 
-  const generateKodeUnitKerja = async (userId: string) => {
-    // Get the latest unit kerja for this user to determine the next number
+  const generateKodeUnitKerja = async () => {
+    // Get the latest unit kerja globally to determine the next number
     const { data, error } = await supabase
       .from('unit_kerja')
       .select('kode')
-      .eq('user_id', userId)
       .order('kode', { ascending: false })
       .limit(1);
 
@@ -160,11 +151,6 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!userId) {
-      toast.error("User tidak ditemukan. Silakan login kembali.");
-      return;
-    }
-
     try {
       let kode: string;
       
@@ -173,21 +159,20 @@ const UnitKerjaFormTable: React.FC = () => {
         kode = editingUnitKerja.kode;
         const { error } = await supabase
           .from('unit_kerja')
-          .update({ ...values, user_id: userId, kode })
+          .update({ ...values, kode })
           .eq('id', editingUnitKerja.id);
 
         if (error) throw error;
         toast.success("Data Unit Kerja berhasil diperbarui.");
       } else {
         // Generate new kode for new entries
-        kode = await generateKodeUnitKerja(userId);
+        kode = await generateKodeUnitKerja();
         
         // Check if kode already exists (shouldn't happen but just in case)
         const { data: existingData, error: checkError } = await supabase
           .from('unit_kerja')
           .select('id')
           .eq('kode', kode)
-          .eq('user_id', userId)
           .maybeSingle();
 
         if (checkError) throw checkError;
@@ -200,12 +185,12 @@ const UnitKerjaFormTable: React.FC = () => {
 
         const { error } = await supabase
           .from('unit_kerja')
-          .insert([{ ...values, user_id: userId, kode }]);
+          .insert([{ ...values, kode }]);
 
         if (error) throw error;
         toast.success("Data Unit Kerja berhasil ditambahkan.");
       }
-      await fetchUnitKerja(userId);
+      await fetchUnitKerja();
       setEditingUnitKerja(null);
       setIsDialogOpen(false);
       form.reset();
@@ -228,7 +213,7 @@ const UnitKerjaFormTable: React.FC = () => {
         .eq('id', id);
 
       if (error) throw error;
-      if (userId) await fetchUnitKerja(userId);
+      await fetchUnitKerja();
       toast.success("Data Unit Kerja berhasil dihapus.");
     } catch (error: any) {
       console.error(error);
@@ -237,11 +222,6 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!userId) {
-      toast.error("User tidak ditemukan. Silakan login kembali.");
-      return;
-    }
-
     const file = event.target.files?.[0];
     if (file) {
       file.text().then((text) => {
@@ -253,14 +233,13 @@ const UnitKerjaFormTable: React.FC = () => {
               // Generate unique codes for each imported item
               const importedData: any[] = [];
               for (const row of results.data) {
-                const kode = await generateKodeUnitKerja(userId);
+                const kode = await generateKodeUnitKerja();
                 importedData.push({
                   kode,
                   nama: row["Nama Unit Kerja"] || "",
                   lokasi: row["Lokasi Unit Kerja"] || "",
                   luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
                   kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
-                  user_id: userId,
                 });
               }
 
@@ -269,7 +248,7 @@ const UnitKerjaFormTable: React.FC = () => {
                 .insert(importedData);
 
               if (error) throw error;
-              if (userId) await fetchUnitKerja(userId);
+              await fetchUnitKerja();
               toast.success(`${importedData.length} data berhasil diimpor.`);
             } catch (error: any) {
               console.error(error);
@@ -321,11 +300,9 @@ const UnitKerjaFormTable: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manajemen Data Unit Kerja</h2>
         <div className="flex gap-2">
-          {userId && (
-            <Button onClick={() => fetchUnitKerja(userId)} variant="outline" size="icon">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          )}
+          <Button onClick={() => fetchUnitKerja()} variant="outline" size="icon">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingUnitKerja(null)}>Tambah Data Unit Kerja</Button>
