@@ -1,14 +1,12 @@
 "use client";
 
 import React from "react";
+import BarangFormTable from "@/components/BarangFormTable";
 
 const DataBarang = () => {
   return (
-    <div className="flex flex-col items-center justify-center h-full bg-background text-foreground">
-      <h1 className="text-3xl font-bold mb-4">Data Barang</h1>
-      <p className="text-lg text-muted-foreground">
-        This is the Data Barang management page.
-      </p>
+    <div className="flex flex-col h-full bg-background text-foreground p-4">
+      <BarangFormTable />
     </div>
   );
 };
