@@ -154,7 +154,7 @@ const BarangFormTable: React.FC = () => {
   const fetchUnitKerja = async (currentUserId: string) => {
     const { data, error } = await supabase
       .from('unit_kerja')
-      .select('id, kode, nama')
+      .select('id, kode, nama, kategori')
       .eq('user_id', currentUserId)
       .order('nama', { ascending: true });
 

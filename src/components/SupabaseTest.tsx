@@ -9,9 +9,6 @@ const SupabaseTest = () => {
   useEffect(() => {
     const testConnection = async () => {
       try {
-        // Mencoba mengakses informasi dasar tentang Supabase
-        console.log('Supabase URL:', supabase.supabaseUrl);
-        
         // Mencoba melakukan permintaan sederhana ke tabel unit_kerja
         const { data, error, count } = await supabase
           .from('unit_kerja')
