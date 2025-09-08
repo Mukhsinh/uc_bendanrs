@@ -15,9 +15,9 @@ const Index = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground">
       <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Loading Unit Cost App...</h1>
+        <h1 className="text-4xl font-bold mb-4">APLIKASI UNIT COST RS</h1>
         <p className="text-xl text-muted-foreground">
-          Redirecting to Data Unit Kerja.
+          Mengarahkan ke Data Unit Kerja...
         </p>
       </div>
       <MadeWithDyad />
