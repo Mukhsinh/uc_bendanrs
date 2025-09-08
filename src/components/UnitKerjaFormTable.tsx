@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from "uuid";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,22 +45,24 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Upload, Download, FileText } from "lucide-react";
+import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 
 interface UnitKerja {
   id: string;
   kode: string;
   nama: string;
   lokasi: string;
-  luasRuangan: number;
+  luas_ruangan: number;
   kategori: "Pusat Biaya" | "Pusat Pendapatan";
+  created_at?: string;
+  updated_at?: string;
 }
 
 const formSchema = z.object({
   kode: z.string().min(1, { message: "Kode Unit Kerja harus diisi." }),
   nama: z.string().min(1, { message: "Nama Unit Kerja harus diisi." }),
   lokasi: z.string().min(1, { message: "Lokasi Unit Kerja harus diisi." }),
-  luasRuangan: z.coerce.number().min(0, { message: "Luas Ruangan harus angka positif." }),
+  luas_ruangan: z.coerce.number().min(0, { message: "Luas Ruangan harus angka positif." }),
   kategori: z.enum(["Pusat Biaya", "Pusat Pendapatan"], {
     required_error: "Kategori harus dipilih.",
   }),
@@ -70,6 +73,7 @@ const UnitKerjaFormTable: React.FC = () => {
   const [editingUnitKerja, setEditingUnitKerja] = useState<UnitKerja | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [reportFilter, setReportFilter] = useState<"all" | "Pusat Biaya" | "Pusat Pendapatan">("all");
+  const [loading, setLoading] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -77,40 +81,77 @@ const UnitKerjaFormTable: React.FC = () => {
       kode: "",
       nama: "",
       lokasi: "",
-      luasRuangan: 0,
+      luas_ruangan: 0,
       kategori: "Pusat Biaya",
     },
   });
 
   useEffect(() => {
+    fetchUnitKerja();
+  }, []);
+
+  useEffect(() => {
     if (editingUnitKerja) {
-      form.reset(editingUnitKerja);
+      form.reset({
+        kode: editingUnitKerja.kode,
+        nama: editingUnitKerja.nama,
+        lokasi: editingUnitKerja.lokasi,
+        luas_ruangan: editingUnitKerja.luas_ruangan,
+        kategori: editingUnitKerja.kategori,
+      });
     } else {
       form.reset({
         kode: "",
         nama: "",
         lokasi: "",
-        luasRuangan: 0,
+        luas_ruangan: 0,
         kategori: "Pusat Biaya",
       });
     }
   }, [editingUnitKerja, form]);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    if (editingUnitKerja) {
-      setUnitKerjaList(
-        unitKerjaList.map((item) =>
-          item.id === editingUnitKerja.id ? { ...values, id: item.id } : item
-        )
-      );
-      toast.success("Data Unit Kerja berhasil diperbarui.");
+  const fetchUnitKerja = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('unit_kerja')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      toast.error("Gagal memuat data unit kerja.");
+      console.error(error);
     } else {
-      setUnitKerjaList([...unitKerjaList, { ...values, id: uuidv4() }]);
-      toast.success("Data Unit Kerja berhasil ditambahkan.");
+      setUnitKerjaList(data || []);
     }
-    setEditingUnitKerja(null);
-    setIsDialogOpen(false);
-    form.reset();
+    setLoading(false);
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      if (editingUnitKerja) {
+        const { error } = await supabase
+          .from('unit_kerja')
+          .update(values)
+          .eq('id', editingUnitKerja.id);
+
+        if (error) throw error;
+        toast.success("Data Unit Kerja berhasil diperbarui.");
+      } else {
+        const { error } = await supabase
+          .from('unit_kerja')
+          .insert([values]);
+
+        if (error) throw error;
+        toast.success("Data Unit Kerja berhasil ditambahkan.");
+      }
+      await fetchUnitKerja();
+      setEditingUnitKerja(null);
+      setIsDialogOpen(false);
+      form.reset();
+    } catch (error) {
+      console.error(error);
+      toast.error("Terjadi kesalahan saat menyimpan data.");
+    }
   };
 
   const handleEdit = (unitKerja: UnitKerja) => {
@@ -118,28 +159,49 @@ const UnitKerjaFormTable: React.FC = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setUnitKerjaList(unitKerjaList.filter((item) => item.id !== id));
-    toast.success("Data Unit Kerja berhasil dihapus.");
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('unit_kerja')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchUnitKerja();
+      toast.success("Data Unit Kerja berhasil dihapus.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Terjadi kesalahan saat menghapus data.");
+    }
   };
 
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: (results) => {
-          const importedData: UnitKerja[] = results.data.map((row: any) => ({
-            id: uuidv4(),
-            kode: row["Kode Unit Kerja"] || "",
-            nama: row["Nama Unit Kerja"] || "",
-            lokasi: row["Lokasi Unit Kerja"] || "",
-            luasRuangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
-            kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
-          }));
-          setUnitKerjaList((prev) => [...prev, ...importedData]);
-          toast.success(`${importedData.length} data berhasil diimpor.`);
+        complete: async (results) => {
+          try {
+            const importedData: any[] = results.data.map((row: any) => ({
+              kode: row["Kode Unit Kerja"] || "",
+              nama: row["Nama Unit Kerja"] || "",
+              lokasi: row["Lokasi Unit Kerja"] || "",
+              luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
+              kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
+            }));
+
+            const { error } = await supabase
+              .from('unit_kerja')
+              .insert(importedData);
+
+            if (error) throw error;
+            await fetchUnitKerja();
+            toast.success(`${importedData.length} data berhasil diimpor.`);
+          } catch (error) {
+            console.error(error);
+            toast.error(`Gagal mengimpor data: ${error.message}`);
+          }
         },
         error: (error) => {
           toast.error(`Gagal mengimpor data: ${error.message}`);
@@ -170,7 +232,7 @@ const UnitKerjaFormTable: React.FC = () => {
       "Kode Unit Kerja": item.kode,
       "Nama Unit Kerja": item.nama,
       "Lokasi Unit Kerja": item.lokasi,
-      "Luas Ruangan (M2)": item.luasRuangan,
+      "Luas Ruangan (M2)": item.luas_ruangan,
       "Kategori": item.kategori,
     }));
 
@@ -184,99 +246,104 @@ const UnitKerjaFormTable: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manajemen Data Unit Kerja</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingUnitKerja(null)}>Tambah Data Unit Kerja</Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editingUnitKerja ? "Edit Data Unit Kerja" : "Tambah Data Unit Kerja"}</DialogTitle>
-              <DialogDescription>
-                {editingUnitKerja ? "Perbarui detail unit kerja." : "Tambahkan unit kerja baru ke sistem."}
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="kode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kode Unit Kerja</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Contoh: UK001" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="nama"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nama Unit Kerja</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Contoh: IGD" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="lokasi"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Lokasi Unit Kerja</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Contoh: Gedung A Lantai 1" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="luasRuangan"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Luas Ruangan (M2)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="kategori"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kategori</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <div className="flex gap-2">
+          <Button onClick={fetchUnitKerja} variant="outline" size="icon">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingUnitKerja(null)}>Tambah Data Unit Kerja</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingUnitKerja ? "Edit Data Unit Kerja" : "Tambah Data Unit Kerja"}</DialogTitle>
+                <DialogDescription>
+                  {editingUnitKerja ? "Perbarui detail unit kerja." : "Tambahkan unit kerja baru ke sistem."}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                  <FormField
+                    control={form.control}
+                    name="kode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kode Unit Kerja</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih Kategori" />
-                          </SelectTrigger>
+                          <Input placeholder="Contoh: UK001" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Pusat Biaya">Pusat Biaya</SelectItem>
-                          <SelectItem value="Pusat Pendapatan">Pusat Pendapatan</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <DialogFooter>
-                  <Button type="submit">{editingUnitKerja ? "Simpan Perubahan" : "Tambah"}</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="nama"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nama Unit Kerja</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Contoh: IGD" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lokasi"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lokasi Unit Kerja</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Contoh: Gedung A Lantai 1" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="luas_ruangan"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Luas Ruangan (M2)</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="kategori"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kategori</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih Kategori" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Pusat Biaya">Pusat Biaya</SelectItem>
+                            <SelectItem value="Pusat Pendapatan">Pusat Pendapatan</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="submit">{editingUnitKerja ? "Simpan Perubahan" : "Tambah"}</Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-4 mb-6">
@@ -317,13 +384,19 @@ const UnitKerjaFormTable: React.FC = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {unitKerjaList.length > 0 ? (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center">
+                  Memuat data...
+                </TableCell>
+              </TableRow>
+            ) : unitKerjaList.length > 0 ? (
               unitKerjaList.map((unitKerja) => (
                 <TableRow key={unitKerja.id}>
                   <TableCell className="font-medium">{unitKerja.kode}</TableCell>
                   <TableCell>{unitKerja.nama}</TableCell>
                   <TableCell>{unitKerja.lokasi}</TableCell>
-                  <TableCell>{unitKerja.luasRuangan}</TableCell>
+                  <TableCell>{unitKerja.luas_ruangan}</TableCell>
                   <TableCell>{unitKerja.kategori}</TableCell>
                   <TableCell className="text-right">
                     <Button
