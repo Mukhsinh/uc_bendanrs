@@ -19,6 +19,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
+    /* JSX support */
+    "jsx": "react-jsx",
+
     /* Paths */
     "baseUrl": ".",
     "paths": {

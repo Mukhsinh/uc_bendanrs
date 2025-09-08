@@ -3,8 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 const SupabaseTest = () => {
   const [status, setStatus] = useState('Menguji koneksi...');
-  const [error, setError] = useState(null);
-  const [testResults, setTestResults] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<{ message: string; rowCount: number } | null>(null);
 
   useEffect(() => {
     const testConnection = async () => {
@@ -21,9 +21,9 @@ const SupabaseTest = () => {
         setStatus('Koneksi berhasil!');
         setTestResults({
           message: 'Tabel unit_kerja ditemukan',
-          rowCount: count || data.length
+          rowCount: count || data?.length || 0
         });
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error:', err);
         setError(err.message);
         setStatus('Koneksi gagal');

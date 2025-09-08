@@ -70,6 +70,81 @@ interface Biaya {
   biaya_penyusutan_alat_medis: number | null;
   biaya_penyusutan_alat_non_medis: number | null;
   biaya_pendidikan_pelatihan: number | null;
+  created_atI'll continue fixing the remaining TypeScript issues to prepare the app for Vercel deployment:
+
+<dyad-write path="src/components/BiayaFormTable.tsx" description="Fixing type issues in BiayaFormTable.tsx">
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import Papa from "papaparse";
+import { saveAs } from "file-saver";
+
+import { Button } from "@/components/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+}
+from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+
+interface Biaya {
+  id: string;
+  user_id: string;
+  tahun: number;
+  biaya_gaji_tunjangan: number | null;
+  biaya_jasa_pelayanan: number | null;
+  biaya_obat: number | null;
+  biaya_bhp: number | null;
+  biaya_makan_karyawan: number | null;
+  biaya_makan_pasien: number | null;
+  biaya_rumah_tangga: number | null;
+  biaya_cetak: number | null;
+  biaya_atk: number | null;
+  biaya_listrik: number | null;
+  biaya_air: number | null;
+  biaya_telp: number | null;
+  biaya_pemeliharaan_bangunan: number | null;
+  biaya_pemeliharaan_alat_medis: number | null;
+  biaya_pemeliharaan_alat_non_medis: number | null;
+  biaya_operasional_lainnya: number | null;
+  biaya_penyusutan_gedung: number | null;
+  biaya_penyusutan_jaringan: number | null;
+  biaya_penyusutan_alat_medis: number | null;
+  biaya_penyusutan_alat_non_medis: number | null;
+  biaya_pendidikan_pelatihan: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -286,7 +361,7 @@ const BiayaFormTable: React.FC = () => {
     }
   };
 
-  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!userId) {
       toast.error("User tidak ditemukan. Silakan login kembali.");
       return;
@@ -297,7 +372,7 @@ const BiayaFormTable: React.FC = () => {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: async (results) => {
+        complete: async (results: Papa.ParseResult<any>) => {
           try {
             const importedData: any[] = [];
             const duplicateYears: number[] = [];
@@ -381,7 +456,7 @@ const BiayaFormTable: React.FC = () => {
             toast.error(`Gagal mengimpor data: ${error.message}`);
           }
         },
-        error: (error: any) => {
+        error: (error: Papa.ParseError) => {
           toast.error(`Gagal mengimpor data: ${error.message}`);
         }
       });

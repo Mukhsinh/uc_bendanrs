@@ -210,7 +210,7 @@ const UnitKerjaFormTable: React.FC = () => {
       setEditingUnitKerja(null);
       setIsDialogOpen(false);
       form.reset();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast.error("Terjadi kesalahan saat menyimpan data.");
     }
@@ -231,13 +231,13 @@ const UnitKerjaFormTable: React.FC = () => {
       if (error) throw error;
       if (userId) await fetchUnitKerja(userId);
       toast.success("Data Unit Kerja berhasil dihapus.");
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast.error("Terjadi kesalahan saat menghapus data.");
     }
   };
 
-  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!userId) {
       toast.error("User tidak ditemukan. Silakan login kembali.");
       return;
@@ -248,7 +248,7 @@ const UnitKerjaFormTable: React.FC = () => {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: async (results) => {
+        complete: async (results: Papa.ParseResult<any>) => {
           try {
             // Generate unique codes for each imported item
             const importedData: any[] = [];
@@ -271,12 +271,12 @@ const UnitKerjaFormTable: React.FC = () => {
             if (error) throw error;
             if (userId) await fetchUnitKerja(userId);
             toast.success(`${importedData.length} data berhasil diimpor.`);
-          } catch (error) {
+          } catch (error: any) {
             console.error(error);
             toast.error(`Gagal mengimpor data: ${error.message}`);
           }
         },
-        error: (error) => {
+        error: (error: Papa.ParseError) => {
           toast.error(`Gagal mengimpor data: ${error.message}`);
         }
       });

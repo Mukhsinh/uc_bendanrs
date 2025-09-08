@@ -257,7 +257,7 @@ const BarangFormTable: React.FC = () => {
     }
   };
 
-  const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!userId) {
       toast.error("User tidak ditemukan. Silakan login kembali.");
       return;
@@ -268,7 +268,7 @@ const BarangFormTable: React.FC = () => {
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: async (results) => {
+        complete: async (results: Papa.ParseResult<any>) => {
           try {
             const importedData: any[] = [];
             const duplicateCodes: string[] = [];
@@ -339,7 +339,7 @@ const BarangFormTable: React.FC = () => {
             toast.error(`Gagal mengimpor data: ${error.message}`);
           }
         },
-        error: (error: any) => {
+        error: (error: Papa.ParseError) => {
           toast.error(`Gagal mengimpor data: ${error.message}`);
         }
       });

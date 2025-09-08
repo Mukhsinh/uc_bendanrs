@@ -19,7 +19,7 @@ import { useEffect, useState } from "react";
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [session, setSession] = useState(null);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
