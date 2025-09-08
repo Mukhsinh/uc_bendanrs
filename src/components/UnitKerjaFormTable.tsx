@@ -49,6 +49,7 @@ import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-re
 
 interface UnitKerja {
   id: string;
+  user_id: string;
   kode: string;
   nama: string;
   lokasi: string;
@@ -74,6 +75,7 @@ const UnitKerjaFormTable: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [reportFilter, setReportFilter] = useState<"all" | "Pusat Biaya" | "Pusat Pendapatan">("all");
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -87,7 +89,15 @@ const UnitKerjaFormTable: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchUnitKerja();
+    const fetchUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+        fetchUnitKerja(session.user.id);
+      }
+    };
+    
+    fetchUser();
   }, []);
 
   useEffect(() => {
@@ -110,11 +120,12 @@ const UnitKerjaFormTable: React.FC = () => {
     }
   }, [editingUnitKerja, form]);
 
-  const fetchUnitKerja = async () => {
+  const fetchUnitKerja = async (currentUserId: string) => {
     setLoading(true);
     const { data, error } = await supabase
       .from('unit_kerja')
       .select('*')
+      .eq('user_id', currentUserId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -127,11 +138,16 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!userId) {
+      toast.error("User tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
     try {
       if (editingUnitKerja) {
         const { error } = await supabase
           .from('unit_kerja')
-          .update(values)
+          .update({ ...values, user_id: userId })
           .eq('id', editingUnitKerja.id);
 
         if (error) throw error;
@@ -139,12 +155,12 @@ const UnitKerjaFormTable: React.FC = () => {
       } else {
         const { error } = await supabase
           .from('unit_kerja')
-          .insert([values]);
+          .insert([{ ...values, user_id: userId }]);
 
         if (error) throw error;
         toast.success("Data Unit Kerja berhasil ditambahkan.");
       }
-      await fetchUnitKerja();
+      await fetchUnitKerja(userId);
       setEditingUnitKerja(null);
       setIsDialogOpen(false);
       form.reset();
@@ -167,7 +183,7 @@ const UnitKerjaFormTable: React.FC = () => {
         .eq('id', id);
 
       if (error) throw error;
-      await fetchUnitKerja();
+      if (userId) await fetchUnitKerja(userId);
       toast.success("Data Unit Kerja berhasil dihapus.");
     } catch (error) {
       console.error(error);
@@ -176,6 +192,11 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const handleImportData = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!userId) {
+      toast.error("User tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (file) {
       Papa.parse(file, {
@@ -189,6 +210,7 @@ const UnitKerjaFormTable: React.FC = () => {
               lokasi: row["Lokasi Unit Kerja"] || "",
               luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
               kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
+              user_id: userId,
             }));
 
             const { error } = await supabase
@@ -196,7 +218,7 @@ const UnitKerjaFormTable: React.FC = () => {
               .insert(importedData);
 
             if (error) throw error;
-            await fetchUnitKerja();
+            if (userId) await fetchUnitKerja(userId);
             toast.success(`${importedData.length} data berhasil diimpor.`);
           } catch (error) {
             console.error(error);
@@ -247,9 +269,11 @@ const UnitKerjaFormTable: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manajemen Data Unit Kerja</h2>
         <div className="flex gap-2">
-          <Button onClick={fetchUnitKerja} variant="outline" size="icon">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          {userId && (
+            <Button onClick={() => fetchUnitKerja(userId)} variant="outline" size="icon">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingUnitKerja(null)}>Tambah Data Unit Kerja</Button>

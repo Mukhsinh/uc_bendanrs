@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 const SupabaseTest = () => {
   const [status, setStatus] = useState('Menguji koneksi...');
   const [error, setError] = useState(null);
+  const [testResults, setTestResults] = useState(null);
 
   useEffect(() => {
     const testConnection = async () => {
@@ -11,16 +12,20 @@ const SupabaseTest = () => {
         // Mencoba mengakses informasi dasar tentang Supabase
         console.log('Supabase URL:', supabase.supabaseUrl);
         
-        // Mencoba melakukan permintaan sederhana
-        const { data, error } = await supabase
+        // Mencoba melakukan permintaan sederhana ke tabel unit_kerja
+        const { data, error, count } = await supabase
           .from('unit_kerja')
-          .select('count()');
+          .select('*', { count: 'exact' });
         
         if (error) {
           throw error;
         }
         
         setStatus('Koneksi berhasil!');
+        setTestResults({
+          message: 'Tabel unit_kerja ditemukan',
+          rowCount: count || data.length
+        });
       } catch (err) {
         console.error('Error:', err);
         setError(err.message);
@@ -38,6 +43,12 @@ const SupabaseTest = () => {
       {error && (
         <div className="text-red-500">
           <p>Error: {error}</p>
+        </div>
+      )}
+      {testResults && (
+        <div className="mt-2">
+          <p>{testResults.message}</p>
+          <p>Jumlah data: {testResults.rowCount}</p>
         </div>
       )}
       <div className="mt-4">
