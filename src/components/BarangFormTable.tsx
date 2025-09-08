@@ -56,6 +56,7 @@ interface Barang {
   unit_kerja_id: string | null;
   unit_kerja?: {
     nama: string;
+    kode: string;
   };
   created_at?: string;
   updated_at?: string;
@@ -63,6 +64,7 @@ interface Barang {
 
 interface UnitKerja {
   id: string;
+  kode: string;
   nama: string;
   kategori: string;
 }
@@ -136,7 +138,7 @@ const BarangFormTable: React.FC = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('barang')
-      .select('*, unit_kerja:unit_kerja_id(nama)')
+      .select('*, unit_kerja:unit_kerja_id(kode, nama)')
       .eq('user_id', currentUserId)
       .order('created_at', { ascending: false });
 
@@ -152,7 +154,7 @@ const BarangFormTable: React.FC = () => {
   const fetchUnitKerja = async (currentUserId: string) => {
     const { data, error } = await supabase
       .from('unit_kerja')
-      .select('id, nama')
+      .select('id, kode, nama')
       .eq('user_id', currentUserId)
       .order('nama', { ascending: true });
 
@@ -270,6 +272,7 @@ const BarangFormTable: React.FC = () => {
           try {
             const importedData: any[] = [];
             const duplicateCodes: string[] = [];
+            const unitKerjaMap = new Map(unitKerjaList.map(uk => [uk.kode, uk.id]));
             
             for (const row of results.data) {
               const kode = row["Kode Barang"] || "";
@@ -294,12 +297,22 @@ const BarangFormTable: React.FC = () => {
                 continue;
               }
               
+              // Find unit kerja by kode if provided
+              let unitKerjaId = null;
+              const unitKerjaKode = row["Kode Unit Kerja"];
+              if (unitKerjaKode) {
+                unitKerjaId = unitKerjaMap.get(unitKerjaKode) || null;
+                if (!unitKerjaId) {
+                  toast.warning(`Kode Unit Kerja '${unitKerjaKode}' tidak ditemukan, melewatkan penautan unit kerja untuk barang ${kode}`);
+                }
+              }
+              
               importedData.push({
                 kode,
                 klasifikasi: row["Klasifikasi"] === "PERSEDIAAN" ? "PERSEDIAAN" : "ASET",
                 nama: row["Nama Barang"] || "",
                 gudang: row["Gudang"] === "Non Medis" ? "Non Medis" : "Medis",
-                unit_kerja_id: null,
+                unit_kerja_id: unitKerjaId,
                 user_id: userId,
               });
             }
@@ -334,7 +347,7 @@ const BarangFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Kode Barang", "Klasifikasi", "Nama Barang", "Gudang"];
+    const headers = ["Kode Barang", "Klasifikasi", "Nama Barang", "Gudang", "Kode Unit Kerja"];
     const csv = Papa.unparse([headers]);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     saveAs(blob, "template_barang.csv");
@@ -356,7 +369,8 @@ const BarangFormTable: React.FC = () => {
       "Klasifikasi": item.klasifikasi,
       "Nama Barang": item.nama,
       "Gudang": item.gudang,
-      "Unit Kerja": item.unit_kerja?.nama || "-",
+      "Kode Unit Kerja": item.unit_kerja?.kode || "-",
+      "Nama Unit Kerja": item.unit_kerja?.nama || "-",
     }));
 
     const csv = Papa.unparse(dataToExport);
@@ -472,7 +486,7 @@ const BarangFormTable: React.FC = () => {
                             <SelectItem value="null">Tidak ada</SelectItem>
                             {unitKerjaList.map((unit) => (
                               <SelectItem key={unit.id} value={unit.id}>
-                                {unit.nama}
+                                {unit.kode} - {unit.nama}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -542,7 +556,7 @@ const BarangFormTable: React.FC = () => {
                   <TableCell>{barang.klasifikasi}</TableCell>
                   <TableCell>{barang.nama}</TableCell>
                   <TableCell>{barang.gudang}</TableCell>
-                  <TableCell>{barang.unit_kerja?.nama || "-"}</TableCell>
+                  <TableCell>{barang.unit_kerja ? `${barang.unit_kerja.kode} - ${barang.unit_kerja.nama}` : "-"}</TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
