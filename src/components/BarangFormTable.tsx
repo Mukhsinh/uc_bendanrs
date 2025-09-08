@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { v4 as uuidv4 } from "uuid";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
 
@@ -72,6 +71,7 @@ const formSchema = z.object({
   klasifikasi: z.enum(["ASET", "PERSEDIAAN"], {
     required_error: "Klasifikasi harus dipilih.",
   }),
+  kode: z.string().min(1, { message: "Kode Barang harus diisi." }),
   nama: z.string().min(1, { message: "Nama Barang harus diisi." }),
   gudang: z.enum(["Medis", "Non Medis"], {
     required_error: "Gudang harus dipilih.",
@@ -92,6 +92,7 @@ const BarangFormTable: React.FC = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       klasifikasi: "ASET",
+      kode: "",
       nama: "",
       gudang: "Medis",
       unit_kerja_id: null,
@@ -115,6 +116,7 @@ const BarangFormTable: React.FC = () => {
     if (editingBarang) {
       form.reset({
         klasifikasi: editingBarang.klasifikasi,
+        kode: editingBarang.kode,
         nama: editingBarang.nama,
         gudang: editingBarang.gudang,
         unit_kerja_id: editingBarang.unit_kerja_id || undefined,
@@ -122,6 +124,7 @@ const BarangFormTable: React.FC = () => {
     } else {
       form.reset({
         klasifikasi: "ASET",
+        kode: "",
         nama: "",
         gudang: "Medis",
         unit_kerja_id: null,
@@ -161,32 +164,21 @@ const BarangFormTable: React.FC = () => {
     }
   };
 
-  const generateKodeBarang = async (userId: string, klasifikasi: string) => {
-    // Get the latest barang for this user and klasifikasi to determine the next number
-    const { data, error } = await supabase
+  const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {
+    let query = supabase
       .from('barang')
-      .select('kode')
-      .eq('user_id', userId)
-      .eq('klasifikasi', klasifikasi)
-      .order('kode', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('Error fetching latest kode:', error);
-      // If there's an error, start from 001
-      return `${klasifikasi.substring(0, 3)}001`;
+      .select('id')
+      .eq('kode', kode)
+      .eq('user_id', currentUserId);
+      
+    if (excludeId) {
+      query = query.neq('id', excludeId);
     }
-
-    if (!data || data.length === 0) {
-      // If no data exists, start from 001
-      return `${klasifikasi.substring(0, 3)}001`;
-    }
-
-    // Extract the number from the latest kode and increment
-    const latestKode = data[0].kode;
-    const numberPart = parseInt(latestKode.substring(3));
-    const nextNumber = numberPart + 1;
-    return `${klasifikasi.substring(0, 3)}${nextNumber.toString().padStart(3, '0')}`;
+    
+    const { data, error } = await query.maybeSingle();
+    
+    if (error) throw error;
+    return !!data;
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -196,17 +188,24 @@ const BarangFormTable: React.FC = () => {
     }
 
     try {
-      let kode: string;
+      // Check if kode already exists
+      const isKodeExists = await checkKodeExists(
+        values.kode, 
+        userId, 
+        editingBarang?.id
+      );
       
+      if (isKodeExists) {
+        toast.error("Kode Barang sudah digunakan. Silakan gunakan kode yang lain.");
+        return;
+      }
+
       if (editingBarang) {
-        // For editing, keep the existing kode
-        kode = editingBarang.kode;
         const { error } = await supabase
           .from('barang')
           .update({ 
             ...values, 
-            user_id: userId, 
-            kode,
+            user_id: userId,
             unit_kerja_id: values.unit_kerja_id || null
           })
           .eq('id', editingBarang.id);
@@ -214,30 +213,11 @@ const BarangFormTable: React.FC = () => {
         if (error) throw error;
         toast.success("Data Barang berhasil diperbarui.");
       } else {
-        // Generate new kode for new entries
-        kode = await generateKodeBarang(userId, values.klasifikasi);
-        
-        // Check if kode already exists
-        const { data: existingData, error: checkError } = await supabase
-          .from('barang')
-          .select('id')
-          .eq('kode', kode)
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (checkError) throw checkError;
-        
-        if (existingData) {
-          toast.error("Terjadi kesalahan saat membuat kode barang. Silakan coba lagi.");
-          return;
-        }
-
         const { error } = await supabase
           .from('barang')
           .insert([{
             ...values,
             user_id: userId,
-            kode,
             unit_kerja_id: values.unit_kerja_id || null
           }]);
 
@@ -288,19 +268,50 @@ const BarangFormTable: React.FC = () => {
         skipEmptyLines: true,
         complete: async (results) => {
           try {
-            // Generate unique codes for each imported item
             const importedData: any[] = [];
+            const duplicateCodes: string[] = [];
+            
             for (const row of results.data) {
-              const klasifikasi = row["Klasifikasi"] === "PERSEDIAAN" ? "PERSEDIAAN" : "ASET";
-              const kode = await generateKodeBarang(userId, klasifikasi);
+              const kode = row["Kode Barang"] || "";
+              
+              if (!kode) {
+                toast.error("Kode Barang tidak boleh kosong dalam file CSV.");
+                return;
+              }
+              
+              // Check if kode already exists in database
+              const isKodeExists = await checkKodeExists(kode, userId);
+              
+              if (isKodeExists) {
+                duplicateCodes.push(kode);
+                continue;
+              }
+              
+              // Check if kode already exists in this import batch
+              const isDuplicateInBatch = importedData.some(item => item.kode === kode);
+              if (isDuplicateInBatch) {
+                duplicateCodes.push(kode);
+                continue;
+              }
+              
               importedData.push({
                 kode,
-                klasifikasi,
+                klasifikasi: row["Klasifikasi"] === "PERSEDIAAN" ? "PERSEDIAAN" : "ASET",
                 nama: row["Nama Barang"] || "",
                 gudang: row["Gudang"] === "Non Medis" ? "Non Medis" : "Medis",
                 unit_kerja_id: null,
                 user_id: userId,
               });
+            }
+            
+            if (duplicateCodes.length > 0) {
+              toast.error(`Kode Barang berikut sudah ada: ${duplicateCodes.join(", ")}`);
+              return;
+            }
+            
+            if (importedData.length === 0) {
+              toast.warning("Tidak ada data valid untuk diimpor.");
+              return;
             }
 
             const { error } = await supabase
@@ -323,7 +334,7 @@ const BarangFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Klasifikasi", "Nama Barang", "Gudang"];
+    const headers = ["Kode Barang", "Klasifikasi", "Nama Barang", "Gudang"];
     const csv = Papa.unparse([headers]);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     saveAs(blob, "template_barang.csv");
@@ -377,6 +388,19 @@ const BarangFormTable: React.FC = () => {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                  <FormField
+                    control={form.control}
+                    name="kode"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kode Barang</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Contoh: BRG001" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <FormField
                     control={form.control}
                     name="klasifikasi"
