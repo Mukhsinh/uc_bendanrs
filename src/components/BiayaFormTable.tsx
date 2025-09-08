@@ -37,6 +37,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface Biaya {
   id: string;
@@ -62,10 +68,7 @@ interface Biaya {
   biaya_penyusutan_jaringan: number | null;
   biaya_penyusutan_alat_medis: number | null;
   biaya_penyusutan_alat_non_medis: number | null;
-  biaya_pendidikan_kuliah: number | null;
   biaya_pendidikan_pelatihan: number | null;
-  biaya_pendidikan_seminar: number | null;
-  biaya_pendidikan_sertifikasi: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -92,10 +95,7 @@ const formSchema = z.object({
   biaya_penyusutan_jaringan: z.coerce.number().min(0).optional(),
   biaya_penyusutan_alat_medis: z.coerce.number().min(0).optional(),
   biaya_penyusutan_alat_non_medis: z.coerce.number().min(0).optional(),
-  biaya_pendidikan_kuliah: z.coerce.number().min(0).optional(),
   biaya_pendidikan_pelatihan: z.coerce.number().min(0).optional(),
-  biaya_pendidikan_seminar: z.coerce.number().min(0).optional(),
-  biaya_pendidikan_sertifikasi: z.coerce.number().min(0).optional(),
 });
 
 const BiayaFormTable: React.FC = () => {
@@ -129,10 +129,7 @@ const BiayaFormTable: React.FC = () => {
       biaya_penyusutan_jaringan: 0,
       biaya_penyusutan_alat_medis: 0,
       biaya_penyusutan_alat_non_medis: 0,
-      biaya_pendidikan_kuliah: 0,
       biaya_pendidikan_pelatihan: 0,
-      biaya_pendidikan_seminar: 0,
-      biaya_pendidikan_sertifikasi: 0,
     },
   });
 
@@ -172,10 +169,7 @@ const BiayaFormTable: React.FC = () => {
         biaya_penyusutan_jaringan: editingBiaya.biaya_penyusutan_jaringan || 0,
         biaya_penyusutan_alat_medis: editingBiaya.biaya_penyusutan_alat_medis || 0,
         biaya_penyusutan_alat_non_medis: editingBiaya.biaya_penyusutan_alat_non_medis || 0,
-        biaya_pendidikan_kuliah: editingBiaya.biaya_pendidikan_kuliah || 0,
         biaya_pendidikan_pelatihan: editingBiaya.biaya_pendidikan_pelatihan || 0,
-        biaya_pendidikan_seminar: editingBiaya.biaya_pendidikan_seminar || 0,
-        biaya_pendidikan_sertifikasi: editingBiaya.biaya_pendidikan_sertifikasi || 0,
       });
     } else {
       form.reset({
@@ -200,10 +194,7 @@ const BiayaFormTable: React.FC = () => {
         biaya_penyusutan_jaringan: 0,
         biaya_penyusutan_alat_medis: 0,
         biaya_penyusutan_alat_non_medis: 0,
-        biaya_pendidikan_kuliah: 0,
         biaya_pendidikan_pelatihan: 0,
-        biaya_pendidikan_seminar: 0,
-        biaya_pendidikan_sertifikasi: 0,
       });
     }
   }, [editingBiaya, form]);
@@ -362,10 +353,7 @@ const BiayaFormTable: React.FC = () => {
                 biaya_penyusutan_jaringan: parseFloat(row["Biaya Penyusutan Jaringan"]) || 0,
                 biaya_penyusutan_alat_medis: parseFloat(row["Biaya Penyusutan Alat Medis"]) || 0,
                 biaya_penyusutan_alat_non_medis: parseFloat(row["Biaya Penyusutan Alat Non Medis"]) || 0,
-                biaya_pendidikan_kuliah: parseFloat(row["Biaya Pendidikan Kuliah"]) || 0,
                 biaya_pendidikan_pelatihan: parseFloat(row["Biaya Pendidikan Pelatihan"]) || 0,
-                biaya_pendidikan_seminar: parseFloat(row["Biaya Pendidikan Seminar"]) || 0,
-                biaya_pendidikan_sertifikasi: parseFloat(row["Biaya Pendidikan Sertifikasi"]) || 0,
                 user_id: userId,
               });
             }
@@ -422,10 +410,7 @@ const BiayaFormTable: React.FC = () => {
       "Biaya Penyusutan Jaringan",
       "Biaya Penyusutan Alat Medis",
       "Biaya Penyusutan Alat Non Medis",
-      "Biaya Pendidikan Kuliah",
-      "Biaya Pendidikan Pelatihan",
-      "Biaya Pendidikan Seminar",
-      "Biaya Pendidikan Sertifikasi"
+      "Biaya Pendidikan Pelatihan"
     ];
     const csv = Papa.unparse([headers]);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -461,16 +446,19 @@ const BiayaFormTable: React.FC = () => {
       "Biaya Penyusutan Jaringan": item.biaya_penyusutan_jaringan || 0,
       "Biaya Penyusutan Alat Medis": item.biaya_penyusutan_alat_medis || 0,
       "Biaya Penyusutan Alat Non Medis": item.biaya_penyusutan_alat_non_medis || 0,
-      "Biaya Pendidikan Kuliah": item.biaya_pendidikan_kuliah || 0,
       "Biaya Pendidikan Pelatihan": item.biaya_pendidikan_pelatihan || 0,
-      "Biaya Pendidikan Seminar": item.biaya_pendidikan_seminar || 0,
-      "Biaya Pendidikan Sertifikasi": item.biaya_pendidikan_sertifikasi || 0,
     }));
 
     const csv = Papa.unparse(dataToExport);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     saveAs(blob, "laporan_biaya.csv");
     toast.info("Laporan berhasil diunduh.");
+  };
+
+  // Format currency for display
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'Rp0';
+    return value.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' });
   };
 
   return (
@@ -510,343 +498,336 @@ const BiayaFormTable: React.FC = () => {
                     )}
                   />
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="biaya_gaji_tunjangan"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Gaji & Tunjangan</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <Accordion type="multiple" className="w-full">
+                    <AccordionItem value="item-1">
+                      <AccordionTrigger>Biaya Operasional</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="biaya_gaji_tunjangan"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Gaji & Tunjangan</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_jasa_pelayanan"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Jasa Pelayanan</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_obat"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Obat</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_bhp"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya BHP</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_makan_karyawan"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Makan Karyawan</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_makan_pasien"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Makan Pasien</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
                     
-                    <FormField
-                      control={form.control}
-                      name="biaya_jasa_pelayanan"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Jasa Pelayanan</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <AccordionItem value="item-2">
+                      <AccordionTrigger>Biaya Administrasi</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="biaya_rumah_tangga"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Rumah Tangga</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_cetak"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Cetak</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_atk"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya ATK</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_listrik"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Listrik</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_air"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Air</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_telp"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Telepon</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
                     
-                    <FormField
-                      control={form.control}
-                      name="biaya_obat"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Obat</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <AccordionItem value="item-3">
+                      <AccordionTrigger>Biaya Pemeliharaan</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="biaya_pemeliharaan_bangunan"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Pemeliharaan Bangunan</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_pemeliharaan_alat_medis"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Pemeliharaan Alat Medis</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_pemeliharaan_alat_non_medis"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Pemeliharaan Alat Non Medis</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_operasional_lainnya"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Operasional Lainnya</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
                     
-                    <FormField
-                      control={form.control}
-                      name="biaya_bhp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya BHP</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <AccordionItem value="item-4">
+                      <AccordionTrigger>Biaya Penyusutan</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="biaya_penyusutan_gedung"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Penyusutan Gedung</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_penyusutan_jaringan"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Penyusutan Jaringan</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_penyusutan_alat_medis"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Penyusutan Alat Medis</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          
+                          <FormField
+                            control={form.control}
+                            name="biaya_penyusutan_alat_non_medis"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Penyusutan Alat Non Medis</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
                     
-                    <FormField
-                      control={form.control}
-                      name="biaya_makan_karyawan"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Makan Karyawan</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_makan_pasien"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Makan Pasien</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_rumah_tangga"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Rumah Tangga</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_cetak"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Cetak</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_atk"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya ATK</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_listrik"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Listrik</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_air"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Air</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_telp"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Telepon</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pemeliharaan_bangunan"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pemeliharaan Bangunan</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pemeliharaan_alat_medis"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pemeliharaan Alat Medis</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pemeliharaan_alat_non_medis"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pemeliharaan Alat Non Medis</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_operasional_lainnya"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Operasional Lainnya</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_penyusutan_gedung"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Penyusutan Gedung</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_penyusutan_jaringan"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Penyusutan Jaringan</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_penyusutan_alat_medis"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Penyusutan Alat Medis</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_penyusutan_alat_non_medis"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Penyusutan Alat Non Medis</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pendidikan_kuliah"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pendidikan Kuliah</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pendidikan_pelatihan"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pendidikan Pelatihan</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pendidikan_seminar"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pendidikan Seminar</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={form.control}
-                      name="biaya_pendidikan_sertifikasi"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Biaya Pendidikan Sertifikasi</FormLabel>
-                          <FormControl>
-                            <Input type="number" step="0.01" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                    <AccordionItem value="item-5">
+                      <AccordionTrigger>Biaya Pendidikan</AccordionTrigger>
+                      <AccordionContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField
+                            control={form.control}
+                            name="biaya_pendidikan_pelatihan"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Biaya Pendidikan Pelatihan</FormLabel>
+                                <FormControl>
+                                  <Input type="number" step="0.01" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
                   
                   <DialogFooter>
                     <Button type="submit">{editingBiaya ? "Simpan Perubahan" : "Tambah"}</Button>
@@ -876,17 +857,18 @@ const BiayaFormTable: React.FC = () => {
           <TableHeader>
             <TableRow>
               <TableHead>Tahun</TableHead>
-              <TableHead>Biaya Gaji & Tunjangan</TableHead>
-              <TableHead>Biaya Jasa Pelayanan</TableHead>
-              <TableHead>Biaya Obat</TableHead>
-              <TableHead>Biaya BHP</TableHead>
+              <TableHead>Biaya Operasional</TableHead>
+              <TableHead>Biaya Administrasi</TableHead>
+              <TableHead>Biaya Pemeliharaan</TableHead>
+              <TableHead>Biaya Penyusutan</TableHead>
+              <TableHead>Biaya Pendidikan</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   Memuat data...
                 </TableCell>
               </TableRow>
@@ -894,10 +876,42 @@ const BiayaFormTable: React.FC = () => {
               biayaList.map((biaya) => (
                 <TableRow key={biaya.id}>
                   <TableCell className="font-medium">{biaya.tahun}</TableCell>
-                  <TableCell>{biaya.biaya_gaji_tunjangan?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' }) || 'Rp0'}</TableCell>
-                  <TableCell>{biaya.biaya_jasa_pelayanan?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' }) || 'Rp0'}</TableCell>
-                  <TableCell>{biaya.biaya_obat?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' }) || 'Rp0'}</TableCell>
-                  <TableCell>{biaya.biaya_bhp?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' }) || 'Rp0'}</TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>Gaji & Tunjangan: {formatCurrency(biaya.biaya_gaji_tunjangan)}</div>
+                      <div>Jasa Pelayanan: {formatCurrency(biaya.biaya_jasa_pelayanan)}</div>
+                      <div>Obat: {formatCurrency(biaya.biaya_obat)}</div>
+                      <div>BHP: {formatCurrency(biaya.biaya_bhp)}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>Rumah Tangga: {formatCurrency(biaya.biaya_rumah_tangga)}</div>
+                      <div>Cetak: {formatCurrency(biaya.biaya_cetak)}</div>
+                      <div>ATK: {formatCurrency(biaya.biaya_atk)}</div>
+                      <div>Listrik: {formatCurrency(biaya.biaya_listrik)}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>Bangunan: {formatCurrency(biaya.biaya_pemeliharaan_bangunan)}</div>
+                      <div>Alat Medis: {formatCurrency(biaya.biaya_pemeliharaan_alat_medis)}</div>
+                      <div>Alat Non Medis: {formatCurrency(biaya.biaya_pemeliharaan_alat_non_medis)}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>Gedung: {formatCurrency(biaya.biaya_penyusutan_gedung)}</div>
+                      <div>Jaringan: {formatCurrency(biaya.biaya_penyusutan_jaringan)}</div>
+                      <div>Alat Medis: {formatCurrency(biaya.biaya_penyusutan_alat_medis)}</div>
+                      <div>Alat Non Medis: {formatCurrency(biaya.biaya_penyusutan_alat_non_medis)}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div>Pelatihan: {formatCurrency(biaya.biaya_pendidikan_pelatihan)}</div>
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
@@ -919,7 +933,7 @@ const BiayaFormTable: React.FC = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   Tidak ada data biaya.
                 </TableCell>
               </TableRow>
