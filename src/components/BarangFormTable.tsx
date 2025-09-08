@@ -266,7 +266,7 @@ const BarangFormTable: React.FC = () => {
     const file = event.target.files?.[0];
     if (file) {
       file.text().then((text) => {
-        Papa.parse(text, {
+        (Papa as any).parse(text, {
           header: true,
           skipEmptyLines: true,
           complete: async (results: Papa.ParseResult<any>) => {
