@@ -12,6 +12,7 @@ import DataKegiatan from "./pages/DataKegiatan";
 import DataPendapatan from "./pages/DataPendapatan";
 import DataBiaya from "./pages/DataBiaya";
 import Login from "./pages/Login";
+import Health from "./pages/Health";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 
@@ -54,6 +55,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/health" element={<Health />} />
             <Route path="/" element={session ? <Layout /> : <Navigate to="/login" replace />}>
               <Route index element={<Index />} />
               <Route path="/data-master/unit-kerja" element={
