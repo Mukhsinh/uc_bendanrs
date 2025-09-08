@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -9,7 +9,7 @@ import { SidebarNav } from "@/components/SidebarNav";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface LayoutProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
@@ -25,10 +25,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       {/* Desktop Sidebar */}
-      <div className="hidden border-r bg-muted/40 md:block">
+      <div className="hidden border-r bg-sidebar md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link to="/" className="flex items-center gap-2 font-semibold">
+            <Link to="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
               <span className="">Unit Cost App</span>
             </Link>
           </div>
@@ -43,7 +43,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Main Content Area */}
       <div className="flex flex-col">
         {/* Mobile Header */}
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 md:hidden">
+        <header className="flex h-14 items-center gap-4 border-b bg-sidebar px-4 lg:h-[60px] lg:px-6 md:hidden">
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button
@@ -55,8 +55,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <span className="sr-only">Toggle navigation menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col">
-              <Link to="/" className="flex items-center gap-2 font-semibold text-lg">
+            <SheetContent side="left" className="flex flex-col bg-sidebar">
+              <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground">
                 <span>Unit Cost App</span>
               </Link>
               <nav className="grid gap-2 text-lg font-medium">
@@ -64,14 +64,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </nav>
             </SheetContent>
           </Sheet>
-          <Link to="/" className="flex items-center gap-2 font-semibold text-lg">
+          <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground">
             <span>Unit Cost App</span>
           </Link>
         </header>
 
         {/* Page Content */}
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-          {children}
+          {children || <Outlet />}
         </main>
       </div>
     </div>
