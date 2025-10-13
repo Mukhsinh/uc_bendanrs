@@ -63,6 +63,7 @@ import TestPage from "./pages/TestPage";
 import SimpleTest from "./pages/SimpleTest";
 import ModulTeknisTest from "./pages/ModulTeknisTest";
 import ModulTeknisSimple from "./pages/ModulTeknisSimple";
+import VercelDebug from "./pages/VercelDebug";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
@@ -117,6 +118,17 @@ const App = () => {
             <a href="/health" className="block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
               Health Check
             </a>
+            <a href="/test-supabase" className="block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+              Test Supabase
+            </a>
+            <a href="/debug" className="block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+              Vercel Debug
+            </a>
+          </div>
+          <div className="mt-4 text-xs text-gray-400">
+            <p>Environment: {import.meta.env.MODE}</p>
+            <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Not Set'}</p>
+            <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not Set'}</p>
           </div>
         </div>
       </div>
@@ -138,6 +150,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/test" element={<TestPage />} />
+            <Route path="/debug" element={<VercelDebug />} />
             <Route path="/login" element={<Login />} />
             <Route path="/health" element={<Health />} />
             <Route path="/simple" element={<SimpleTest />} />

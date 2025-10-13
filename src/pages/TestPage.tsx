@@ -15,6 +15,7 @@ const TestPage = () => {
           <p>✅ Tailwind CSS berjalan dengan baik</p>
           <p>✅ Vercel deployment berhasil</p>
           <p>✅ Build process selesai</p>
+          <p>🌐 Environment: {import.meta.env.MODE}</p>
         </div>
         
         <div className="space-y-3">
@@ -29,6 +30,8 @@ const TestPage = () => {
             <p>Environment Variables Status:</p>
             <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL ? '✅ Set' : '❌ Missing'}</p>
             <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Set' : '❌ Missing'}</p>
+            <p>Current URL: {window.location.href}</p>
+            <p>User Agent: {navigator.userAgent.substring(0, 50)}...</p>
           </div>
         </div>
       </div>
