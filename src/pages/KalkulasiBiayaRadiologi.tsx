@@ -604,7 +604,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template Kalkulasi Radiologi");
       XLSX.writeFile(wb, `template_kalkulasi_radiologi_${year}.xlsx`);
-      a.click();
       toast.success(`Template berisi ${rowsCsv.length} tindakan berhasil dibuat.`);
     } catch (e: any) {
       console.error(e);

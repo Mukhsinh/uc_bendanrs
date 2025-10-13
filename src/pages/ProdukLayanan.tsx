@@ -301,17 +301,20 @@ const ProdukLayanan = () => {
     ].join("\n");
 
     const dataForExport = data.map(item => ({
-      "Kode Unit Kerja": item.kode_unit_kerja || "",
-      "Nama Unit Kerja": item.nama_unit_kerja || "",
-      "Kode Layanan": item.kode_layanan || "",
-      "Nama Layanan": item.nama_layanan || "",
-      "Jumlah": item.jumlah || 0,
-      "Unit Cost": item.unit_cost || 0,
-      "Total Unit Cost": item.total_unit_cost || 0,
-      "Pendapatan": item.pendapatan || 0,
-      "Selisih": item.selisih || 0,
+      "ID": item.id || "",
+      "Tahun": item.tahun || tahun,
+      "Jenis": item.jenis || "",
+      "INACBG": item.inacbg || "",
+      "Grouper": item.grouper || "",
+      "INACBGS": item.inacbgs || "",
+      "Total Biaya": item.total_biaya || 0,
+      "Tarif INACBGS": item.tarif_inacbgs_numeric || 0,
+      "Saldo Distribusi": item.saldo_distribusi || 0,
       "Prosentase Saldo": item.prosentase_saldo || 0,
-      "Tahun": item.tahun || tahun
+      "Nama Dokter": item.nama_dokter || "",
+      "Kode Dokter": item.kode_dokter || "",
+      "Spesialisasi": item.spesialisasi_dokter || "",
+      "LOS": item.los || 0
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataForExport);

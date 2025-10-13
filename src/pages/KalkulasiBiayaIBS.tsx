@@ -600,7 +600,6 @@ const KalkulasiBiayaIBS: React.FC = () => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Template Kalkulasi IBS");
       XLSX.writeFile(wb, `template_kalkulasi_ibs_${year}.xlsx`);
-      a.click();
       toast.success(`Template berisi ${rowsCsv.length} tindakan berhasil dibuat.`);
     } catch (e: any) {
       console.error(e);
@@ -712,7 +711,6 @@ const KalkulasiBiayaIBS: React.FC = () => {
       
       const filterSuffix = reportFilter.type === 'specific' ? `_${reportFilter.jenisPemeriksaan.replace(/[^a-zA-Z0-9]/g, '_')}` : '_semua';
       XLSX.writeFile(wb, `laporan_kalkulasi_biaya_ibs_${year}${filterSuffix}.xlsx`);
-      a.click();
       
       const filterText = reportFilter.type === 'specific' ? `untuk ${reportFilter.jenisPemeriksaan}` : 'semua data';
       toast.success(`Laporan ${filterText} berisi ${rowsCsv.length} data berhasil diunduh.`);
