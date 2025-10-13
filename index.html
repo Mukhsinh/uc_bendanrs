@@ -16,6 +16,25 @@
         </div>
       </div>
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+      <script>
+        window.addEventListener('error', function(e){
+          const msg = 'Runtime error: ' + (e.message || 'unknown');
+          const loc = (e.filename || '') + (e.lineno? ':'+e.lineno: '');
+          document.body.innerHTML = '<div style="padding:24px;font-family:ui-sans-serif,system-ui;">'+
+            '<h2 style="color:#b91c1c;">'+msg+'</h2>'+
+            '<p style="color:#334155;">'+loc+'</p>'+
+            '<p><a href="/debug" style="color:#dc2626;text-decoration:underline">Buka /debug</a> atau <a href="/health.html" style="text-decoration:underline">/health.html</a></p>'+
+          '</div>';
+        });
+        window.addEventListener('unhandledrejection', function(e){
+          const reason = e.reason && (e.reason.message || e.reason.toString());
+          document.body.innerHTML = '<div style="padding:24px;font-family:ui-sans-serif,system-ui;">'+
+            '<h2 style="color:#b91c1c;">Unhandled Promise Rejection</h2>'+
+            '<pre style="white-space:pre-wrap;background:#f1f5f9;padding:12px;border-radius:8px;">'+reason+'</pre>'+
+            '<p><a href="/debug" style="color:#dc2626;text-decoration:underline">Buka /debug</a> atau <a href="/health.html" style="text-decoration:underline">/health.html</a></p>'+
+          '</div>';
+        });
+      </script>
       <noscript>
         <div style="padding:16px;text-align:center">Aplikasi ini memerlukan JavaScript. Silakan aktifkan JavaScript pada browser Anda.</div>
       </noscript>
