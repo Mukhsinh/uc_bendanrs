@@ -63,10 +63,11 @@ export const usePermissions = () => {
       if (roleError) throw roleError;
 
       if (userRoleData) {
+        const roleData = userRoleData.role_akses_aplikasi as any;
         setUserRole({
           role_id: userRoleData.role_id,
-          role_name: userRoleData.role_akses_aplikasi.role_name,
-          permissions: userRoleData.role_akses_aplikasi.role_permissions || []
+          role_name: roleData.role_name,
+          permissions: roleData.role_permissions || []
         });
       }
     } catch (err) {
