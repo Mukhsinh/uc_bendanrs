@@ -300,7 +300,7 @@ const ProdukLayanan = () => {
       ),
     ].join("\n");
 
-    const dataForExport = filteredData.map(item => ({
+    const dataForExport = data.map(item => ({
       "Kode Unit Kerja": item.kode_unit_kerja || "",
       "Nama Unit Kerja": item.nama_unit_kerja || "",
       "Kode Layanan": item.kode_layanan || "",

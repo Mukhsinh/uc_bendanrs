@@ -250,7 +250,7 @@ const SkenarioTarif = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Semua Unit Kerja</SelectItem>
-                  {unitKerjaOptions.map((option) => (
+                  {unitKerjaOptions.map((option: string) => (
                     <SelectItem key={option} value={option.split(" - ")[0]}>
                       {option}
                     </SelectItem>
