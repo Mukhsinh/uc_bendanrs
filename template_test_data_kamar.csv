@@ -1,0 +1,4 @@
+Nama Kamar,Kelas SVIP (true/false),Kelas VIP (true/false),Kelas I (true/false),Kelas II (true/false),Kelas III (true/false),Kelas Khusus (true/false)
+Kamar Dahlia,true,true,false,false,false,false
+Kamar Lily,false,false,true,true,true,false
+Kamar Rose,true,false,true,false,false,true

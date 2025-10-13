@@ -1,0 +1,78 @@
+=== MEMBUAT TABEL DASAR ALOKASI DAN DISTRIBUSI BIAYA ===
+
+🔍 STATUS DATABASE SAAT INI:
+✅ unit_kerja: Tabel sudah ada
+❌ Data_Kegiatan: Tabel tidak ditemukan
+❌ Dasar_Alokasi: Tabel belum dibuat
+❌ Distribusi_Biaya: Tabel belum dibuat
+
+🔧 LANGKAH 1: BUKA SUPABASE DASHBOARD
+1. Buka: https://supabase.com/dashboard
+2. Login ke akun Anda
+3. Pilih project: koepzicdtovtknsqlnac
+4. Pergi ke SQL Editor (sidebar kiri)
+
+📋 LANGKAH 2: JALANKAN SCRIPT MEMBUAT TABEL
+1. Copy seluruh isi file: create-tables-manual.sql
+2. Paste di SQL Editor
+3. Klik tombol Run (atau Ctrl+Enter)
+4. Tunggu hingga selesai
+
+🔍 LANGKAH 3: VERIFIKASI TABEL
+Setelah menjalankan script, jalankan query berikut untuk verifikasi:
+
+-- Cek tabel Dasar_Alokasi
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'Dasar_Alokasi'
+ORDER BY ordinal_position;
+
+-- Cek tabel Distribusi_Biaya
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'Distribusi_Biaya'
+ORDER BY ordinal_position;
+
+📊 LANGKAH 4: TEST TABEL
+Jalankan query berikut untuk test tabel:
+
+-- Test insert ke Dasar_Alokasi
+INSERT INTO "Dasar_Alokasi" ("Kode_UK", "Nama_Unit_Kerja", "Kategori", "Dasar_Alokasi_Field", "Dasar_Alokasi_Value", "Tahun")
+VALUES ('TEST001', 'Test Unit', 'Test Kategori', 'Jumlah_SDM', 10, 2024);
+
+-- Test select dari Dasar_Alokasi
+SELECT * FROM "Dasar_Alokasi" WHERE "Kode_UK" = 'TEST001';
+
+✅ LANGKAH 5: VERIFIKASI AKHIR
+Jalankan script check database:
+node check-database-status.cjs
+
+🚀 LANGKAH 6: TEST APLIKASI
+1. Jalankan aplikasi: npm run dev
+2. Buka browser: http://localhost:8089
+3. Test halaman:
+   - http://localhost:8089/test-dasar-alokasi
+   - http://localhost:8089/dasar-alokasi
+   - http://localhost:8089/distribusi-biaya
+
+📁 FILE YANG PERLU DIJALANKAN:
+1. create-tables-manual.sql - Script SQL untuk membuat tabel
+2. check-database-status.cjs - Verifikasi tabel
+
+🎯 HASIL YANG DIHARAPKAN:
+✅ Tabel Dasar_Alokasi dibuat dengan struktur yang benar
+✅ Tabel Distribusi_Biaya dibuat dengan struktur yang benar
+✅ Indexes dibuat untuk performa
+✅ RLS (Row Level Security) diaktifkan
+✅ Policies dibuat untuk akses authenticated users
+✅ Triggers dibuat untuk updated_at
+✅ Aplikasi dapat mengakses tabel
+
+⚠️ CATATAN PENTING:
+- Pastikan Anda sudah login ke Supabase Dashboard
+- Pilih project yang benar (koepzicdtovtknsqlnac)
+- Jalankan script SQL di SQL Editor, bukan di aplikasi
+- Tunggu hingga semua statement selesai dieksekusi
+
+=== SELESAI ===
+Ikuti langkah-langkah di atas untuk membuat tabel database!

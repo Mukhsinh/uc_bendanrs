@@ -1,0 +1,4 @@
+Nama Klinik,Layanan BPJS Kes (true/false),Layanan Umum/Asuransi (true/false)
+Poli Jantung,true,true
+Poli Kulit,false,true
+Poli THT,true,false

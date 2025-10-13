@@ -1,0 +1,4 @@
+jenis,inacbg,grouper,inacbgs,diaglist,diagnosa_1,diagnosa_2,diagnosa_3,diagnosa_4,diagnosa_5,proclist,proc_1,proc_2,proc_3,proc_4,proc_5,los,spesialisasi_dokter,nama_dokter,kode_dokter,total_biaya
+rawat jalan,A-4-10-I,Mild,A-4-10-I,I10,Hipertensi Esensial,,,,,Z00.0,Pemeriksaan Medis Umum,,,,1,Spesialis Penyakit Dalam,Dr. Andi,DK001,0
+rawat inap,O-8-10-I,Moderate,O-8-10-I,O80,Persalinan Normal,,,,,Z37.0,Bayi Tunggal Lahir Hidup,,,,3,Spesialis Kebidanan,Dr. Siti,DK002,0
+

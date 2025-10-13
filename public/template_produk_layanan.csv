@@ -1,0 +1,5 @@
+jenis,inacbg,grouper,tarif_inacbgs_numeric,diaglist,diagnosa_1,diagnosa_2,diagnosa_3,diagnosa_4,diagnosa_5,proclist,proc_1,proc_2,proc_3,proc_4,proc_5,los,spesialisasi_dokter,nama_dokter,kode_dokter
+rawat inap,MEMBUAT BARU MEREVISI DAN MEMINDAHKAN ALAT DIALISIS (SEDANG),N-1-12-II,7700400,T82.7;I12.0,Infection and inflammatory reaction due other cardiac and vascular,Infective and inflammatory reaction due to cardiac valve prosthesis,Other cardiac and vascular device implant and graft infection,,,,39.42;39.95,Revision of arteriovenous shunt for renal dialysis,Hemodialysis,,,,,Bedah Umum,Dr. Andi,DK001
+rawat jalan,PERAWATAN LUKA,Z-3-27-0,191400,Z47.9;S42.0,Orthopaedic follow-up care unspecified,Fracture of scapula,Other specified orthopaedic aftercare,,,,93.57.00,Application of other wound dressing,,,,3,Bedah Umum,RICKKY KURNIAWAN DR. SP.B,DK002
+rawat jalan,KONSULTASI DOKTER SPESIALIS,A-5-15-I,450000,Z00.0,Konsultasi Dokter Spesialis,,,,,,Z00.0,Konsultasi Dokter Spesialis,,,,1,Spesialis Penyakit Dalam,YUSUF KHAIRUL DR. SP.OT,DK003
+

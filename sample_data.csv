@@ -1,0 +1,7 @@
+Kode_Dept,Nama_Departemen,Jenis_Departemen,Biaya_Langsung,Luas_Lantai,Jumlah_Karyawan,Jumlah_Porsi_Makan,Kg_Cucian,Jam_Perbaikan
+RI-01,Rawat Inap A,Produksi,300000000,1500,50,10000,5000,200
+UGD-01,UGD,Produksi,150000000,500,30,1500,1000,150
+LAB-01,Laboratorium,Produksi,120000000,400,20,500,300,50
+GIZI-01,Gizi,Penunjang,50000000,300,15,0,100,20
+LND-01,Laundry,Penunjang,30000000,200,10,0,0,15
+IPSRS-01,IPSRS,Penunjang,80000000,100,5,0,0,0

@@ -1,0 +1,840 @@
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Trash2, Edit, Plus, Upload, Download } from "lucide-react";
+import * as XLSX from "xlsx";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LayananInputTable from "@/components/produk-layanan/LayananInputTable";
+import FarmasiInputTable from "@/components/produk-layanan/FarmasiInputTable";
+
+interface ProdukLayanan {
+  id: string;
+  tahun: number;
+  jenis: string;
+  inacbg: string | null;
+  grouper: string | null;
+  inacbgs: string | null;
+  diaglist: string | null;
+  diagnosa_1: string | null;
+  diagnosa_2: string | null;
+  diagnosa_3: string | null;
+  diagnosa_4: string | null;
+  diagnosa_5: string | null;
+  proclist: string | null;
+  proc_1: string | null;
+  proc_2: string | null;
+  proc_3: string | null;
+  proc_4: string | null;
+  proc_5: string | null;
+  los: number;
+  spesialisasi_dokter: string | null;
+  nama_dokter: string | null;
+  kode_dokter: string | null;
+  tindakan: any[];
+  ibs: any[];
+  laboratorium: any[];
+  radiologi: any[];
+  farmasi: any[];
+  kamar_akomodasi: any[];
+  visite: any[];
+  konsultasi: any[];
+  total_biaya: number;
+  tarif_inacbgs_numeric: number;
+  saldo_distribusi: number;
+  prosentase_saldo: number;
+}
+
+const ProdukLayanan = () => {
+  const { toast } = useToast();
+  const [data, setData] = useState<ProdukLayanan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [tahun, setTahun] = useState(2025);
+  const [formData, setFormData] = useState<Partial<ProdukLayanan>>({
+    tahun: 2025,
+    jenis: "rawat jalan",
+    los: 0,
+    tindakan: [],
+    ibs: [],
+    laboratorium: [],
+    radiologi: [],
+    farmasi: [],
+    kamar_akomodasi: [],
+    visite: [],
+    konsultasi: [],
+  });
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data: produkLayanan, error } = await supabase
+        .from("produk_layanan")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("tahun", tahun)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setData(produkLayanan || []);
+    } catch (error: any) {
+      toast({
+        title: "Error fetching data",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [tahun]);
+
+  const handleSave = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const dataToSave = {
+        ...formData,
+        user_id: user.id,
+        tahun,
+      };
+
+      if (editingId) {
+        const { error } = await supabase
+          .from("produk_layanan")
+          .update(dataToSave)
+          .eq("id", editingId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Berhasil",
+          description: "Data berhasil diupdate",
+        });
+      } else {
+        const { error } = await supabase
+          .from("produk_layanan")
+          .insert(dataToSave);
+
+        if (error) throw error;
+
+        toast({
+          title: "Berhasil",
+          description: "Data berhasil ditambahkan",
+        });
+      }
+
+      setDialogOpen(false);
+      setEditingId(null);
+      setFormData({
+        tahun: 2025,
+        jenis: "rawat jalan",
+        los: 0,
+        tindakan: [],
+        ibs: [],
+        laboratorium: [],
+        radiologi: [],
+        farmasi: [],
+        kamar_akomodasi: [],
+        visite: [],
+        konsultasi: [],
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error saving data",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = (item: ProdukLayanan) => {
+    setEditingId(item.id);
+    setFormData(item);
+    setDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Apakah Anda yakin ingin menghapus data ini?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("produk_layanan")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Berhasil",
+        description: "Data berhasil dihapus",
+      });
+
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error deleting data",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleExport = () => {
+    if (data.length === 0) {
+      toast({
+        title: "Tidak ada data",
+        description: "Tidak ada data untuk di-export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const csvContent = [
+      // Header
+      [
+        "jenis",
+        "inacbg",
+        "grouper",
+        "tarif_inacbgs_numeric",
+        "diaglist",
+        "diagnosa_1",
+        "diagnosa_2",
+        "diagnosa_3",
+        "diagnosa_4",
+        "diagnosa_5",
+        "proclist",
+        "proc_1",
+        "proc_2",
+        "proc_3",
+        "proc_4",
+        "proc_5",
+        "los",
+        "spesialisasi_dokter",
+        "nama_dokter",
+        "kode_dokter",
+        "total_biaya",
+        "saldo_distribusi",
+        "prosentase_saldo",
+      ].join(","),
+      // Data rows
+      ...data.map((row) =>
+        [
+          row.jenis,
+          row.inacbg || "",
+          row.grouper || "",
+          row.tarif_inacbgs_numeric || 0,
+          row.diaglist || "",
+          row.diagnosa_1 || "",
+          row.diagnosa_2 || "",
+          row.diagnosa_3 || "",
+          row.diagnosa_4 || "",
+          row.diagnosa_5 || "",
+          row.proclist || "",
+          row.proc_1 || "",
+          row.proc_2 || "",
+          row.proc_3 || "",
+          row.proc_4 || "",
+          row.proc_5 || "",
+          row.los,
+          row.spesialisasi_dokter || "",
+          row.nama_dokter || "",
+          row.kode_dokter || "",
+          row.total_biaya,
+          row.saldo_distribusi || 0,
+          row.prosentase_saldo || 0,
+        ].join(",")
+      ),
+    ].join("\n");
+
+    const dataForExport = filteredData.map(item => ({
+      "Kode Unit Kerja": item.kode_unit_kerja || "",
+      "Nama Unit Kerja": item.nama_unit_kerja || "",
+      "Kode Layanan": item.kode_layanan || "",
+      "Nama Layanan": item.nama_layanan || "",
+      "Jumlah": item.jumlah || 0,
+      "Unit Cost": item.unit_cost || 0,
+      "Total Unit Cost": item.total_unit_cost || 0,
+      "Pendapatan": item.pendapatan || 0,
+      "Selisih": item.selisih || 0,
+      "Prosentase Saldo": item.prosentase_saldo || 0,
+      "Tahun": item.tahun || tahun
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataForExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Produk Layanan");
+    XLSX.writeFile(wb, `produk_layanan_${tahun}.xlsx`);
+
+    toast({
+      title: "Berhasil",
+      description: "Laporan berhasil diunduh",
+    });
+  };
+
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "Kode Unit Kerja",
+      "Kode Layanan", 
+      "Jumlah",
+      "Pendapatan"
+    ];
+    const sampleData = [
+      ["UK001", "L001", "100", "5000000"],
+      ["UK002", "L002", "50", "2500000"]
+    ];
+    
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Produk Layanan");
+    XLSX.writeFile(wb, "template_produk_layanan.xlsx");
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const text = await file.text();
+      const rows = text.split("\n").map((row) => row.split(","));
+      const headers = rows[0];
+      const dataRows = rows.slice(1);
+
+      const importData = dataRows
+        .filter((row) => row.length === headers.length && row[0])
+        .map((row) => {
+          const obj: any = { user_id: user.id, tahun };
+          headers.forEach((header, index) => {
+            const value = row[index]?.trim();
+            if (header === "los" || header === "total_biaya" || header === "tarif_inacbgs_numeric") {
+              obj[header] = value ? parseInt(value) : 0;
+            } else {
+              obj[header] = value || null;
+            }
+          });
+          // Initialize arrays
+          obj.tindakan = [];
+          obj.ibs = [];
+          obj.laboratorium = [];
+          obj.radiologi = [];
+          obj.farmasi = [];
+          obj.kamar_akomodasi = [];
+          obj.visite = [];
+          obj.konsultasi = [];
+          return obj;
+        });
+
+      const { error } = await supabase.from("produk_layanan").insert(importData);
+
+      if (error) throw error;
+
+      toast({
+        title: "Berhasil",
+        description: `${importData.length} data berhasil di-import`,
+      });
+
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error importing data",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+
+    event.target.value = "";
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const getProsentaseBadge = (prosentase: number) => {
+    const isProfit = prosentase >= 38;
+    return (
+      <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+        isProfit 
+          ? "bg-green-100 text-green-800 border border-green-300" 
+          : "bg-red-100 text-red-800 border border-red-300"
+      }`}>
+        {prosentase.toFixed(2)}%
+      </div>
+    );
+  };
+
+  // Hitung rata-rata prosentase saldo
+  const rataRataProsentase = data.length > 0
+    ? data.reduce((sum, item) => sum + (item.prosentase_saldo || 0), 0) / data.length
+    : 0;
+
+  return (
+    <div className="container mx-auto py-10">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-3">
+                <CardTitle>Produk Layanan</CardTitle>
+                {data.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Rata-rata Prosentase Saldo:
+                    </span>
+                    {getProsentaseBadge(rataRataProsentase)}
+                  </div>
+                )}
+              </div>
+              <CardDescription>
+                Kelola data produk layanan rumah sakit dengan referensi ke rekapitulasi unit cost
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Select value={String(tahun)} onValueChange={(value) => setTahun(Number(value))}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Tahun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-4">
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={() => {
+                    setEditingId(null);
+                    setFormData({
+                      tahun: 2025,
+                      jenis: "rawat jalan",
+                      los: 0,
+                      tindakan: [],
+                      ibs: [],
+                      laboratorium: [],
+                      radiologi: [],
+                      farmasi: [],
+                      kamar_akomodasi: [],
+                      visite: [],
+                      konsultasi: [],
+                    });
+                  }}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Tambah Data
+                </Button>
+              </DialogTrigger>
+              <Button variant="outline" onClick={handleDownloadTemplate}>
+                Unduh Template
+              </Button>
+              <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingId ? "Edit Produk Layanan" : "Tambah Produk Layanan"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Lengkapi form di bawah untuk {editingId ? "mengupdate" : "menambahkan"} produk layanan
+                  </DialogDescription>
+                </DialogHeader>
+
+                <Tabs defaultValue="basic" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="basic">Informasi Dasar</TabsTrigger>
+                    <TabsTrigger value="diagnosa">Diagnosa & Prosedur</TabsTrigger>
+                    <TabsTrigger value="layanan">Layanan</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="basic" className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="jenis">Jenis</Label>
+                        <Select
+                          value={formData.jenis}
+                          onValueChange={(value) =>
+                            setFormData({ ...formData, jenis: value })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih jenis" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="rawat jalan">Rawat Jalan</SelectItem>
+                            <SelectItem value="rawat inap">Rawat Inap</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="los">LOS (Length of Stay)</Label>
+                        <Input
+                          id="los"
+                          type="number"
+                          value={formData.los}
+                          onChange={(e) =>
+                            setFormData({ ...formData, los: parseInt(e.target.value) || 0 })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="inacbg">INA-CBG</Label>
+                        <Input
+                          id="inacbg"
+                          value={formData.inacbg || ""}
+                          onChange={(e) =>
+                            setFormData({ ...formData, inacbg: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="grouper">Grouper</Label>
+                        <Input
+                          id="grouper"
+                          value={formData.grouper || ""}
+                          onChange={(e) =>
+                            setFormData({ ...formData, grouper: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="tarif_inacbgs">Tarif INA-CBG's (Rp)</Label>
+                      <Input
+                        id="tarif_inacbgs"
+                        type="number"
+                        value={formData.tarif_inacbgs_numeric || 0}
+                        onChange={(e) =>
+                          setFormData({ ...formData, tarif_inacbgs_numeric: parseInt(e.target.value) || 0 })
+                        }
+                        placeholder="Masukkan tarif INA-CBG's dalam rupiah"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="spesialisasi_dokter">Spesialisasi Dokter</Label>
+                        <Input
+                          id="spesialisasi_dokter"
+                          value={formData.spesialisasi_dokter || ""}
+                          onChange={(e) =>
+                            setFormData({ ...formData, spesialisasi_dokter: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="nama_dokter">Nama Dokter</Label>
+                        <Input
+                          id="nama_dokter"
+                          value={formData.nama_dokter || ""}
+                          onChange={(e) =>
+                            setFormData({ ...formData, nama_dokter: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="kode_dokter">Kode Dokter</Label>
+                        <Input
+                          id="kode_dokter"
+                          value={formData.kode_dokter || ""}
+                          onChange={(e) =>
+                            setFormData({ ...formData, kode_dokter: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="diagnosa" className="space-y-4">
+                    <div>
+                      <Label htmlFor="diaglist">Diaglist</Label>
+                      <Input
+                        id="diaglist"
+                        value={formData.diaglist || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, diaglist: e.target.value })
+                        }
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2, 3, 4, 5].map((num) => (
+                        <div key={`diagnosa_${num}`}>
+                          <Label htmlFor={`diagnosa_${num}`}>Diagnosa {num}</Label>
+                          <Input
+                            id={`diagnosa_${num}`}
+                            value={formData[`diagnosa_${num}` as keyof ProdukLayanan] as string || ""}
+                            onChange={(e) =>
+                              setFormData({ ...formData, [`diagnosa_${num}`]: e.target.value })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="proclist">Proclist</Label>
+                      <Input
+                        id="proclist"
+                        value={formData.proclist || ""}
+                        onChange={(e) =>
+                          setFormData({ ...formData, proclist: e.target.value })
+                        }
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {[1, 2, 3, 4, 5].map((num) => (
+                        <div key={`proc_${num}`}>
+                          <Label htmlFor={`proc_${num}`}>Prosedur {num}</Label>
+                          <Input
+                            id={`proc_${num}`}
+                            value={formData[`proc_${num}` as keyof ProdukLayanan] as string || ""}
+                            onChange={(e) =>
+                              setFormData({ ...formData, [`proc_${num}`]: e.target.value })
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="layanan" className="space-y-6">
+                    <LayananInputTable
+                      label="Tindakan"
+                      value={formData.tindakan || []}
+                      onChange={(value) => setFormData({ ...formData, tindakan: value })}
+                      tahun={tahun}
+                      filterType="tindakan"
+                      jenisProduk={formData.jenis}
+                    />
+
+                    <LayananInputTable
+                      label="IBS (Tindakan Operatif)"
+                      value={formData.ibs || []}
+                      onChange={(value) => setFormData({ ...formData, ibs: value })}
+                      tahun={tahun}
+                      filterType="ibs"
+                      spesialisasiDokter={formData.spesialisasi_dokter || undefined}
+                    />
+
+                    <LayananInputTable
+                      label="Laboratorium"
+                      value={formData.laboratorium || []}
+                      onChange={(value) => setFormData({ ...formData, laboratorium: value })}
+                      tahun={tahun}
+                      filterType="laboratorium"
+                    />
+
+                    <LayananInputTable
+                      label="Radiologi"
+                      value={formData.radiologi || []}
+                      onChange={(value) => setFormData({ ...formData, radiologi: value })}
+                      tahun={tahun}
+                      filterType="radiologi"
+                    />
+
+                    <FarmasiInputTable
+                      label="Farmasi"
+                      value={formData.farmasi || []}
+                      onChange={(value) => setFormData({ ...formData, farmasi: value })}
+                    />
+
+                    <LayananInputTable
+                      label="Kamar Akomodasi"
+                      value={formData.kamar_akomodasi || []}
+                      onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
+                      tahun={tahun}
+                      filterType="akomodasi"
+                    />
+
+                    <LayananInputTable
+                      label="Visite"
+                      value={formData.visite || []}
+                      onChange={(value) => setFormData({ ...formData, visite: value })}
+                      tahun={tahun}
+                      filterType="visite"
+                    />
+
+                    <LayananInputTable
+                      label="Konsultasi"
+                      value={formData.konsultasi || []}
+                      onChange={(value) => setFormData({ ...formData, konsultasi: value })}
+                      tahun={tahun}
+                      filterType="konsultasi"
+                    />
+                  </TabsContent>
+                </Tabs>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Batal
+                  </Button>
+                  <Button onClick={handleSave}>Simpan</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Unduh Laporan
+            </Button>
+
+            <Button variant="outline" asChild>
+              <label className="cursor-pointer">
+                <Upload className="h-4 w-4 mr-2" />
+                Import Data
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleImport}
+                />
+              </label>
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-10">Loading...</div>
+          ) : data.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              Belum ada data. Klik "Tambah Data" untuk memulai.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Jenis</TableHead>
+                    <TableHead>INA-CBG</TableHead>
+                    <TableHead>LOS</TableHead>
+                    <TableHead>Dokter</TableHead>
+                    <TableHead className="text-right">Tarif INA-CBGs</TableHead>
+                    <TableHead className="text-right">Total Biaya</TableHead>
+                    <TableHead className="text-right">Saldo Distribusi</TableHead>
+                    <TableHead className="text-center">% Saldo</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium capitalize">{item.jenis}</TableCell>
+                      <TableCell>{item.inacbg || "-"}</TableCell>
+                      <TableCell>{item.los} hari</TableCell>
+                      <TableCell>{item.nama_dokter || "-"}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.tarif_inacbgs_numeric || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.total_biaya)}</TableCell>
+                      <TableCell className={`text-right font-semibold ${
+                        (item.saldo_distribusi || 0) >= 0 ? "text-green-600" : "text-red-600"
+                      }`}>
+                        {formatCurrency(item.saldo_distribusi || 0)}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {getProsentaseBadge(item.prosentase_saldo || 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(item)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default ProdukLayanan;
+

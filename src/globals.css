@@ -34,15 +34,15 @@
 
     --radius: 0.5rem;
 
-    /* Sidebar specific colors (red and white theme) */
-    --sidebar-background: 0 0% 100%; /* White sidebar background */
-    --sidebar-foreground: 222.2 47.4% 11.2%; /* Dark text for sidebar */
-    --sidebar-primary: 0 72% 51%; /* Red for active/hover items */
-    --sidebar-primary-foreground: 0 0% 100%; /* White text on active red */
-    --sidebar-accent: 210 40% 96.1%; /* Light gray for hover background */
-    --sidebar-accent-foreground: 222.2 47.4% 11.2%; /* Dark text on hover */
-    --sidebar-border: 214.3 31.8% 91.4%; /* Light gray border */
-    --sidebar-ring: 0 72% 51%; /* Red ring */
+    /* Sidebar specific colors (teal theme) */
+    --sidebar-background: 180 100% 28%; /* Teal sidebar background (darker) */
+    --sidebar-foreground: 0 0% 100%; /* White text for sidebar */
+    --sidebar-primary: 180 100% 28%; /* Teal for active/hover items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on active teal */
+    --sidebar-accent: 180 100% 20%; /* Darker teal for hover background */
+    --sidebar-accent-foreground: 0 0% 100%; /* White text on hover */
+    --sidebar-border: 180 100% 20%; /* Teal border */
+    --sidebar-ring: 180 100% 28%; /* Teal ring */
   }
 
   .dark {
@@ -74,15 +74,15 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 0 72% 51%; /* Red ring */
 
-    /* Sidebar specific colors (red and white theme for dark mode) */
-    --sidebar-background: 222.2 84% 4.9%; /* Dark sidebar background */
-    --sidebar-foreground: 210 40% 98%; /* Light text for sidebar */
-    --sidebar-primary: 0 72% 51%; /* Red for active/hover items */
-    --sidebar-primary-foreground: 210 40% 98%; /* Light text on active red */
-    --sidebar-accent: 217.2 32.6% 17.5%; /* Darker gray for hover background */
-    --sidebar-accent-foreground: 210 40% 98%; /* Light text on hover */
-    --sidebar-border: 217.2 32.6% 17.5%; /* Darker gray border */
-    --sidebar-ring: 0 72% 51%; /* Red ring */
+    /* Sidebar specific colors (teal theme for dark mode) */
+    --sidebar-background: 180 100% 28%; /* Teal sidebar background (darker) */
+    --sidebar-foreground: 0 0% 100%; /* White text for sidebar */
+    --sidebar-primary: 180 100% 28%; /* Teal for active/hover items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on active teal */
+    --sidebar-accent: 180 100% 20%; /* Darker teal for hover background */
+    --sidebar-accent-foreground: 0 0% 100%; /* White text on hover */
+    --sidebar-border: 180 100% 20%; /* Teal border */
+    --sidebar-ring: 180 100% 28%; /* Teal ring */
   }
 }
 

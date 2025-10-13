@@ -6,7 +6,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useFormOperations } from "@/hooks/use-form-operations";
+import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 
 import { Button } from "@/components/ui/button";
@@ -44,7 +49,24 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Loader2 } from "lucide-react";
+
+// Helpers to map between DB codes and UI labels for 'jenis'
+const jenisCodeToLabel = (code: number | null | undefined): "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan" | undefined => {
+  if (code === 1) return "Rawat Jalan";
+  if (code === 2) return "Rawat Inap";
+  if (code === 3) return "Operatif";
+  if (code === 4) return "Non Layanan";
+  return undefined;
+};
+
+const jenisLabelToCode = (label: string | null | undefined): 1 | 2 | 3 | 4 | undefined => {
+  if (label === "Rawat Jalan") return 1;
+  if (label === "Rawat Inap") return 2;
+  if (label === "Operatif") return 3;
+  if (label === "Non Layanan") return 4;
+  return undefined;
+};
 
 interface UnitKerja {
   id: string;
@@ -53,6 +75,8 @@ interface UnitKerja {
   nama: string;
   lokasi: string;
   luas_ruangan: number;
+  // Keep UI-facing type as label; map to/from DB code on IO
+  jenis?: "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan";
   kategori: "Pusat Biaya" | "Pusat Pendapatan";
   created_at?: string;
   updated_at?: string;
@@ -62,6 +86,9 @@ const formSchema = z.object({
   nama: z.string().min(1, { message: "Nama Unit Kerja harus diisi." }),
   lokasi: z.string().min(1, { message: "Lokasi Unit Kerja harus diisi." }),
   luas_ruangan: z.coerce.number().min(0, { message: "Luas Ruangan harus angka positif." }),
+  jenis: z.enum(["Rawat Jalan", "Rawat Inap", "Operatif", "Non Layanan"], {
+    required_error: "Jenis harus dipilih.",
+  }),
   kategori: z.enum(["Pusat Biaya", "Pusat Pendapatan"], {
     required_error: "Kategori harus dipilih.",
   }),
@@ -71,8 +98,37 @@ const UnitKerjaFormTable: React.FC = () => {
   const [unitKerjaList, setUnitKerjaList] = useState<UnitKerja[]>([]);
   const [editingUnitKerja, setEditingUnitKerja] = useState<UnitKerja | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [reportFilter, setReportFilter] = useState<"all" | "Pusat Biaya" | "Pusat Pendapatan">("all");
-  const [loading, setLoading] = useState(true);
+  const [reportFilter, setReportFilter] = useState<"all" | "Pusat Biaya" | "Pusat Pendapatan">(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("kategori") as "all" | "Pusat Biaya" | "Pusat Pendapatan" | null;
+    const fromStorage = localStorage.getItem("unitKerjaKategoriFilter") as "all" | "Pusat Biaya" | "Pusat Pendapatan" | null;
+    return fromUrl || fromStorage || "all";
+  });
+  const [jenisFilter, setJenisFilter] = useState<"all" | "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan">(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("jenis") as "all" | "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan" | null;
+    const fromStorage = localStorage.getItem("unitKerjaJenisFilter") as "all" | "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan" | null;
+    return fromUrl || fromStorage || "all";
+  });
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (reportFilter === "all") params.delete("kategori"); else params.set("kategori", reportFilter);
+    if (jenisFilter === "all") params.delete("jenis"); else params.set("jenis", jenisFilter);
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, "", newUrl);
+    localStorage.setItem("unitKerjaKategoriFilter", reportFilter);
+    localStorage.setItem("unitKerjaJenisFilter", jenisFilter);
+  }, [reportFilter, jenisFilter]);
+  
+  // Use form operations hook
+  const { loading, saving, importing, loadData, saveData, deleteData, importData } = useFormOperations({
+    entityName: "Unit Kerja",
+    onSuccess: () => {
+      setEditingUnitKerja(null);
+      setIsDialogOpen(false);
+      form.reset();
+    }
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -80,6 +136,7 @@ const UnitKerjaFormTable: React.FC = () => {
       nama: "",
       lokasi: "",
       luas_ruangan: 0,
+      jenis: "Rawat Jalan",
       kategori: "Pusat Biaya",
     },
   });
@@ -95,6 +152,7 @@ const UnitKerjaFormTable: React.FC = () => {
         nama: editingUnitKerja.nama,
         lokasi: editingUnitKerja.lokasi,
         luas_ruangan: editingUnitKerja.luas_ruangan,
+        jenis: editingUnitKerja.jenis ?? "Rawat Jalan",
         kategori: editingUnitKerja.kategori,
       });
     } else {
@@ -102,55 +160,136 @@ const UnitKerjaFormTable: React.FC = () => {
         nama: "",
         lokasi: "",
         luas_ruangan: 0,
+        jenis: "Rawat Jalan",
         kategori: "Pusat Biaya",
       });
     }
   }, [editingUnitKerja, form]);
 
   const fetchUnitKerja = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('unit_kerja')
-      .select('*')
-      .order('created_at', { ascending: false });
+    await loadData(async () => {
+      const { data, error } = await supabase
+        .from('unit_kerja')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      toast.error("Gagal memuat data unit kerja.");
-      console.error(error);
-    } else {
-      setUnitKerjaList(data || []);
-    }
-    setLoading(false);
+      if (error) {
+        throw error;
+      }
+
+      const mapped = (data || []).map((row: any) => ({
+        ...row,
+        jenis: typeof row.jenis === 'number' ? (jenisCodeToLabel(row.jenis) ?? undefined) : row.jenis,
+      })) as UnitKerja[];
+      setUnitKerjaList(mapped);
+    }, { showLoadingToast: false });
   };
 
   const generateKodeUnitKerja = async () => {
-    // Get the latest unit kerja globally to determine the next number
-    const { data, error } = await supabase
-      .from('unit_kerja')
-      .select('kode')
-      .order('kode', { ascending: false })
-      .limit(1);
+    try {
+      // Get the latest unit kerja globally to determine the next number
+      const { data, error } = await supabase
+        .from('unit_kerja')
+        .select('kode')
+        .order('kode', { ascending: false })
+        .limit(1);
 
-    if (error) {
-      console.error('Error fetching latest kode:', error);
-      // If there's an error, start from UK001
+      if (error) {
+        console.error('Error fetching latest kode:', error);
+        toast.error("Gagal mendapatkan kode unit kerja terbaru.");
+        return 'UK001';
+      }
+
+      if (!data || data.length === 0) {
+        // If no data exists, start from UK001
+        return 'UK001';
+      }
+
+      // Extract the number from the latest kode and increment
+      const latestKode = data[0].kode;
+      
+      // Validate the kode format (should be UK###)
+      if (!latestKode || !latestKode.match(/^UK\d{3}$/)) {
+        console.error('Invalid kode format:', latestKode);
+        toast.error("Format kode unit kerja tidak valid.");
+        return 'UK001';
+      }
+
+      const numberPart = parseInt(latestKode.substring(2));
+      
+      if (isNaN(numberPart)) {
+        console.error('Could not parse number from kode:', latestKode);
+        toast.error("Tidak dapat memparse nomor dari kode unit kerja.");
+        return 'UK001';
+      }
+
+      const nextNumber = numberPart + 1;
+      
+      // Ensure the number doesn't exceed 999 (UK999 is the maximum)
+      if (nextNumber > 999) {
+        toast.error("Tidak dapat membuat kode unit kerja baru. Maksimal 999 unit kerja.");
+        return null;
+      }
+
+      return `UK${nextNumber.toString().padStart(3, '0')}`;
+    } catch (error) {
+      console.error('Unexpected error in generateKodeUnitKerja:', error);
+      toast.error("Terjadi kesalahan saat membuat kode unit kerja.");
       return 'UK001';
     }
+  };
 
-    if (!data || data.length === 0) {
-      // If no data exists, start from UK001
-      return 'UK001';
+  const generateBatchKodeUnitKerja = async (count: number) => {
+    try {
+      // Get the latest unit kerja globally to determine the starting number
+      const { data, error } = await supabase
+        .from('unit_kerja')
+        .select('kode')
+        .order('kode', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error fetching latest kode:', error);
+        toast.error("Gagal mendapatkan kode unit kerja terbaru.");
+        return [];
+      }
+
+      let startNumber = 1;
+      if (data && data.length > 0) {
+        const latestKode = data[0].kode;
+        
+        // Validate the kode format (should be UK###)
+        if (latestKode && latestKode.match(/^UK\d{3}$/)) {
+          const numberPart = parseInt(latestKode.substring(2));
+          if (!isNaN(numberPart)) {
+            startNumber = numberPart + 1;
+          }
+        }
+      }
+
+      // Check if we have enough space for all codes
+      if (startNumber + count - 1 > 999) {
+        toast.error(`Tidak dapat membuat ${count} kode unit kerja. Maksimal 999 unit kerja.`);
+        return [];
+      }
+
+      // Generate sequential codes
+      const codes: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const codeNumber = startNumber + i;
+        codes.push(`UK${codeNumber.toString().padStart(3, '0')}`);
+      }
+
+      return codes;
+    } catch (error) {
+      console.error('Unexpected error in generateBatchKodeUnitKerja:', error);
+      toast.error("Terjadi kesalahan saat membuat kode unit kerja batch.");
+      return [];
     }
-
-    // Extract the number from the latest kode and increment
-    const latestKode = data[0].kode;
-    const numberPart = parseInt(latestKode.substring(2));
-    const nextNumber = numberPart + 1;
-    return `UK${nextNumber.toString().padStart(3, '0')}`;
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+    await saveData(async () => {
       let kode: string;
       
       if (editingUnitKerja) {
@@ -158,14 +297,23 @@ const UnitKerjaFormTable: React.FC = () => {
         kode = editingUnitKerja.kode;
         const { error } = await supabase
           .from('unit_kerja')
-          .update({ ...values, kode })
+          .update({
+            ...values,
+            kode,
+            // Convert label to numeric code for DB
+            jenis: jenisLabelToCode(values.jenis) ?? 1,
+          })
           .eq('id', editingUnitKerja.id);
 
         if (error) throw error;
-        toast.success("Data Unit Kerja berhasil diperbarui.");
       } else {
         // Generate new kode for new entries
         kode = await generateKodeUnitKerja();
+        
+        // Check if kode generation failed
+        if (!kode) {
+          throw new Error("Gagal membuat kode unit kerja baru.");
+        }
         
         // Check if kode already exists (shouldn't happen but just in case)
         const { data: existingData, error: checkError } = await supabase
@@ -178,25 +326,25 @@ const UnitKerjaFormTable: React.FC = () => {
         
         if (existingData) {
           // This should be very rare, but if it happens, generate a new one
-          toast.error("Terjadi kesalahan saat membuat kode unit kerja. Silakan coba lagi.");
-          return;
+          throw new Error("Kode unit kerja sudah ada. Silakan coba lagi.");
         }
 
         const { error } = await supabase
           .from('unit_kerja')
-          .insert([{ ...values, kode }]);
+          .insert([{ 
+            ...values,
+            kode,
+            jenis: jenisLabelToCode(values.jenis) ?? 1,
+          }]);
 
         if (error) throw error;
-        toast.success("Data Unit Kerja berhasil ditambahkan.");
       }
+      
       await fetchUnitKerja();
-      setEditingUnitKerja(null);
-      setIsDialogOpen(false);
-      form.reset();
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Terjadi kesalahan saat menyimpan data.");
-    }
+    }, {
+      loadingMessage: editingUnitKerja ? "Memperbarui data unit kerja..." : "Menyimpan data unit kerja...",
+      successMessage: editingUnitKerja ? "Data unit kerja berhasil diperbarui" : "Data unit kerja berhasil ditambahkan"
+    });
   };
 
   const handleEdit = (unitKerja: UnitKerja) => {
@@ -205,7 +353,7 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    try {
+    await deleteData(async () => {
       const { error } = await supabase
         .from('unit_kerja')
         .delete()
@@ -213,11 +361,7 @@ const UnitKerjaFormTable: React.FC = () => {
 
       if (error) throw error;
       await fetchUnitKerja();
-      toast.success("Data Unit Kerja berhasil dihapus.");
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Terjadi kesalahan saat menghapus data.");
-    }
+    });
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -228,34 +372,87 @@ const UnitKerjaFormTable: React.FC = () => {
           header: true,
           skipEmptyLines: true,
           complete: async (results: Papa.ParseResult<any>) => {
-            try {
-              // Generate unique codes for each imported item
+            await importData(async () => {
+              // Show parsing progress
+              showInfo("Memproses file CSV...");
+              
+              // Filter and validate data
+              const allRows = results.data;
+              const validRows = allRows.filter((row: any) => 
+                row["Nama Unit Kerja"] && row["Nama Unit Kerja"].toString().trim()
+              );
+              const invalidRows = allRows.filter((row: any) => 
+                !row["Nama Unit Kerja"] || !row["Nama Unit Kerja"].toString().trim()
+              );
+              
+              if (validRows.length === 0) {
+                throw new Error("Tidak ada data valid untuk diimpor.");
+              }
+
+              // Show code generation progress
+              showInfo("Membuat kode unit kerja...");
+              
+              const codes = await generateBatchKodeUnitKerja(validRows.length);
+              if (codes.length === 0) {
+                throw new Error("Gagal membuat kode untuk data yang diimpor.");
+              }
+
+              // Prepare data for import
               const importedData: any[] = [];
-              for (const row of results.data) {
-                const kode = await generateKodeUnitKerja();
+              for (let i = 0; i < validRows.length; i++) {
+                const row = validRows[i];
                 importedData.push({
-                  kode,
+                  kode: codes[i],
                   nama: row["Nama Unit Kerja"] || "",
                   lokasi: row["Lokasi Unit Kerja"] || "",
                   luas_ruangan: parseFloat(row["Luas Ruangan (M2)"]) || 0,
+                  jenis: ["Rawat Jalan", "Rawat Inap", "Operatif", "Non Layanan"].includes(row["Jenis"]) ? row["Jenis"] : "Rawat Jalan",
                   kategori: row["Kategori"] === "Pusat Pendapatan" ? "Pusat Pendapatan" : "Pusat Biaya",
                 });
               }
 
+              // Show upload progress
+              showInfo("Mengunggah data ke database...");
+
               const { error } = await supabase
                 .from('unit_kerja')
-                .insert(importedData);
+                .insert(importedData.map((it) => ({
+                  ...it,
+                  jenis: jenisLabelToCode(it.jenis) ?? 1,
+                })));
 
               if (error) throw error;
+              
+              // Refresh data
               await fetchUnitKerja();
-              toast.success(`${importedData.length} data berhasil diimpor.`);
-            } catch (error: any) {
-              console.error(error);
-              toast.error(`Gagal mengimpor data: ${error.message}`);
-            }
+              
+              // Return success message with detailed information
+              const successCount = importedData.length;
+              const missingCount = invalidRows.length;
+              
+              if (missingCount === 0) {
+                return `✅ Sukses! ${successCount} baris data berhasil diunggah. Missing data = 0`;
+              } else {
+                return `✅ Sukses! ${successCount} baris data berhasil diunggah. Missing data = ${missingCount} baris (tidak memiliki nama unit kerja)`;
+              }
+            }, {
+              loadingMessage: "Mengimpor data unit kerja...",
+              successMessage: "" // Will be overridden by the return value
+            }).then((result) => {
+              if (result) {
+                showSuccess(result);
+              }
+            }).catch((error) => {
+              showError(`❌ Gagal mengimpor data: ${error.message}`);
+            }).finally(() => {
+              // Reset file input
+              event.target.value = '';
+            });
           },
           error: (error: Papa.ParseError) => {
-            toast.error(`Gagal mengimpor data: ${error.message}`);
+            showError(`❌ Gagal memproses file CSV: ${error.message}`);
+            // Reset file input
+            event.target.value = '';
           }
         });
       });
@@ -263,16 +460,18 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Nama Unit Kerja", "Lokasi Unit Kerja", "Luas Ruangan (M2)", "Kategori"];
-    const csv = Papa.unparse([headers]);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, "template_unit_kerja.csv");
+    const headers = ["Nama Unit Kerja", "Lokasi Unit Kerja", "Luas Ruangan (M2)", "Jenis", "Kategori"];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Unit Kerja");
+    XLSX.writeFile(wb, "template_unit_kerja.xlsx");
     toast.info("Template impor data berhasil diunduh.");
   };
 
   const handleDownloadReport = () => {
     const filteredData = unitKerjaList.filter(item =>
-      reportFilter === "all" ? true : item.kategori === reportFilter
+      (reportFilter === "all" ? true : item.kategori === reportFilter) &&
+      (jenisFilter === "all" ? true : item.jenis === jenisFilter)
     );
 
     if (filteredData.length === 0) {
@@ -285,12 +484,14 @@ const UnitKerjaFormTable: React.FC = () => {
       "Nama Unit Kerja": item.nama,
       "Lokasi Unit Kerja": item.lokasi,
       "Luas Ruangan (M2)": item.luas_ruangan,
+      "Jenis": item.jenis ?? "",
       "Kategori": item.kategori,
     }));
 
-    const csv = Papa.unparse(dataToExport);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, `laporan_unit_kerja_${reportFilter.replace(/\s/g, '_')}.csv`);
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Unit Kerja");
+    XLSX.writeFile(wb, `laporan_unit_kerja_${reportFilter.replace(/\s/g, '_')}.xlsx`);
     toast.info("Laporan berhasil diunduh.");
   };
 
@@ -375,8 +576,37 @@ const UnitKerjaFormTable: React.FC = () => {
                       </FormItem>
                     )}
                   />
+              <FormField
+                control={form.control}
+                name="jenis"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Jenis</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih Jenis" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
+                        <SelectItem value="Rawat Inap">Rawat Inap</SelectItem>
+                        <SelectItem value="Operatif">Operatif</SelectItem>
+                        <SelectItem value="Non Layanan">Non Layanan</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
                   <DialogFooter>
-                    <Button type="submit">{editingUnitKerja ? "Simpan Perubahan" : "Tambah"}</Button>
+                    <LoadingButton 
+                      type="submit" 
+                      loading={saving}
+                      loadingText={editingUnitKerja ? "Menyimpan perubahan..." : "Menyimpan..."}
+                    >
+                      {editingUnitKerja ? "Simpan Perubahan" : "Tambah"}
+                    </LoadingButton>
                   </DialogFooter>
                 </form>
               </Form>
@@ -389,9 +619,27 @@ const UnitKerjaFormTable: React.FC = () => {
         <Button onClick={handleDownloadTemplate} variant="outline">
           <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
         </Button>
-        <label htmlFor="import-file" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          <Upload className="mr-2 h-4 w-4" /> Impor Data
-          <Input id="import-file" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+        <label htmlFor="import-file" className="cursor-pointer">
+          <LoadingButton
+            variant="outline"
+            loading={importing}
+            loadingText="Mengunggah Data..."
+            className="w-full"
+            asChild
+          >
+            <span>
+              <Upload className="mr-2 h-4 w-4" />
+              Impor Data
+            </span>
+          </LoadingButton>
+          <Input 
+            id="import-file" 
+            type="file" 
+            accept=".csv" 
+            onChange={handleImportData} 
+            className="sr-only" 
+            disabled={importing}
+          />
         </label>
         <div className="flex items-center gap-2">
           <Select onValueChange={(value: "all" | "Pusat Biaya" | "Pusat Pendapatan") => setReportFilter(value)} defaultValue={reportFilter}>
@@ -402,6 +650,18 @@ const UnitKerjaFormTable: React.FC = () => {
               <SelectItem value="all">Semua Kategori</SelectItem>
               <SelectItem value="Pusat Biaya">Pusat Biaya</SelectItem>
               <SelectItem value="Pusat Pendapatan">Pusat Pendapatan</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select onValueChange={(value: "all" | "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan") => setJenisFilter(value)} defaultValue={jenisFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter Jenis" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Jenis</SelectItem>
+              <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
+              <SelectItem value="Rawat Inap">Rawat Inap</SelectItem>
+              <SelectItem value="Operatif">Operatif</SelectItem>
+              <SelectItem value="Non Layanan">Non Layanan</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={handleDownloadReport} variant="outline">
@@ -418,24 +678,37 @@ const UnitKerjaFormTable: React.FC = () => {
               <TableHead>Nama Unit Kerja</TableHead>
               <TableHead>Lokasi Unit Kerja</TableHead>
               <TableHead>Luas Ruangan (M2)</TableHead>
+              <TableHead>Jenis</TableHead>
               <TableHead>Kategori</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
+            {loading || importing ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  Memuat data...
+                <TableCell colSpan={7} className="h-24 text-center">
+                  <LoadingSpinner 
+                    size="md" 
+                    text={importing ? "Mengunggah data..." : "Memuat data..."} 
+                  />
                 </TableCell>
               </TableRow>
-            ) : unitKerjaList.length > 0 ? (
-              unitKerjaList.map((unitKerja) => (
+            ) : unitKerjaList.filter(item =>
+                (reportFilter === "all" ? true : item.kategori === reportFilter) &&
+                (jenisFilter === "all" ? true : item.jenis === jenisFilter)
+              ).length > 0 ? (
+              unitKerjaList
+                .filter(item =>
+                  (reportFilter === "all" ? true : item.kategori === reportFilter) &&
+                  (jenisFilter === "all" ? true : item.jenis === jenisFilter)
+                )
+                .map((unitKerja) => (
                 <TableRow key={unitKerja.id}>
                   <TableCell className="font-medium">{unitKerja.kode}</TableCell>
                   <TableCell>{unitKerja.nama}</TableCell>
                   <TableCell>{unitKerja.lokasi}</TableCell>
                   <TableCell>{unitKerja.luas_ruangan}</TableCell>
+                <TableCell>{unitKerja.jenis ?? '-'}</TableCell>
                   <TableCell>{unitKerja.kategori}</TableCell>
                   <TableCell className="text-right">
                     <Button
@@ -458,7 +731,7 @@ const UnitKerjaFormTable: React.FC = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   Tidak ada data unit kerja.
                 </TableCell>
               </TableRow>

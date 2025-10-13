@@ -1,0 +1,11 @@
+Nama Tindakan,Medis (true/false),Paramedis (true/false)
+Konsultasi Dokter Umum,true,false
+Pemeriksaan Tekanan Darah,false,true
+Pemberian Obat,true,true
+Operasi Kecil,true,false
+Pemeriksaan Fisik,true,false
+Pengukuran Suhu Tubuh,false,true
+Konsultasi Spesialis,true,false
+Perawatan Luka,true,true
+Injeksi,true,false
+Terapi Fisik,false,true

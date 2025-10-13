@@ -1,0 +1,72 @@
+=== SETUP DATABASE LENGKAP ===
+
+STATUS SAAT INI:
+✅ unit_kerja: Tabel sudah ada
+✅ Data_Kegiatan: Tabel sudah ada (terlihat di dashboard)
+❌ Dasar_Alokasi: Tabel belum dibuat
+❌ Distribusi_Biaya: Tabel belum dibuat
+
+LANGKAH-LANGKAH PERBAIKAN:
+
+LANGKAH 1: Buka Supabase Dashboard
+1. Buka: https://supabase.com/dashboard
+2. Login ke akun Anda
+3. Pilih project: koepzicdtovtknsqlnac
+4. Pergi ke SQL Editor (sidebar kiri)
+
+LANGKAH 2: Buat Tabel
+1. Copy seluruh isi file: create-missing-tables-complete.sql
+2. Paste di SQL Editor
+3. Klik tombol Run (atau Ctrl+Enter)
+4. Tunggu hingga selesai
+
+LANGKAH 3: Buat Fungsi
+1. Copy seluruh isi file: create-functions-complete.sql
+2. Paste di SQL Editor
+3. Klik tombol Run (atau Ctrl+Enter)
+4. Tunggu hingga selesai
+
+LANGKAH 4: Verifikasi
+1. Copy seluruh isi file: verify-tables-created.sql
+2. Paste di SQL Editor
+3. Klik tombol Run (atau Ctrl+Enter)
+4. Pastikan semua tabel dan fungsi ada
+
+LANGKAH 5: Verifikasi Akhir
+Jalankan script check database:
+node check-database-status.cjs
+
+LANGKAH 6: Test Aplikasi
+1. Jalankan aplikasi: npm run dev
+2. Buka browser: http://localhost:8089
+3. Test halaman:
+   - http://localhost:8089/test-dasar-alokasi
+   - http://localhost:8089/dasar-alokasi
+   - http://localhost:8089/distribusi-biaya
+
+FILE YANG PERLU DIJALANKAN (URUTAN):
+1. create-missing-tables-complete.sql - Membuat tabel
+2. create-functions-complete.sql - Membuat fungsi
+3. verify-tables-created.sql - Verifikasi dan test
+4. check-database-status.cjs - Verifikasi akhir
+
+HASIL YANG DIHARAPKAN:
+✅ Tabel Dasar_Alokasi dibuat dengan struktur lengkap
+✅ Tabel Distribusi_Biaya dibuat dengan struktur lengkap
+✅ Indexes dibuat untuk performa
+✅ RLS (Row Level Security) diaktifkan
+✅ Policies dibuat untuk akses authenticated users
+✅ Triggers dibuat untuk updated_at
+✅ Function generate_dasar_alokasi_otomatis dibuat
+✅ Function hitung_distribusi_biaya dibuat
+✅ Function update_updated_at_column dibuat
+✅ Aplikasi dapat mengakses semua tabel dan fungsi
+
+CATATAN PENTING:
+- Jalankan script SQL di Supabase SQL Editor, bukan di aplikasi
+- Pastikan project yang dipilih adalah koepzicdtovtknsqlnac
+- Tunggu hingga setiap script selesai dieksekusi
+- Jika ada error, periksa log di SQL Editor
+
+=== SELESAI ===
+Ikuti langkah-langkah di atas untuk setup database lengkap!

@@ -5,9 +5,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { useFormOperations } from "@/hooks/use-form-operations";
+import { showError } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
+import * as XLSX from "xlsx";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -44,70 +49,84 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Search, X } from "lucide-react";
+import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
+import { useUploadProgress } from "@/hooks/use-upload-progress";
 
 interface Barang {
   id: string;
   user_id: string;
-  klasifikasi: "ASET" | "PERSEDIAAN";
-  kode: string;
-  nama: string;
-  gudang: "Medis" | "Non Medis";
-  unit_kerja_id: string | null;
-  unit_kerja?: {
-    nama: string;
-    kode: string;
-  };
+  kode_barang: string;
+  nama_barang: string;
+  satuan: string;
+  harga: number;
+  gudang: "obat" | "bhp";
   created_at?: string;
   updated_at?: string;
 }
 
-interface UnitKerja {
-  id: string;
-  kode: string;
-  nama: string;
-  kategori: string;
-}
 
 const formSchema = z.object({
-  klasifikasi: z.enum(["ASET", "PERSEDIAAN"], {
-    required_error: "Klasifikasi harus dipilih.",
-  }),
-  kode: z.string().min(1, { message: "Kode Barang harus diisi." }),
-  nama: z.string().min(1, { message: "Nama Barang harus diisi." }),
-  gudang: z.enum(["Medis", "Non Medis"], {
+  kode_barang: z.string().min(1, { message: "Kode Barang harus diisi." }),
+  nama_barang: z.string().min(1, { message: "Nama Barang harus diisi." }),
+  satuan: z.string().min(1, { message: "Satuan harus diisi." }),
+  harga: z.number().min(0, { message: "Harga harus lebih dari atau sama dengan 0." }),
+  gudang: z.enum(["obat", "bhp"], {
     required_error: "Gudang harus dipilih.",
   }),
-  unit_kerja_id: z.string().optional().nullable(),
 });
 
 const BarangFormTable: React.FC = () => {
   const [barangList, setBarangList] = useState<Barang[]>([]);
-  const [unitKerjaList, setUnitKerjaList] = useState<UnitKerja[]>([]);
   const [editingBarang, setEditingBarang] = useState<Barang | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [reportFilter, setReportFilter] = useState<"all" | "ASET" | "PERSEDIAAN">("all");
-  const [loading, setLoading] = useState(true);
+  const [reportFilter, setReportFilter] = useState<"all" | "obat" | "bhp">("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Use upload progress hook
+  const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
+  
+  // Use form operations hook
+  const { loading, saving, loadData, saveData, deleteData } = useFormOperations({
+    entityName: "Barang",
+    onSuccess: () => {
+      setEditingBarang(null);
+      setIsDialogOpen(false);
+      form.reset();
+    }
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      klasifikasi: "ASET",
-      kode: "",
-      nama: "",
-      gudang: "Medis",
-      unit_kerja_id: null,
+      kode_barang: "",
+      nama_barang: "",
+      satuan: "",
+      harga: 0,
+      gudang: "obat",
     },
   });
 
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUserId(session.user.id);
-        fetchBarang(session.user.id);
-        fetchUnitKerja(session.user.id);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Current session:', session);
+        if (session?.user) {
+          console.log('User authenticated:', session.user.id);
+          setUserId(session.user.id);
+          fetchBarang(session.user.id);
+        } else {
+          console.log('No user session found, fetching all data for debugging');
+          setUserId(null);
+          fetchBarang(null);
+        }
+      } catch (error) {
+        console.error('Error fetching user session:', error);
+        // Fallback: try to fetch data anyway
+        setUserId(null);
+        fetchBarang(null);
       }
     };
     
@@ -117,60 +136,103 @@ const BarangFormTable: React.FC = () => {
   useEffect(() => {
     if (editingBarang) {
       form.reset({
-        klasifikasi: editingBarang.klasifikasi,
-        kode: editingBarang.kode,
-        nama: editingBarang.nama,
+        kode_barang: editingBarang.kode_barang,
+        nama_barang: editingBarang.nama_barang,
+        satuan: editingBarang.satuan,
+        harga: editingBarang.harga,
         gudang: editingBarang.gudang,
-        unit_kerja_id: editingBarang.unit_kerja_id || undefined,
       });
     } else {
       form.reset({
-        klasifikasi: "ASET",
-        kode: "",
-        nama: "",
-        gudang: "Medis",
-        unit_kerja_id: null,
+        kode_barang: "",
+        nama_barang: "",
+        satuan: "",
+        harga: 0,
+        gudang: "obat",
       });
     }
   }, [editingBarang, form]);
 
-  const fetchBarang = async (currentUserId: string) => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('barang')
-      .select('*, unit_kerja:unit_kerja_id(kode, nama)')
-      .eq('user_id', currentUserId)
-      .order('created_at', { ascending: false });
+  const fetchBarang = async (currentUserId: string | null) => {
+    await loadData(async () => {
+      try {
+        console.log('=== FETCHING BARANG DATA ===');
+        console.log('Current user ID:', currentUserId);
+        
+        // Fetch all data with explicit limit to ensure we get all records
+        // Default Supabase limit is 1000, but we have 1256+ records
+        const { data, error } = await supabase
+          .from('data_barang_farmasi')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(2000); // Set higher limit to get all data
 
-    if (error) {
-      toast.error("Gagal memuat data barang.");
-      console.error(error);
-    } else {
-      setBarangList(data || []);
-    }
-    setLoading(false);
+        if (error) {
+          console.error('Error fetching barang data:', error);
+          throw error;
+        }
+
+        console.log('Raw data from Supabase:', data?.length, 'items');
+        console.log('Expected: 1256+ items, Got:', data?.length);
+        
+        if (data && data.length < 1200) {
+          console.warn('Warning: Got fewer items than expected. May need pagination.');
+        }
+        
+        // Log data by gudang type
+        if (data && data.length > 0) {
+          const gudangCounts = data.reduce((acc, item) => {
+            acc[item.gudang] = (acc[item.gudang] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          console.log('Data by gudang type:', gudangCounts);
+          
+          // Check specifically for bhp items
+          const bhpItems = data.filter(item => item.gudang === 'bhp');
+          console.log('BHP items found:', bhpItems.length);
+          if (bhpItems.length > 0) {
+            console.log('Sample BHP items:', bhpItems.slice(0, 3));
+          } else {
+            console.log('NO BHP ITEMS FOUND!');
+            console.log('All gudang values:', [...new Set(data.map(item => item.gudang))]);
+          }
+        }
+        
+        // Convert harga from string to number if needed
+        const processedData = (data || []).map(item => ({
+          ...item,
+          harga: typeof item.harga === 'string' ? parseFloat(item.harga) || 0 : item.harga
+        }));
+        
+        console.log('Processed data length:', processedData.length);
+        setBarangList(processedData);
+        
+        // Additional debugging after setting state
+        console.log('Data set in state, length:', processedData.length);
+        if (processedData.length > 0) {
+          const bhpCount = processedData.filter(item => item.gudang === 'bhp').length;
+          console.log('BHP count after setting state:', bhpCount);
+          
+          // Log all unique gudang values
+          const uniqueGudangs = [...new Set(processedData.map(item => item.gudang))];
+          console.log('All unique gudang values:', uniqueGudangs);
+        }
+        console.log('=== FETCHING COMPLETE ===');
+      } catch (error) {
+        console.error('Error in fetchBarang:', error);
+        // Set empty array on error to prevent undefined state
+        setBarangList([]);
+        throw error;
+      }
+    }, { showLoadingToast: false });
   };
 
-  const fetchUnitKerja = async (currentUserId: string) => {
-    const { data, error } = await supabase
-      .from('unit_kerja')
-      .select('id, kode, nama, kategori')
-      .eq('user_id', currentUserId)
-      .order('nama', { ascending: true });
-
-    if (error) {
-      toast.error("Gagal memuat data unit kerja.");
-      console.error(error);
-    } else {
-      setUnitKerjaList(data || []);
-    }
-  };
 
   const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {
     let query = supabase
-      .from('barang')
+      .from('master_barang')
       .select('id')
-      .eq('kode', kode)
+      .eq('kode_barang', kode)
       .eq('user_id', currentUserId);
       
     if (excludeId) {
@@ -185,55 +247,48 @@ const BarangFormTable: React.FC = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!userId) {
-      toast.error("User tidak ditemukan. Silakan login kembali.");
+      showError("User tidak ditemukan. Silakan login kembali.");
       return;
     }
 
-    try {
+    await saveData(async () => {
       // Check if kode already exists
       const isKodeExists = await checkKodeExists(
-        values.kode, 
+        values.kode_barang, 
         userId, 
         editingBarang?.id
       );
       
       if (isKodeExists) {
-        toast.error("Kode Barang sudah digunakan. Silakan gunakan kode yang lain.");
-        return;
+        throw new Error("Kode Barang sudah digunakan. Silakan gunakan kode yang lain.");
       }
 
       if (editingBarang) {
         const { error } = await supabase
-          .from('barang')
+          .from('data_barang_farmasi')
           .update({ 
             ...values, 
-            user_id: userId,
-            unit_kerja_id: values.unit_kerja_id || null
+            user_id: userId
           })
           .eq('id', editingBarang.id);
 
         if (error) throw error;
-        toast.success("Data Barang berhasil diperbarui.");
       } else {
         const { error } = await supabase
-          .from('barang')
+          .from('data_barang_farmasi')
           .insert([{
             ...values,
-            user_id: userId,
-            unit_kerja_id: values.unit_kerja_id || null
+            user_id: userId
           }]);
 
         if (error) throw error;
-        toast.success("Data Barang berhasil ditambahkan.");
       }
+      
       await fetchBarang(userId);
-      setEditingBarang(null);
-      setIsDialogOpen(false);
-      form.reset();
-    } catch (error: any) {
-      console.error(error);
-      toast.error(`Terjadi kesalahan saat menyimpan data: ${error.message}`);
-    }
+    }, {
+      loadingMessage: editingBarang ? "Memperbarui barang farmasi..." : "Menyimpan barang farmasi...",
+      successMessage: editingBarang ? "Barang farmasi berhasil diperbarui" : "Barang farmasi berhasil ditambahkan"
+    });
   };
 
   const handleEdit = (barang: Barang) => {
@@ -242,123 +297,304 @@ const BarangFormTable: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    try {
+    await deleteData(async () => {
       const { error } = await supabase
-        .from('barang')
+        .from('master_barang')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
       if (userId) await fetchBarang(userId);
-      toast.success("Data Barang berhasil dihapus.");
-    } catch (error: any) {
-      console.error(error);
-      toast.error(`Terjadi kesalahan saat menghapus data: ${error.message}`);
-    }
+    });
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log("Import data triggered", event.target.files);
+    console.log("Current userId:", userId);
+    
     if (!userId) {
       toast.error("User tidak ditemukan. Silakan login kembali.");
       return;
     }
 
     const file = event.target.files?.[0];
+    if (!file) {
+      toast.error("Tidak ada file yang dipilih.");
+      return;
+    }
+
+    // Reset the input value so the same file can be selected again
+    event.target.value = '';
+
     if (file) {
+      console.log("Starting import for file:", file.name, "Size:", file.size, "Type:", file.type);
       file.text().then((text) => {
+        console.log("File content length:", text.length);
         (Papa as any).parse(text, {
           header: true,
           skipEmptyLines: true,
           complete: async (results: Papa.ParseResult<any>) => {
             try {
-              const importedData: any[] = [];
+              console.log("CSV parsing completed. Results:", results);
+              const allRows = results.data;
+              const totalRows = allRows.length;
+              
+              console.log("Total rows to process:", totalRows);
+              
+              if (totalRows === 0) {
+                showUploadError("File CSV kosong atau tidak memiliki data valid.");
+                return;
+              }
+              
+              // Start upload progress
+              startUpload(totalRows, "Sedang mengimpor barang farmasi...");
+              
+              // Step 1: Process and validate all data
               const duplicateCodes: string[] = [];
-              const unitKerjaMap = new Map(unitKerjaList.map(uk => [uk.kode, uk.id]));
+              let processedCount = 0;
+              let errorCount = 0;
+              let duplicateInFileCount = 0;
+              
+              // First, get all existing kode barang from database to avoid duplicates
+              console.log("Fetching existing data for user:", userId);
+              const { data: existingData, error: fetchError } = await supabase
+                .from('data_barang_farmasi')
+                .select('kode_barang')
+                .eq('user_id', userId);
+              
+              console.log("Existing data fetch result:", { existingData, fetchError });
+              if (fetchError) throw fetchError;
+              
+              const existingKodes = new Set(existingData?.map(item => item.kode_barang) || []);
+              
+              // Process all rows and create a map for deduplication
+              const kodeMap = new Map<string, any>();
+              let totalRowsProcessed = 0;
+              let validRowsCount = 0;
+              let invalidRowsCount = 0;
+              
+              console.log("Processing rows:", results.data.length);
+              console.log("Sample row:", results.data[0]);
               
               for (const row of results.data) {
-                const kode = row["Kode Barang"] || "";
+                processedCount++;
+                totalRowsProcessed++;
+                updateProgress(processedCount, 0, errorCount);
                 
-                if (!kode) {
-                  toast.error("Kode Barang tidak boleh kosong dalam file CSV.");
-                  return;
+                // Get data with flexible column name matching
+                const kode = row["Kode Barang"] || row["kode_barang"] || row["Kode"] || "";
+                const namaBarang = row["Nama Barang"] || row["nama_barang"] || row["Nama"] || "";
+                const satuan = row["Satuan"] || row["satuan"] || "";
+                const harga = row["Harga"] || row["harga"] || "";
+                const gudang = row["Gudang"] || row["gudang"] || "";
+                
+                console.log(`Row ${totalRowsProcessed}:`, { kode, namaBarang, satuan, harga, gudang });
+                
+                // Validate required fields
+                if (!kode || !namaBarang) {
+                  console.log(`Row ${totalRowsProcessed} invalid: missing kode or nama`);
+                  invalidRowsCount++;
+                  errorCount++;
+                  continue;
                 }
                 
                 // Check if kode already exists in database
-                const isKodeExists = await checkKodeExists(kode, userId);
-                
-                if (isKodeExists) {
+                if (existingKodes.has(kode)) {
+                  console.log(`Row ${totalRowsProcessed} duplicate in DB: ${kode}`);
                   duplicateCodes.push(kode);
+                  errorCount++;
                   continue;
                 }
                 
-                // Check if kode already exists in this import batch
-                const isDuplicateInBatch = importedData.some(item => item.kode === kode);
-                if (isDuplicateInBatch) {
-                  duplicateCodes.push(kode);
-                  continue;
-                }
+                // Validate gudang value (more flexible)
+                const validGudangValues = ["obat", "bhp"];
+                let gudangValue = gudang;
                 
-                // Find unit kerja by kode if provided
-                let unitKerjaId = null;
-                const unitKerjaKode = row["Kode Unit Kerja"];
-                if (unitKerjaKode) {
-                  unitKerjaId = unitKerjaMap.get(unitKerjaKode) || null;
-                  if (!unitKerjaId) {
-                    toast.warning(`Kode Unit Kerja '${unitKerjaKode}' tidak ditemukan, melewatkan penautan unit kerja untuk barang ${kode}`);
+                // Try to match gudang with partial matching
+                if (!validGudangValues.includes(gudangValue)) {
+                  if (gudangValue.toLowerCase().includes("obat")) {
+                    gudangValue = "obat";
+                  } else if (gudangValue.toLowerCase().includes("bhp")) {
+                    gudangValue = "bhp";
+                  } else {
+                    console.log(`Row ${totalRowsProcessed} invalid gudang: ${gudangValue}`);
+                    invalidRowsCount++;
+                    errorCount++;
+                    continue;
                   }
                 }
                 
-                importedData.push({
-                  kode,
-                  klasifikasi: row["Klasifikasi"] === "PERSEDIAAN" ? "PERSEDIAAN" : "ASET",
-                  nama: row["Nama Barang"] || "",
-                  gudang: row["Gudang"] === "Non Medis" ? "Non Medis" : "Medis",
-                  unit_kerja_id: unitKerjaId,
+                const hargaValue = parseFloat(harga) || 0;
+                const itemData = {
+                  kode_barang: kode,
+                  nama_barang: namaBarang,
+                  satuan: satuan,
+                  harga: hargaValue,
+                  gudang: gudangValue,
                   user_id: userId,
-                });
+                };
+                
+                validRowsCount++;
+                
+                // Deduplication logic: keep only the highest priced item per kode
+                if (!kodeMap.has(kode)) {
+                  kodeMap.set(kode, itemData);
+                } else if (kodeMap.get(kode).harga < hargaValue) {
+                  duplicateInFileCount++;
+                  kodeMap.set(kode, itemData);
+                } else {
+                  duplicateInFileCount++;
+                }
               }
+              
+              console.log(`Processing complete: ${totalRowsProcessed} total, ${validRowsCount} valid, ${invalidRowsCount} invalid`);
               
               if (duplicateCodes.length > 0) {
-                toast.error(`Kode Barang berikut sudah ada: ${duplicateCodes.join(", ")}`);
+                showUploadError(`Kode Barang berikut sudah ada di database: ${duplicateCodes.slice(0, 10).join(", ")}${duplicateCodes.length > 10 ? ` dan ${duplicateCodes.length - 10} lainnya` : ""}`);
                 return;
               }
               
-              if (importedData.length === 0) {
-                toast.warning("Tidak ada data valid untuk diimpor.");
+              const finalData = Array.from(kodeMap.values());
+              
+              console.log(`Final data to insert: ${finalData.length} items`);
+              
+              if (finalData.length === 0) {
+                let errorMessage = "Tidak ada data valid untuk diimpor.\n";
+                errorMessage += `📊 Total data diproses: ${totalRowsProcessed}\n`;
+                errorMessage += `✅ Data valid: ${validRowsCount}\n`;
+                errorMessage += `❌ Data tidak valid: ${invalidRowsCount}\n`;
+                errorMessage += `🚫 Duplikat di database: ${duplicateCodes.length}\n`;
+                errorMessage += `🔄 Duplikat dalam file: ${duplicateInFileCount}`;
+                
+                showUploadError(errorMessage);
                 return;
               }
 
-              const { error } = await supabase
-                .from('barang')
-                .insert(importedData);
+              // Step 2: Insert data in batches to avoid timeout
+              const batchSize = 100;
+              let successCount = 0;
+              let batchErrorCount = 0;
+              
+              for (let i = 0; i < finalData.length; i += batchSize) {
+                const batch = finalData.slice(i, i + batchSize);
+                
+                try {
+                  console.log(`Inserting batch ${Math.floor(i/batchSize) + 1} with ${batch.length} items`);
+                  const { error } = await supabase
+                    .from('data_barang_farmasi')
+                    .insert(batch);
 
-              if (error) throw error;
+                  if (error) {
+                    console.error(`Batch ${Math.floor(i/batchSize) + 1} error:`, error);
+                    batchErrorCount += batch.length;
+                  } else {
+                    console.log(`Batch ${Math.floor(i/batchSize) + 1} success`);
+                    successCount += batch.length;
+                  }
+                } catch (batchError) {
+                  console.error(`Batch ${Math.floor(i/batchSize) + 1} error:`, batchError);
+                  batchErrorCount += batch.length;
+                }
+                
+                // Update progress
+                updateProgress(processedCount, successCount, errorCount + batchErrorCount);
+                
+                // Small delay to prevent overwhelming the database
+                if (i + batchSize < finalData.length) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                }
+              }
+              
+              // Complete upload with final counts
+              completeUpload(successCount, errorCount + batchErrorCount, duplicateCodes.length);
+              
+              // Show detailed summary message
+              const totalProcessed = totalRowsProcessed;
+              const totalValid = validRowsCount;
+              const totalInvalid = invalidRowsCount;
+              const totalDuplicatesInFile = duplicateInFileCount;
+              const totalDuplicatesInDB = duplicateCodes.length;
+              const totalSuccess = successCount;
+              const totalErrors = errorCount + batchErrorCount;
+              
+              let summaryMessage = `Import selesai!\n`;
+              summaryMessage += `📊 Total data diproses: ${totalProcessed}\n`;
+              summaryMessage += `✅ Data valid: ${totalValid}\n`;
+              summaryMessage += `❌ Data tidak valid: ${totalInvalid}\n`;
+              summaryMessage += `🔄 Duplikat dalam file: ${totalDuplicatesInFile} (hanya harga tertinggi disimpan)\n`;
+              summaryMessage += `🚫 Duplikat di database: ${totalDuplicatesInDB}\n`;
+              summaryMessage += `💾 Berhasil diunggah: ${totalSuccess}\n`;
+              summaryMessage += `⚠️ Gagal diunggah: ${totalErrors}`;
+              
+              if (totalSuccess > 0) {
+                toast.success(summaryMessage, { duration: 8000 });
+              } else {
+                toast.error(summaryMessage, { duration: 8000 });
+              }
+              
+              // Refresh data
               if (userId) await fetchBarang(userId);
-              toast.success(`${importedData.length} data berhasil diimpor.`);
             } catch (error: any) {
               console.error(error);
-              toast.error(`Gagal mengimpor data: ${error.message}`);
+              showUploadError(`Gagal mengimpor data: ${error.message}`);
             }
           },
           error: (error: Papa.ParseError) => {
-            toast.error(`Gagal mengimpor data: ${error.message}`);
+            console.error("CSV parsing error:", error);
+            showUploadError(`Gagal memparse file CSV: ${error.message}`);
           }
         });
+      }).catch((error) => {
+        console.error("File reading error:", error);
+        showUploadError(`Gagal membaca file: ${error.message}`);
       });
     }
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Kode Barang", "Klasifikasi", "Nama Barang", "Gudang", "Kode Unit Kerja"];
-    const csv = Papa.unparse([headers]);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, "template_barang.csv");
-    toast.info("Template impor data berhasil diunduh.");
+    const headers = ["Kode Barang", "Nama Barang", "Satuan", "Harga", "Gudang"];
+    const sampleData = [
+      ["BRG001", "Contoh Barang 1", "pcs", "10000", "obat"],
+      ["BRG002", "Contoh Barang 2", "box", "25000", "bhp"],
+      ["BRG003", "Contoh Barang 3", "kg", "5000", "obat"]
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template Barang");
+    XLSX.writeFile(wb, "template_barang.xlsx");
+    toast.info("Template impor data berhasil diunduh. Catatan: Jika ada kode barang duplikat, hanya data dengan harga tertinggi yang akan disimpan. Gudang harus: 'obat' atau 'bhp'.");
   };
+
+
+  // Filter data based on search term and report filter
+  const filteredBarangList = barangList.filter(item => {
+    const matchesSearch = searchTerm === "" || 
+      item.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.kode_barang.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilter = reportFilter === "all" ? true : item.gudang === reportFilter;
+    
+    return matchesSearch && matchesFilter;
+  });
+
+  // Debug filtering - only log when there are issues
+  if (barangList.length > 0 && filteredBarangList.length === 0 && reportFilter === 'bhp') {
+    console.log('Filtering debug for bhp:', {
+      totalItems: barangList.length,
+      filteredItems: filteredBarangList.length,
+      searchTerm,
+      reportFilter,
+      bhpInOriginal: barangList.filter(item => item.gudang === 'bhp').length,
+      bhpInFiltered: filteredBarangList.filter(item => item.gudang === 'bhp').length,
+      allGudangsInOriginal: [...new Set(barangList.map(item => item.gudang))],
+      allGudangsInFiltered: [...new Set(filteredBarangList.map(item => item.gudang))],
+      sampleBhpItems: barangList.filter(item => item.gudang === 'bhp').slice(0, 3)
+    });
+  }
 
   const handleDownloadReport = () => {
     const filteredData = barangList.filter(item =>
-      reportFilter === "all" ? true : item.klasifikasi === reportFilter
+      reportFilter === "all" ? true : item.gudang === reportFilter
     );
 
     if (filteredData.length === 0) {
@@ -367,37 +603,42 @@ const BarangFormTable: React.FC = () => {
     }
 
     const dataToExport = filteredData.map(item => ({
-      "Kode Barang": item.kode,
-      "Klasifikasi": item.klasifikasi,
-      "Nama Barang": item.nama,
+      "Kode Barang": item.kode_barang,
+      "Nama Barang": item.nama_barang,
+      "Satuan": item.satuan,
+      "Harga": item.harga,
       "Gudang": item.gudang,
-      "Kode Unit Kerja": item.unit_kerja?.kode || "-",
-      "Nama Unit Kerja": item.unit_kerja?.nama || "-",
     }));
 
-    const csv = Papa.unparse(dataToExport);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    saveAs(blob, `laporan_barang_${reportFilter}.csv`);
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Laporan Barang");
+    XLSX.writeFile(wb, `laporan_barang_${reportFilter}.xlsx`);
     toast.info("Laporan berhasil diunduh.");
   };
 
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Manajemen Data Barang</h2>
-        <div className="flex gap-2">
-          {userId && (
-            <Button onClick={() => fetchBarang(userId)} variant="outline" size="icon">
-              <RefreshCw className="h-4 w-4" />
-            </Button>
+        <div>
+          <h2 className="text-2xl font-bold">Manajemen Barang Farmasi</h2>
+          {process.env.NODE_ENV === 'development' && (
+            <div className="text-xs text-gray-500 mt-1">
+              Debug: Total data: {barangList.length} | BHP: {barangList.filter(item => item.gudang === 'bhp').length}
+            </div>
           )}
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => fetchBarang(userId)} variant="outline" size="icon" title="Refresh Data">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingBarang(null)}>Tambah Data Barang</Button>
+              <Button onClick={() => setEditingBarang(null)}>Tambah Barang Farmasi</Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
-                <DialogTitle>{editingBarang ? "Edit Data Barang" : "Tambah Data Barang"}</DialogTitle>
+                <DialogTitle>{editingBarang ? "Edit Barang Farmasi" : "Tambah Barang Farmasi"}</DialogTitle>
                 <DialogDescription>
                   {editingBarang ? "Perbarui detail barang." : "Tambahkan barang baru ke sistem."}
                 </DialogDescription>
@@ -406,7 +647,7 @@ const BarangFormTable: React.FC = () => {
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
                   <FormField
                     control={form.control}
-                    name="kode"
+                    name="kode_barang"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Kode Barang</FormLabel>
@@ -419,33 +660,43 @@ const BarangFormTable: React.FC = () => {
                   />
                   <FormField
                     control={form.control}
-                    name="klasifikasi"
+                    name="nama_barang"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Klasifikasi Barang</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih Klasifikasi" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="ASET">ASET</SelectItem>
-                            <SelectItem value="PERSEDIAAN">PERSEDIAAN</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Nama Barang</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Contoh: Infus Set" {...field} />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                   <FormField
                     control={form.control}
-                    name="nama"
+                    name="satuan"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nama Barang</FormLabel>
+                        <FormLabel>Satuan</FormLabel>
                         <FormControl>
-                          <Input placeholder="Contoh: Infus Set" {...field} />
+                          <Input placeholder="Contoh: pcs, box, kg" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="harga"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Harga</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="0" 
+                            {...field} 
+                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -464,33 +715,8 @@ const BarangFormTable: React.FC = () => {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Medis">Medis</SelectItem>
-                            <SelectItem value="Non Medis">Non Medis</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="unit_kerja_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Unit Kerja</FormLabel>
-                        <Select onValueChange={(value) => field.onChange(value === "null" ? null : value)} value={field.value || "null"}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih Unit Kerja" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="null">Tidak ada</SelectItem>
-                            {unitKerjaList.map((unit) => (
-                              <SelectItem key={unit.id} value={unit.id}>
-                                {unit.kode} - {unit.nama}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="obat">Obat</SelectItem>
+                            <SelectItem value="bhp">BHP</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -498,7 +724,13 @@ const BarangFormTable: React.FC = () => {
                     )}
                   />
                   <DialogFooter>
-                    <Button type="submit">{editingBarang ? "Simpan Perubahan" : "Tambah"}</Button>
+                    <LoadingButton 
+                      type="submit" 
+                      loading={saving}
+                      loadingText={editingBarang ? "Menyimpan perubahan..." : "Menyimpan..."}
+                    >
+                      {editingBarang ? "Simpan Perubahan" : "Tambah"}
+                    </LoadingButton>
                   </DialogFooter>
                 </form>
               </Form>
@@ -507,23 +739,79 @@ const BarangFormTable: React.FC = () => {
         </div>
       </div>
 
+      {/* Search Section */}
+      <div className="mb-6">
+        <div className="flex items-center gap-4">
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Cari nama barang atau kode barang..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+              {searchTerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+          {searchTerm && (
+            <div className="text-sm text-gray-600">
+              {filteredBarangList.length} dari {barangList.length} data ditemukan
+            </div>
+          )}
+          {!searchTerm && barangList.length > 0 && (
+            <div className="text-sm text-gray-600">
+              Total: {barangList.length} data | 
+              Obat: {barangList.filter(item => item.gudang === 'obat').length} | 
+              BHP: {barangList.filter(item => item.gudang === 'bhp').length}
+            </div>
+          )}
+          {!searchTerm && barangList.length === 0 && !loading && (
+            <div className="text-sm text-red-600">
+              Tidak ada barang farmasi yang ditemukan. Periksa koneksi database atau coba refresh halaman.
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-4 mb-6">
         <Button onClick={handleDownloadTemplate} variant="outline">
           <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
         </Button>
-        <label htmlFor="import-file" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          <Upload className="mr-2 h-4 w-4" /> Impor Data
-          <Input id="import-file" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
-        </label>
+        <div className="relative">
+          <Input 
+            id="import-file" 
+            type="file" 
+            accept=".csv" 
+            onChange={handleImportData} 
+            className="sr-only" 
+          />
+          <label 
+            htmlFor="import-file" 
+            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer"
+          >
+            <Upload className="mr-2 h-4 w-4" /> Impor Data
+          </label>
+        </div>
         <div className="flex items-center gap-2">
-          <Select onValueChange={(value: "all" | "ASET" | "PERSEDIAAN") => setReportFilter(value)} defaultValue={reportFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter Klasifikasi" />
+          <Select onValueChange={(value: "all" | "obat" | "bhp") => setReportFilter(value)} defaultValue={reportFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter Gudang" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Klasifikasi</SelectItem>
-              <SelectItem value="ASET">ASET</SelectItem>
-              <SelectItem value="PERSEDIAAN">PERSEDIAAN</SelectItem>
+              <SelectItem value="all">Semua Gudang</SelectItem>
+              <SelectItem value="obat">Obat</SelectItem>
+              <SelectItem value="bhp">BHP</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={handleDownloadReport} variant="outline">
@@ -536,11 +824,11 @@ const BarangFormTable: React.FC = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Kode</TableHead>
-              <TableHead>Klasifikasi</TableHead>
+              <TableHead>Kode Barang</TableHead>
               <TableHead>Nama Barang</TableHead>
+              <TableHead>Satuan</TableHead>
+              <TableHead>Harga</TableHead>
               <TableHead>Gudang</TableHead>
-              <TableHead>Unit Kerja</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -548,19 +836,17 @@ const BarangFormTable: React.FC = () => {
             {loading ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  Memuat data...
+                  <LoadingSpinner size="md" text="Memuat data..." />
                 </TableCell>
               </TableRow>
-            ) : barangList.length > 0 ? (
-              barangList.map((barang) => (
+            ) : filteredBarangList.length > 0 ? (
+              filteredBarangList.map((barang) => (
                 <TableRow key={barang.id}>
-                  <TableCell className="font-medium">{barang.kode}</TableCell>
-                  <TableCell>{barang.klasifikasi}</TableCell>
-                  <TableCell>{barang.nama}</TableCell>
+                  <TableCell className="font-medium">{barang.kode_barang}</TableCell>
+                  <TableCell>{barang.nama_barang}</TableCell>
+                  <TableCell>{barang.satuan}</TableCell>
+                  <TableCell>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(barang.harga)}</TableCell>
                   <TableCell>{barang.gudang}</TableCell>
-                  <TableCell>
-                    {barang.unit_kerja ? `${barang.unit_kerja.kode} - ${barang.unit_kerja.nama}` : "-"}
-                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
@@ -583,13 +869,16 @@ const BarangFormTable: React.FC = () => {
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  Tidak ada data barang.
+                  {searchTerm ? `Tidak ada barang farmasi yang cocok dengan pencarian "${searchTerm}".` : "Tidak ada barang farmasi."}
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
+      
+      {/* Import Progress Modal */}
+      <ImportProgressModal progress={uploadProgress} />
     </div>
   );
 };
