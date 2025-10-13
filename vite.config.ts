@@ -22,6 +22,9 @@ export default defineConfig(() => ({
     },
     target: "es2015",
     minify: true,
+    commonjsOptions: {
+      include: [/node_modules/],
+    },
   },
   optimizeDeps: {
     include: ["react", "react-dom"],
