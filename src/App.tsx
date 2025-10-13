@@ -3,69 +3,69 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Layout from "./components/Layout";
-import DataUnitKerja from "./pages/DataUnitKerja";
-import DataBarang from "./pages/DataBarang";
-import DataBarangGizi from "./pages/DataBarangGizi";
-import DataKamar from "./pages/DataKamar";
-import DataKlinik from "./pages/DataKlinik";
-import DataKegiatan from "./pages/DataKegiatan";
-import DataTindakan from "./pages/DataTindakan";
-import DataTindakanLaboratorium from "./pages/DataTindakanLaboratorium";
-import DataTindakanRadiologi from "./pages/DataTindakanRadiologi";
-import DataTindakanOperatif from "./pages/DataTindakanOperatif";
-import DataTindakanCathlab from "./pages/DataTindakanCathlab";
-import DataPendapatan from "./pages/DataPendapatan";
-import DataBiaya from "./pages/DataBiaya";
-import KalkulasiBiayaGizi from "./pages/KalkulasiBiayaGizi";
-import KalkulasiTindakanRawatJalan from "./pages/KalkulasiTindakanRawatJalan";
-import KalkulasiBiayaOperatif from "./pages/KalkulasiBiayaOperatif";
-import KalkulasiBiayaLaboratorium from "./pages/KalkulasiBiayaLaboratorium";
-import KalkulasiBiayaRadiologi from "./pages/KalkulasiBiayaRadiologi";
-import KalkulasiBiayaCathlab from "./pages/KalkulasiBiayaCathlab";
-import KalkulasiBiayaDiklat from "./pages/KalkulasiBiayaDiklat";
-import KalkulasiBiayaBDRS from "./pages/KalkulasiBiayaBDRS";
-import RekapitulasiUnitCost from "./pages/RekapitulasiUnitCost";
-import ProdukLayanan from "./pages/ProdukLayanan";
-import SkenarioTarif from "./pages/SkenarioTarif";
-import SkenarioTarifAkomodasi from "./pages/SkenarioTarifAkomodasi";
-import SkenarioTarifVisit from "./pages/SkenarioTarifVisit";
-import DataTindakanBDRS from "./pages/DataTindakanBDRS";
-import MenuGizi from "./pages/MenuGizi";
-import DataDiklat from "./pages/DataDiklat";
-import UnitPenunjang from "./pages/UnitPenunjang";
-import UnitKeperawatan from "./pages/UnitKeperawatan";
-import UnitPelayanan from "./pages/UnitPelayanan";
-import UnitDiklat from "./pages/UnitDiklat";
-import ManajemenTindakanInap from "./pages/ManajemenTindakanInap";
-import KalkulasiTindakanInap from "./pages/KalkulasiTindakanInap";
-import KalkulasiBiayaKelasAkomodasi from "./pages/KalkulasiBiayaKelasAkomodasi";
-import AlokasiBiayaGizi from "./pages/AlokasiBiayaGizi";
-import KalkulasiPendaftaranDanPeresepan from "./pages/KalkulasiPendaftaranDanPeresepan";
-import ManajemenTindakanRawatJalan from "./pages/ManajemenTindakanRawatJalan";
-import BudgetingBHPRupiah from "./pages/BudgetingBHPRupiah";
-import BudgetingBHPRincian from "./pages/BudgetingBHPRincian";
-import DasarAlokasi from "./pages/DasarAlokasi";
-import DistribusiBiaya from "./pages/DistribusiBiaya";
-import DistribusiBiayaPertama from "./pages/DistribusiBiayaPertama";
-import DistribusiBiayaKedua from "./pages/DistribusiBiayaKedua";
-import DistribusiBiayaRekap from "./pages/DistribusiBiayaRekap";
-import CostRecovery from "./pages/CostRecovery.tsx";
-import TestDasarAlokasi from "./pages/TestDasarAlokasi";
-import ManajemenAkses from "./pages/ManajemenAkses";
-import ModulTeknis from "./pages/ModulTeknis";
-import Login from "./pages/Login";
-import Health from "./pages/Health";
-import TestSupabase from "./pages/TestSupabase";
-import TestPage from "./pages/TestPage";
-import SimpleTest from "./pages/SimpleTest";
-import ModulTeknisTest from "./pages/ModulTeknisTest";
-import ModulTeknisSimple from "./pages/ModulTeknisSimple";
-import VercelDebug from "./pages/VercelDebug";
+import { lazy, Suspense, useEffect, useState } from "react";
+const Index = lazy(() => import("./pages/Index"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Layout = lazy(() => import("./components/Layout"));
+const DataUnitKerja = lazy(() => import("./pages/DataUnitKerja"));
+const DataBarang = lazy(() => import("./pages/DataBarang"));
+const DataBarangGizi = lazy(() => import("./pages/DataBarangGizi"));
+const DataKamar = lazy(() => import("./pages/DataKamar"));
+const DataKlinik = lazy(() => import("./pages/DataKlinik"));
+const DataKegiatan = lazy(() => import("./pages/DataKegiatan"));
+const DataTindakan = lazy(() => import("./pages/DataTindakan"));
+const DataTindakanLaboratorium = lazy(() => import("./pages/DataTindakanLaboratorium"));
+const DataTindakanRadiologi = lazy(() => import("./pages/DataTindakanRadiologi"));
+const DataTindakanOperatif = lazy(() => import("./pages/DataTindakanOperatif"));
+const DataTindakanCathlab = lazy(() => import("./pages/DataTindakanCathlab"));
+const DataPendapatan = lazy(() => import("./pages/DataPendapatan"));
+const DataBiaya = lazy(() => import("./pages/DataBiaya"));
+const KalkulasiBiayaGizi = lazy(() => import("./pages/KalkulasiBiayaGizi"));
+const KalkulasiTindakanRawatJalan = lazy(() => import("./pages/KalkulasiTindakanRawatJalan"));
+const KalkulasiBiayaOperatif = lazy(() => import("./pages/KalkulasiBiayaOperatif"));
+const KalkulasiBiayaLaboratorium = lazy(() => import("./pages/KalkulasiBiayaLaboratorium"));
+const KalkulasiBiayaRadiologi = lazy(() => import("./pages/KalkulasiBiayaRadiologi"));
+const KalkulasiBiayaCathlab = lazy(() => import("./pages/KalkulasiBiayaCathlab"));
+const KalkulasiBiayaDiklat = lazy(() => import("./pages/KalkulasiBiayaDiklat"));
+const KalkulasiBiayaBDRS = lazy(() => import("./pages/KalkulasiBiayaBDRS"));
+const RekapitulasiUnitCost = lazy(() => import("./pages/RekapitulasiUnitCost"));
+const ProdukLayanan = lazy(() => import("./pages/ProdukLayanan"));
+const SkenarioTarif = lazy(() => import("./pages/SkenarioTarif"));
+const SkenarioTarifAkomodasi = lazy(() => import("./pages/SkenarioTarifAkomodasi"));
+const SkenarioTarifVisit = lazy(() => import("./pages/SkenarioTarifVisit"));
+const DataTindakanBDRS = lazy(() => import("./pages/DataTindakanBDRS"));
+const MenuGizi = lazy(() => import("./pages/MenuGizi"));
+const DataDiklat = lazy(() => import("./pages/DataDiklat"));
+const UnitPenunjang = lazy(() => import("./pages/UnitPenunjang"));
+const UnitKeperawatan = lazy(() => import("./pages/UnitKeperawatan"));
+const UnitPelayanan = lazy(() => import("./pages/UnitPelayanan"));
+const UnitDiklat = lazy(() => import("./pages/UnitDiklat"));
+const ManajemenTindakanInap = lazy(() => import("./pages/ManajemenTindakanInap"));
+const KalkulasiTindakanInap = lazy(() => import("./pages/KalkulasiTindakanInap"));
+const KalkulasiBiayaKelasAkomodasi = lazy(() => import("./pages/KalkulasiBiayaKelasAkomodasi"));
+const AlokasiBiayaGizi = lazy(() => import("./pages/AlokasiBiayaGizi"));
+const KalkulasiPendaftaranDanPeresepan = lazy(() => import("./pages/KalkulasiPendaftaranDanPeresepan"));
+const ManajemenTindakanRawatJalan = lazy(() => import("./pages/ManajemenTindakanRawatJalan"));
+const BudgetingBHPRupiah = lazy(() => import("./pages/BudgetingBHPRupiah"));
+const BudgetingBHPRincian = lazy(() => import("./pages/BudgetingBHPRincian"));
+const DasarAlokasi = lazy(() => import("./pages/DasarAlokasi"));
+const DistribusiBiaya = lazy(() => import("./pages/DistribusiBiaya"));
+const DistribusiBiayaPertama = lazy(() => import("./pages/DistribusiBiayaPertama"));
+const DistribusiBiayaKedua = lazy(() => import("./pages/DistribusiBiayaKedua"));
+const DistribusiBiayaRekap = lazy(() => import("./pages/DistribusiBiayaRekap"));
+const CostRecovery = lazy(() => import("./pages/CostRecovery"));
+const TestDasarAlokasi = lazy(() => import("./pages/TestDasarAlokasi"));
+const ManajemenAkses = lazy(() => import("./pages/ManajemenAkses"));
+const ModulTeknis = lazy(() => import("./pages/ModulTeknis"));
+const Login = lazy(() => import("./pages/Login"));
+const Health = lazy(() => import("./pages/Health"));
+const TestSupabase = lazy(() => import("./pages/TestSupabase"));
+const TestPage = lazy(() => import("./pages/TestPage"));
+const SimpleTest = lazy(() => import("./pages/SimpleTest"));
+const ModulTeknisTest = lazy(() => import("./pages/ModulTeknisTest"));
+const ModulTeknisSimple = lazy(() => import("./pages/ModulTeknisSimple"));
+const VercelDebug = lazy(() => import("./pages/VercelDebug"));
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -148,6 +148,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Memuat halaman...</div>}>
           <Routes>
             <Route path="/test" element={<TestPage />} />
             <Route path="/debug" element={<VercelDebug />} />
@@ -416,6 +417,7 @@ const App = () => {
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
