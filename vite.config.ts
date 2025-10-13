@@ -13,4 +13,17 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      external: [],
+      output: {
+        manualChunks: undefined,
+      },
+    },
+    target: "es2015",
+    minify: true,
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom"],
+  },
 }));
