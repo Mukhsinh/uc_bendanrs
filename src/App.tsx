@@ -106,10 +106,18 @@ const App = () => {
     console.log('App.tsx - Showing loading screen');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-cyan-50">
-        <div className="text-center">
+        <div className="text-center max-w-md mx-auto p-6">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
           <p className="text-teal-700 font-medium">Memuat Aplikasi...</p>
-          <p className="text-sm text-gray-500 mt-2">Jika loading terlalu lama, coba akses <a href="/test" className="text-blue-600 underline">halaman test</a></p>
+          <p className="text-sm text-gray-500 mt-2">Jika loading terlalu lama, coba akses halaman test di bawah:</p>
+          <div className="mt-4 space-y-2">
+            <a href="/test" className="block px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors">
+              Halaman Test
+            </a>
+            <a href="/health" className="block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              Health Check
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -129,14 +137,14 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Route path="/test" element={<TestPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/health" element={<Health />} />
-            <Route path="/test" element={<TestPage />} />
             <Route path="/simple" element={<SimpleTest />} />
             <Route path="/modul-teknis-test" element={<ModulTeknisTest />} />
             <Route path="/modul-teknis-simple" element={<ModulTeknisSimple />} />
             <Route path="/test-supabase" element={<TestSupabase />} />
-            <Route path="/" element={session ? <Layout /> : <Navigate to="/login" replace />}>
+            <Route path="/" element={session ? <Layout /> : <Navigate to="/test" replace />}>
               <Route index element={<Index />} />
               <Route path="/data-master/unit-kerja" element={
                 <ProtectedRoute>
