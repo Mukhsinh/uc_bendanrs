@@ -17,11 +17,16 @@ export default defineConfig(() => ({
     rollupOptions: {
       external: [],
       output: {
-        manualChunks: undefined,
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          supabase: ['@supabase/supabase-js'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
+        },
       },
     },
     target: "es2015",
     minify: true,
+    chunkSizeWarningLimit: 1000,
     commonjsOptions: {
       include: [/node_modules/],
     },
