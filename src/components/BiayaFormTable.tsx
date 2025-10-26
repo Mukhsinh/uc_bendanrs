@@ -282,7 +282,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ userId, onRetryFetch, biayaList
       if (passedTests === totalTests) {
         toast.success(`All tests passed! (${passedTests}/${totalTests})`);
       } else {
-        toast.warn(`Some tests failed: ${passedTests}/${totalTests} passed. Check console for details.`);
+        toast.warning(`Some tests failed: ${passedTests}/${totalTests} passed. Check console for details.`);
       }
 
     } catch (error) {
@@ -527,7 +527,7 @@ const BiayaFormTable: React.FC = () => {
     initializationTimeout = setTimeout(() => {
       if (mounted) {
         console.warn('[INIT] Initialization timeout, stopping...');
-        toast.warn('Initialization taking too long, please refresh the page.');
+        toast.warning('Initialization taking too long, please refresh the page.');
       }
     }, 15000); // 15 second timeout
 
@@ -761,14 +761,14 @@ const BiayaFormTable: React.FC = () => {
 
         if (unitKerjaError) {
           console.error('[PROCESS-DATA] Error fetching unit kerja data:', unitKerjaError);
-          toast.warn('Sebagian data unit kerja tidak dapat dimuat, tetapi data biaya akan tetap ditampilkan.');
+          toast.warning('Sebagian data unit kerja tidak dapat dimuat, tetapi data biaya akan tetap ditampilkan.');
         } else {
           unitKerjaMap = new Map(unitKerjaData?.map(uk => [uk.id, uk]) || []);
           console.log('[PROCESS-DATA] Unit kerja map created with', unitKerjaMap.size, 'entries');
         }
       } catch (error) {
         console.error('[PROCESS-DATA] Unexpected error fetching unit kerja:', error);
-        toast.warn('Data unit kerja tidak dapat dimuat, tetapi data biaya akan tetap ditampilkan.');
+        toast.warning('Data unit kerja tidak dapat dimuat, tetapi data biaya akan tetap ditampilkan.');
       }
     }
 

@@ -56,19 +56,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     params: {
       eventsPerSecond: 2
     }
-  },
-  // Custom fetch configuration for longer timeouts
-  fetch: (url, options = {}) => {
-    return fetch(url, {
-      ...options,
-      signal: AbortSignal.timeout(60000) // 60 second timeout
-    }).catch((error) => {
-      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        console.error('⏱️ Database operation timeout after 60s:', error);
-        throw new Error('Operasi database timeout. Silakan coba lagi dalam beberapa saat.');
-      }
-      throw error;
-    });
   }
 });
 

@@ -17,8 +17,8 @@ const SupabaseDebug: React.FC = () => {
       environmentUrl: envUrl || 'Not found',
       environmentKey: envKey ? 'Present' : 'Not found',
       supabaseClient: !!supabase,
-      supabaseUrl: supabase?.supabaseUrl || 'Not available',
-      supabaseKey: supabase?.supabaseKey ? 'Present' : 'Not available',
+      supabaseUrl: envUrl || 'Not available', // Use env var instead of protected property
+      supabaseKey: envKey ? 'Present' : 'Not available', // Use env var instead of protected property
       timestamp: new Date().toISOString()
     });
   }, []);

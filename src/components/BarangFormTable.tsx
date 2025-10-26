@@ -265,13 +265,12 @@ const BarangFormTable: React.FC = () => {
       }
 
       if (editingBarang) {
-        await safeCRUDOperation('UPDATE', 'data_barang_farmasi', {
-          id: editingBarang.id,
+        await safeCRUDOperation('UPDATE', 'data_barang_farmasi', editingBarang.id, {
           ...values, 
           user_id: userId || null
         });
       } else {
-        await safeCRUDOperation('INSERT', 'data_barang_farmasi', {
+        await safeCRUDOperation('INSERT', 'data_barang_farmasi', undefined, {
           ...values,
           user_id: userId || null
         });
@@ -291,7 +290,7 @@ const BarangFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     await deleteData(async () => {
-      await safeCRUDOperation('DELETE', 'data_barang_farmasi', { id });
+      await safeCRUDOperation('DELETE', 'data_barang_farmasi', id);
       if (userId) await fetchBarang(userId);
     });
   };

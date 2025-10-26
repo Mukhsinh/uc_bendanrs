@@ -130,7 +130,8 @@ export default function DistribusiBiayaRekap() {
       
       const refreshPromise = supabase.rpc('refresh_kalkulasi_minimal');
       
-      const { data, error } = await Promise.race([refreshPromise, timeoutPromise]);
+      const result = await Promise.race([refreshPromise, timeoutPromise]);
+      const { data, error } = result as { data: any; error: any };
       
       if (error) {
         throw new Error(`Database Error: ${error.message}`);
@@ -334,17 +335,17 @@ export default function DistribusiBiayaRekap() {
             </div>
             <div className="space-y-4">
               <div className="flex items-end gap-2 flex-wrap">
-                <Button variant="secondary" disabled={loading || refreshingAll || refreshingSingle} onClick={exportExcel}>
+                <Button variant="secondary" disabled={loading || refreshingAll || !!refreshingSingle} onClick={exportExcel}>
                   <Download className="h-4 w-4 mr-2" />
                   Unduh Excel
                 </Button>
-                <Button variant="outline" disabled={loading || refreshingAll || refreshingSingle} onClick={fetchRows}>
+                <Button variant="outline" disabled={loading || refreshingAll || !!refreshingSingle} onClick={fetchRows}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh Data
                 </Button>
                 <Button 
                   variant="default" 
-                  disabled={loading || refreshingAll || refreshingSingle} 
+                  disabled={loading || refreshingAll || !!refreshingSingle} 
                   onClick={(e) => {
                     e.preventDefault();
                     refreshAllCalculations().catch(console.error);

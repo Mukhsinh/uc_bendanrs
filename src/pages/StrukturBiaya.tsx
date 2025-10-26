@@ -628,8 +628,8 @@ ${strukturBiayaData.map(item =>
 RINGKASAN FINANSIAL:
 - Total Biaya dengan JP: ${formatCurrency(totalBiayaDenganJP)}
 - Total Pendapatan: ${formatCurrency(totalPendapatan)}
-- Perbandingan: ${perbandinganBiayaPendapatan.persentase}% (${perbandinganBiayaPendapatan.isProfit ? 'Profit' : 'Loss'})
-- Selisih: ${formatCurrency(Math.abs(perbandinganBiayaPendapatan.selisih))}
+- Perbandingan: ${perbandinganRevenueToCost.persentase}% (${perbandinganRevenueToCost.isEfficient ? 'Profit' : 'Loss'})
+- Selisih: ${formatCurrency(Math.abs(perbandinganRevenueToCost.selisih))}
 
 DETAIL PER UNIT KERJA:
 ${barChartData.map(item => 
