@@ -4,15 +4,9 @@
   "outputDirectory": "dist",
   "installCommand": "npm ci",
   "framework": "vite",
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "functions": {
-    "src/pages/**/*.tsx": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "headers": [
     {
       "source": "/assets/(.*)",
