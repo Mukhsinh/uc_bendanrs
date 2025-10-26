@@ -130,8 +130,8 @@ export default function DistribusiBiayaRekap() {
       
       const refreshPromise = supabase.rpc('refresh_kalkulasi_minimal');
       
-      const result = await Promise.race([refreshPromise, timeoutPromise]);
-      const { data, error } = result as { data: any; error: any };
+      const raceResult = await Promise.race([refreshPromise, timeoutPromise]);
+      const { data, error } = raceResult as { data: any; error: any };
       
       if (error) {
         throw new Error(`Database Error: ${error.message}`);
@@ -142,18 +142,18 @@ export default function DistribusiBiayaRekap() {
       }
       
       // Parse the result JSON with safe parsing
-      const result = data as any;
+      const refreshData = data as any;
       
       // Complete progress
       setRefreshProgress(100);
       setCurrentRefreshTable("Selesai!");
       
       // Show success notification with safe fallback
-      const successCount = result?.success_count || 0;
-      const totalOps = result?.total_operations || 0;
-      const affectedRows = result?.total_affected_rows || 0;
+      const successCount = refreshData?.success_count || 0;
+      const totalOps = refreshData?.total_operations || 0;
+      const affectedRows = refreshData?.total_affected_rows || 0;
       
-      const isMinimalUpdate = result?.note?.includes('sample');
+      const isMinimalUpdate = refreshData?.note?.includes('sample');
       
       toast({
         title: isMinimalUpdate ? "🎉 Sample Refresh Berhasil!" : "🎉 Refresh All Berhasil!",
