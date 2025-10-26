@@ -55,16 +55,22 @@ import { useUploadProgress } from "@/hooks/use-upload-progress";
 interface DataDiklat {
   id: string;
   kode_strata: string;
+  nama_strata: string;
   kode_materi: string;
   nama_materi: string;
+  lama_hari: number;
+  jenis_diklat: string;
 }
 
 const formSchema = z.object({
   kode_strata: z.string().min(1, { message: "Kode strata wajib." }),
+  nama_strata: z.string().min(1, { message: "Nama strata wajib." }),
   kode_materi: z.string()
     .min(1, { message: "Kode materi wajib." })
     .regex(/^[L][1-5]\.\d{2}$/, { message: "Format kode materi harus L1.xx, L2.xx, L3.xx, L4.xx, atau L5.xx" }),
   nama_materi: z.string().min(1, { message: "Nama materi wajib." }),
+  lama_hari: z.number().min(1, { message: "Lama hari wajib." }),
+  jenis_diklat: z.string().min(1, { message: "Jenis diklat wajib." }),
 });
 
 const DataDiklatFormTable: React.FC = () => {
@@ -87,7 +93,14 @@ const DataDiklatFormTable: React.FC = () => {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { kode_strata: "", kode_materi: "", nama_materi: "" },
+    defaultValues: { 
+      kode_strata: "", 
+      nama_strata: "", 
+      kode_materi: "", 
+      nama_materi: "", 
+      lama_hari: 1, 
+      jenis_diklat: "" 
+    },
   });
 
   const strataOptions = [
@@ -96,6 +109,12 @@ const DataDiklatFormTable: React.FC = () => {
     { value: "L3", label: "L3 - S1" },
     { value: "L4", label: "L4 - S2" },
     { value: "L5", label: "L5 - S3" },
+  ];
+
+  const kalkulasiDiklatOptions = [
+    { value: "basis_dokter", label: "Basis Dokter - Rp 7.446.149/hari" },
+    { value: "basis_perawat", label: "Basis Perawat - Rp 4.964.099/hari" },
+    { value: "basis_tenaga_kesehatan", label: "Basis Tenaga Kesehatan - Rp 3.723.074/hari" },
   ];
 
   useEffect(() => { fetchDiklat(); }, []);
@@ -149,17 +168,20 @@ const DataDiklatFormTable: React.FC = () => {
       console.error(error);
       setDiklatList([]);
     } else {
-      setDiklatList(data || []);
+      setDiklatList((data || []) as DataDiklat[]);
     }
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
+      console.log("Form values:", values);
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error("User tidak terautentikasi.");
         return;
       }
+      console.log("User ID:", user.id);
 
       if (editing) {
         // Check if kode_materi is being changed and if it already exists
@@ -170,7 +192,7 @@ const DataDiklatFormTable: React.FC = () => {
             .eq("user_id", user.id)
             .eq("kode_materi", values.kode_materi)
             .neq("id", editing.id)
-            .single();
+            .maybeSingle();
           
           if (existingData) {
             toast.error("Kode materi sudah digunakan. Silakan gunakan kode yang berbeda.");
@@ -182,8 +204,11 @@ const DataDiklatFormTable: React.FC = () => {
           .from("data_diklat")
           .update({ 
             kode_strata: values.kode_strata,
+            nama_strata: values.nama_strata,
             kode_materi: values.kode_materi,
             nama_materi: values.nama_materi,
+            lama_hari: values.lama_hari,
+            jenis_diklat: values.jenis_diklat,
             updated_at: new Date().toISOString()
           })
           .eq("id", editing.id);
@@ -196,22 +221,40 @@ const DataDiklatFormTable: React.FC = () => {
           .select("id")
           .eq("user_id", user.id)
           .eq("kode_materi", values.kode_materi)
-          .single();
+          .maybeSingle();
         
         if (existingData) {
           toast.error("Kode materi sudah digunakan. Silakan gunakan kode yang berbeda.");
           return;
         }
 
-        const { error } = await supabase
+        const insertData = { 
+          user_id: user.id,
+          kode_strata: values.kode_strata,
+          nama_strata: values.nama_strata,
+          kode_materi: values.kode_materi,
+          nama_materi: values.nama_materi,
+          lama_hari: values.lama_hari,
+          jenis_diklat: values.jenis_diklat,
+          kalkulasi_diklat_id: null // Explicitly set to null
+        };
+        console.log("Insert data:", insertData);
+        
+        const { data: insertResult, error } = await supabase
           .from("data_diklat")
-          .insert([{ 
-            user_id: user.id,
-            kode_strata: values.kode_strata,
-            kode_materi: values.kode_materi,
-            nama_materi: values.nama_materi
-          }]);
-        if (error) throw error;
+          .insert([insertData])
+          .select();
+        if (error) {
+          console.error("Supabase error:", error);
+          console.error("Error details:", {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint
+          });
+          throw error;
+        }
+        console.log("Insert result:", insertResult);
         toast.success("Data diklat ditambahkan.");
       }
       await fetchDiklat();
@@ -220,10 +263,12 @@ const DataDiklatFormTable: React.FC = () => {
       form.reset();
     } catch (err: any) {
       console.error(err);
-      if (err.message.includes("duplicate key value violates unique constraint")) {
+      if (err.message?.includes("duplicate key value violates unique constraint")) {
+        toast.error("Kode materi sudah digunakan. Silakan gunakan kode yang berbeda.");
+      } else if (err.message?.includes("violates unique constraint")) {
         toast.error("Kode materi sudah digunakan. Silakan gunakan kode yang berbeda.");
       } else {
-        toast.error(`Gagal menyimpan: ${err.message}`);
+        toast.error(`Gagal menyimpan data diklat: ${err.message || 'Terjadi kesalahan yang tidak diketahui'}`);
       }
     }
   };
@@ -236,17 +281,24 @@ const DataDiklatFormTable: React.FC = () => {
       toast.success("Data diklat dihapus.");
     } catch (err: any) {
       console.error(err);
-      toast.error(`Gagal menghapus: ${err.message}`);
+      toast.error(`Gagal menghapus data diklat: ${err.message || 'Terjadi kesalahan yang tidak diketahui'}`);
     }
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Kode Strata", "Kode Materi", "Nama Materi"];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template Data Diklat");
-    XLSX.writeFile(wb, "template_data_diklat.xlsx");
-    toast.info("Template impor diunduh.");
+    // Sinkronkan dengan kolom yang diwajibkan saat impor
+    const headers = [
+      "Kode Strata",
+      "Nama Strata",
+      "Kode Materi",
+      "Nama Materi",
+      "Lama Hari",
+      "Jenis Diklat"
+    ];
+    const csvContent = [headers].map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, "template_data_diklat.csv");
+    toast.info("Template CSV impor diunduh.");
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -294,10 +346,13 @@ const DataDiklatFormTable: React.FC = () => {
               updateProgress(processedCount, successCount, errorCount);
               
               const kodeStrata = (row["Kode Strata"] || "").toString().trim();
+              const namaStrata = (row["Nama Strata"] || "").toString().trim();
               const kodeMateri = (row["Kode Materi"] || "").toString().trim();
               const namaMateri = (row["Nama Materi"] || "").toString().trim();
+              const lamaHari = parseInt((row["Lama Hari"] || "1").toString()) || 1;
+              const jenisDiklat = (row["Jenis Diklat"] || "").toString().trim();
               
-              if (!kodeStrata || !kodeMateri || !namaMateri) {
+              if (!kodeStrata || !namaStrata || !kodeMateri || !namaMateri || !jenisDiklat) {
                 missingCount++;
                 continue;
               }
@@ -305,8 +360,11 @@ const DataDiklatFormTable: React.FC = () => {
               const rowData = { 
                 user_id: user.id,
                 kode_strata: kodeStrata,
+                nama_strata: namaStrata,
                 kode_materi: kodeMateri,
-                nama_materi: namaMateri
+                nama_materi: namaMateri,
+                lama_hari: lamaHari,
+                jenis_diklat: jenisDiklat
               };
 
               if (existingKodeMateri.has(kodeMateri)) {
@@ -437,6 +495,61 @@ const DataDiklatFormTable: React.FC = () => {
                         <FormControl>
                           <Input placeholder="Contoh: Dasar-dasar Keperawatan" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="nama_strata"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nama Strata</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Contoh: SMA" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lama_hari"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lama Hari</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            placeholder="Contoh: 10" 
+                            {...field}
+                            onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="jenis_diklat"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Jenis Diklat</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih jenis diklat" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {kalkulasiDiklatOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

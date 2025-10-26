@@ -8,7 +8,8 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Calculator, RefreshCw } from "lucide-react";
+import { manualRecalculateBdrs, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 
 
@@ -40,6 +41,8 @@ const KalkulasiBiayaBDRS: React.FC = () => {
   const [manualInputData, setManualInputData] = useState<any>({});
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
+  const [recalculating, setRecalculating] = useState<boolean>(false);
+  const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
 
   // Initialize user session
   useEffect(() => {
@@ -334,6 +337,52 @@ const KalkulasiBiayaBDRS: React.FC = () => {
     } finally {
       setLoading(false);
       console.log("=== LOAD DATA END ===");
+    }
+  };
+
+  const handleManualRecalculation = async () => {
+    if (!userId) {
+      toast.error("User tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
+    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya berdasarkan rumus tabel.")) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+
+      console.log("🔄 Starting manual recalculation...");
+
+      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
+      
+      const result = await manualRecalculateBdrs(year, userId);
+
+      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
+      
+      // Refresh data setelah recalculation
+      await updateData();
+
+      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+
+      // Show detailed success message
+      toast.success(
+        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
+        `📊 ${result.affected_rows} records diperbarui\n` +
+        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
+      );
+
+      console.log("✅ Manual recalculation completed successfully");
+      console.log("📈 Recalculation stats:", result);
+      
+    } catch (error: any) {
+      console.error("Manual recalculation failed:", error);
+      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
+    } finally {
+      setRecalculating(false);
+      setRecalcProgress({step: 0, total: 5, message: ''});
     }
   };
 
@@ -1091,6 +1140,49 @@ const KalkulasiBiayaBDRS: React.FC = () => {
             >
               Input Manual
             </Button>
+            <Button 
+              variant="default" 
+              disabled={loading || importing || autoCalculating || recalculating} 
+              onClick={handleManualRecalculation}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+            >
+              {recalculating ? (
+                <span className="flex items-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {recalcProgress.message || 'Rekalkulasi...'}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Rekalkulasi Semua
+                </span>
+              )}
+            </Button>
+            
+            {recalculating && (
+              <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
+                    ></div>
+                  </div>
+                  <span className="text-xs font-medium">
+                    {recalcProgress.step}/{recalcProgress.total}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs">
+                  {recalcProgress.message}
+                </div>
+              </div>
+            )}
+            
+            {rows && rows.length > 0 && !recalculating && (
+              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
+                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
+              </div>
+            )}
         </div>
         
           {importing && (
@@ -1176,30 +1268,27 @@ const KalkulasiBiayaBDRS: React.FC = () => {
           )}
 
 
-          <div className="rounded-md border overflow-auto">
-            <Table>
+          <div className="rounded-md border overflow-auto max-w-full">
+            <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Kode Unit Kerja</TableHead>
-                  <TableHead>Jenis Pemeriksaan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Prof</TableHead>
-                  <TableHead>Kesulitan</TableHead>
+                  <TableHead className="min-w-[200px]">Jenis Pemeriksaan</TableHead>
+                  <TableHead className="w-20">Jumlah</TableHead>
+                  <TableHead className="w-20">Waktu</TableHead>
+                  <TableHead className="w-20">Prof</TableHead>
+                  <TableHead className="w-20">Kesulitan</TableHead>
                   {/* Hidden columns: HK Waktu, Alokasi Waktu, Hasil Kali, Alokasi HK */}
-                  <TableHead>Bahan Rp</TableHead>
-                  <TableHead>Biaya Tidak Langsung Terdistribusi</TableHead>
-                  <TableHead>Unit Cost</TableHead>
-                  <TableHead>Update Bahan</TableHead>
-                  <TableHead>Edit</TableHead>
-                  <TableHead>Hapus</TableHead>
+                  <TableHead className="w-24">Bahan Rp</TableHead>
+                  <TableHead className="w-32">Biaya Tidak Langsung Terdistribusi</TableHead>
+                  <TableHead className="w-24">Unit Cost</TableHead>
+                  <TableHead className="w-28">Update Bahan</TableHead>
+                  <TableHead className="w-20">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <div className="text-gray-500">Memuat data...</div>
@@ -1208,7 +1297,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="text-gray-500">Tidak ada data.</div>
                         <div className="text-xs text-blue-600">
@@ -1219,8 +1308,6 @@ const KalkulasiBiayaBDRS: React.FC = () => {
                   </TableRow>
                 ) : rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-mono text-sm bg-blue-50 font-semibold">{r.kode}</TableCell>
-                    <TableCell className="font-mono text-sm bg-green-50 font-semibold">{r.kode_unit_kerja || 'UK044'}</TableCell>
                     <TableCell className="font-medium">{r.jenis_pemeriksaan}</TableCell>
                     <TableCell>{r.jumlah}</TableCell>
                     <TableCell>{r.waktu_pemeriksaan}</TableCell>
@@ -1241,24 +1328,24 @@ const KalkulasiBiayaBDRS: React.FC = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleEditRow(r)}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDeleteRow(r)}
-                        className="bg-red-100 hover:bg-red-200 text-red-800"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditRow(r)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteRow(r)}
+                          className="bg-red-100 hover:bg-red-200 text-red-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

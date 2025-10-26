@@ -581,7 +581,7 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                 </label>
                 <div className="space-y-2 p-3 rounded-md border bg-muted/50 max-h-[300px] overflow-y-auto">
                   {selectedTindakan.map((tindakan) => (
-                    <div key={tindakan.id} className="flex items-center gap-2 p-2 bg-background rounded border">
+                    <div key={`selected-${tindakan.id}`} className="flex items-center gap-2 p-2 bg-background rounded border">
                       <div className="flex-1">
                         <div className="font-medium text-sm">{tindakan.kode_tindakan}</div>
                         <div className="text-xs text-muted-foreground">{tindakan.nama_tindakan}</div>

@@ -1,0 +1,377 @@
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Download, Search, Filter } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import * as XLSX from "xlsx";
+
+interface PolaRemunerasiData {
+  id: string;
+  tahun: number;
+  jenis: string;
+  deskripsi_inacbg: string | null;
+  grouper: string | null;
+  diaglist: string | null;
+  spesialisasi_dokter: string | null;
+  tarif_inacbgs_numeric: number;
+  jp_tindakan: number;
+  jp_ibs: number;
+  jp_laboratorium: number;
+  jp_radiologi: number;
+  jp_farmasi: number;
+  jp_kamar_akomodasi: number;
+  jp_visite: number;
+  jp_konsultasi: number;
+  total_jp: number;
+  created_at: string;
+}
+
+const PolaRemunerasi = () => {
+  const { toast } = useToast();
+  const [data, setData] = useState<PolaRemunerasiData[]>([]);
+  const [filteredData, setFilteredData] = useState<PolaRemunerasiData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tahun, setTahun] = useState(2025);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [jenisFilter, setJenisFilter] = useState("all");
+  const [spesialisasiFilter, setSpesialisasiFilter] = useState("all");
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { data: polaRemunerasi, error } = await supabase
+        .from("produk_layanan")
+        .select(`
+          id,
+          tahun,
+          jenis,
+          deskripsi_inacbg,
+          grouper,
+          diaglist,
+          spesialisasi_dokter,
+          tarif_inacbgs_numeric,
+          jp_tindakan,
+          jp_ibs,
+          jp_laboratorium,
+          jp_radiologi,
+          jp_farmasi,
+          jp_kamar_akomodasi,
+          jp_visite,
+          jp_konsultasi,
+          created_at
+        `)
+        .eq("user_id", user.id)
+        .eq("tahun", tahun)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Hitung total JP untuk setiap record
+      const dataWithTotalJP = (polaRemunerasi || []).map(item => ({
+        ...item,
+        total_jp: (item.jp_tindakan || 0) + 
+                 (item.jp_ibs || 0) + 
+                 (item.jp_laboratorium || 0) + 
+                 (item.jp_radiologi || 0) + 
+                 (item.jp_farmasi || 0) + 
+                 (item.jp_kamar_akomodasi || 0) + 
+                 (item.jp_visite || 0) + 
+                 (item.jp_konsultasi || 0)
+      }));
+
+      setData(dataWithTotalJP);
+      setFilteredData(dataWithTotalJP);
+    } catch (error: any) {
+      toast({
+        title: "Error fetching data",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [tahun]);
+
+  useEffect(() => {
+    let filtered = data;
+
+    // Filter berdasarkan jenis
+    if (jenisFilter !== "all") {
+      filtered = filtered.filter(item => item.jenis === jenisFilter);
+    }
+
+    // Filter berdasarkan spesialisasi dokter
+    if (spesialisasiFilter !== "all") {
+      filtered = filtered.filter(item => item.spesialisasi_dokter === spesialisasiFilter);
+    }
+
+    // Filter berdasarkan search term
+    if (searchTerm) {
+      filtered = filtered.filter(item => 
+        item.deskripsi_inacbg?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.grouper?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.diaglist?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    setFilteredData(filtered);
+  }, [data, searchTerm, jenisFilter, spesialisasiFilter]);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const handleExport = () => {
+    if (filteredData.length === 0) {
+      toast({
+        title: "Tidak ada data",
+        description: "Tidak ada data untuk di-export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const exportData = filteredData.map(item => ({
+      "Tahun": item.tahun,
+      "Jenis": item.jenis,
+      "INA-CBG": item.deskripsi_inacbg || "",
+      "Grouper": item.grouper || "",
+      "Diaglist": item.diaglist || "",
+      "Spesialisasi Dokter": item.spesialisasi_dokter || "",
+      "Tarif INA-CBGs": item.tarif_inacbgs_numeric,
+      "JP Tindakan": item.jp_tindakan,
+      "JP IBS": item.jp_ibs,
+      "JP Laboratorium": item.jp_laboratorium,
+      "JP Radiologi": item.jp_radiologi,
+      "JP Farmasi": item.jp_farmasi,
+      "JP Kamar Akomodasi": item.jp_kamar_akomodasi,
+      "JP Visite": item.jp_visite,
+      "JP Konsultasi": item.jp_konsultasi,
+      "Total JP": item.total_jp
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pola Remunerasi");
+    XLSX.writeFile(wb, `pola_remunerasi_${tahun}.xlsx`);
+
+    toast({
+      title: "Berhasil",
+      description: "Laporan berhasil diunduh",
+    });
+  };
+
+  // Hitung statistik
+  const totalJP = filteredData.reduce((sum, item) => sum + item.total_jp, 0);
+  const avgJP = filteredData.length > 0 ? totalJP / filteredData.length : 0;
+  const maxJP = Math.max(...filteredData.map(item => item.total_jp), 0);
+  const minJP = Math.min(...filteredData.map(item => item.total_jp), 0);
+
+  return (
+    <div className="container mx-auto py-10">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Pola Remunerasi</CardTitle>
+              <CardDescription>
+                Analisis Jasa Pelayanan (JP) berdasarkan produk layanan rumah sakit
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Select value={String(tahun)} onValueChange={(value) => setTahun(Number(value))}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Tahun" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Filter dan Search */}
+          <div className="flex gap-4 mb-6">
+            <div className="flex-1">
+              <Label htmlFor="search">Cari</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="search"
+                  placeholder="Cari berdasarkan Deskripsi INA-CBG, Grouper, atau Diaglist..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="w-48">
+              <Label htmlFor="jenis">Jenis Layanan</Label>
+              <Select value={jenisFilter} onValueChange={setJenisFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih jenis" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  <SelectItem value="rawat jalan">Rawat Jalan</SelectItem>
+                  <SelectItem value="rawat inap">Rawat Inap</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Label htmlFor="spesialisasi">Spesialisasi Dokter</Label>
+              <Select value={spesialisasiFilter} onValueChange={setSpesialisasiFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih spesialisasi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  {Array.from(new Set(data.map(item => item.spesialisasi_dokter).filter(Boolean))).map(specialization => (
+                    <SelectItem key={specialization} value={specialization}>
+                      {specialization}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-end">
+              <Button onClick={handleExport} className="bg-red-600 hover:bg-red-700 text-white">
+                <Download className="h-4 w-4 mr-2" />
+                Unduh Laporan
+              </Button>
+            </div>
+          </div>
+
+          {/* Statistik */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium text-muted-foreground">Total JP</div>
+                <div className="text-2xl font-bold">{formatCurrency(totalJP)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium text-muted-foreground">Rata-rata JP</div>
+                <div className="text-2xl font-bold">{formatCurrency(avgJP)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium text-muted-foreground">JP Tertinggi</div>
+                <div className="text-2xl font-bold">{formatCurrency(maxJP)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-sm font-medium text-muted-foreground">JP Terendah</div>
+                <div className="text-2xl font-bold">{formatCurrency(minJP)}</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabel Data */}
+          {loading ? (
+            <div className="text-center py-10">Loading...</div>
+          ) : filteredData.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              {data.length === 0 
+                ? "Belum ada data. Silakan tambah data di menu Produk Layanan terlebih dahulu."
+                : "Tidak ada data yang sesuai dengan filter."
+              }
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Jenis</TableHead>
+                    <TableHead>Deskripsi INA-CBG</TableHead>
+                    <TableHead>Grouper</TableHead>
+                    <TableHead>Diaglist</TableHead>
+                    <TableHead>Spesialisasi Dokter</TableHead>
+                    <TableHead className="text-right">Tarif INA-CBGs</TableHead>
+                    <TableHead className="text-right">JP Tindakan</TableHead>
+                    <TableHead className="text-right">JP IBS</TableHead>
+                    <TableHead className="text-right">JP Lab</TableHead>
+                    <TableHead className="text-right">JP Radiologi</TableHead>
+                    <TableHead className="text-right">JP Farmasi</TableHead>
+                    <TableHead className="text-right">JP Kamar</TableHead>
+                    <TableHead className="text-right">JP Visite</TableHead>
+                    <TableHead className="text-right">JP Konsultasi</TableHead>
+                    <TableHead className="text-right font-bold">Total JP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium capitalize">{item.jenis}</TableCell>
+                      <TableCell>{item.deskripsi_inacbg || "-"}</TableCell>
+                      <TableCell>{item.grouper || "-"}</TableCell>
+                      <TableCell>{item.diaglist || "-"}</TableCell>
+                      <TableCell>{item.spesialisasi_dokter || "-"}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.tarif_inacbgs_numeric || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_tindakan || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_ibs || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_laboratorium || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_radiologi || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_farmasi || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_kamar_akomodasi || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_visite || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_konsultasi || 0)}</TableCell>
+                      <TableCell className="text-right font-bold text-green-600">
+                        {formatCurrency(item.total_jp)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default PolaRemunerasi;

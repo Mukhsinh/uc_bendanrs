@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showError } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { safeCRUDOperation, handleDatabaseError } from "@/utils/database-operations";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
@@ -230,7 +231,7 @@ const BarangFormTable: React.FC = () => {
 
   const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {
     let query = supabase
-      .from('master_barang')
+      .from('data_barang_farmasi')
       .select('id')
       .eq('kode_barang', kode)
       .eq('user_id', currentUserId);
@@ -264,24 +265,16 @@ const BarangFormTable: React.FC = () => {
       }
 
       if (editingBarang) {
-        const { error } = await supabase
-          .from('data_barang_farmasi')
-          .update({ 
-            ...values, 
-            user_id: userId
-          })
-          .eq('id', editingBarang.id);
-
-        if (error) throw error;
+        await safeCRUDOperation('UPDATE', 'data_barang_farmasi', {
+          id: editingBarang.id,
+          ...values, 
+          user_id: userId || null
+        });
       } else {
-        const { error } = await supabase
-          .from('data_barang_farmasi')
-          .insert([{
-            ...values,
-            user_id: userId
-          }]);
-
-        if (error) throw error;
+        await safeCRUDOperation('INSERT', 'data_barang_farmasi', {
+          ...values,
+          user_id: userId || null
+        });
       }
       
       await fetchBarang(userId);
@@ -298,12 +291,7 @@ const BarangFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     await deleteData(async () => {
-      const { error } = await supabase
-        .from('master_barang')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await safeCRUDOperation('DELETE', 'data_barang_farmasi', { id });
       if (userId) await fetchBarang(userId);
     });
   };

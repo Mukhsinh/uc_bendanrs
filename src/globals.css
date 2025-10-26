@@ -91,7 +91,17 @@
     @apply border-border;
   }
 
+  html, body, #root {
+    height: 100%;
+  }
+
+  /* Persist background to avoid white flash during route transitions */
   body {
-    @apply bg-background text-foreground;
+    @apply min-h-screen bg-gradient-to-br from-teal-100 to-cyan-100 text-foreground;
+    background-attachment: fixed;
+  }
+
+  #root {
+    @apply min-h-screen bg-transparent;
   }
 }

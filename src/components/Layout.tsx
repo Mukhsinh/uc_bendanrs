@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { Menu, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { SidebarToggleProvider } from "@/components/SidebarToggleContext";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,10 +29,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isSheetOpen, setIsSheetOpen] = React.useState(false);
   const [user, setUser] = React.useState<any>(null);
   const navigate = useNavigate();
+  const { settings: brandingSettings } = useBrandingSettings();
 
   const handleLinkClick = () => {
     if (isMobile) {
-      setIsSheetOpen(false);
+      // Pastikan menu mobile tertutup dengan satu klik
+      setTimeout(() => {
+        setIsSheetOpen(false);
+      }, 100); // Small delay to ensure click is processed
     }
   };
 
@@ -56,11 +61,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       {/* Desktop Sidebar */}
-      <div className="hidden border-r bg-sidebar md:block">
+      <div className="hidden border-r bg-sidebar md:block will-change-transform">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link to="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
-              <span className="text-lg font-bold">Aplikasi Unit Cost RS</span>
+              <div className="flex items-center gap-2">
+                {brandingSettings.logo_url && (
+                  <img
+                    src={brandingSettings.logo_url}
+                    alt={brandingSettings.logo_alt_text}
+                    className="h-8 w-8 object-contain"
+                  />
+                )}
+                <span className="text-2xl font-bold">{brandingSettings.app_title}</span>
+              </div>
             </Link>
           </div>
           <div className="flex-1">
@@ -71,25 +85,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="p-4">
             <Button 
               variant="outline" 
-              className="w-full justify-start bg-white/10 text-white border-white/20 hover:bg-white/20 hover:text-white"
+              className="w-full justify-start bg-teal-600 text-white border-teal-600 hover:bg-teal-500 hover:text-white"
               onClick={handleLogout}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </Button>
-            <div className="mt-3 text-center">
-              <p className="text-xs text-white/60">
-                Copyright © 2024 Mukhsin Hadi.<br />Hak Cipta Dilindungi Undang-Undang
-              </p>
-            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-col">
+      <div className="flex flex-col min-h-screen bg-gradient-to-br from-teal-50 to-cyan-50 transition-colors will-change-transform">
         {/* Mobile Header */}
-        <header className="flex h-14 items-center gap-4 border-b bg-sidebar px-4 lg:h-[60px] lg:px-6 md:hidden">
+        <header className="flex h-14 items-center gap-4 border-b bg-sidebar px-4 lg:h-[60px] lg:px-6 md:hidden will-change-transform">
           <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
             <SheetTrigger asChild>
               <Button
@@ -103,7 +112,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col bg-sidebar">
               <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground">
-                <span className="font-bold">Aplikasi Unit Cost RS</span>
+                <div className="flex items-center gap-2">
+                  {brandingSettings.logo_url && (
+                    <img
+                      src={brandingSettings.logo_url}
+                      alt={brandingSettings.logo_alt_text}
+                      className="h-7 w-7 object-contain"
+                    />
+                  )}
+                  <span className="font-bold text-xl">{brandingSettings.app_title}</span>
+                </div>
               </Link>
               <nav className="grid gap-2 text-lg font-medium mt-4">
                 <SidebarNav isMobile onLinkClick={handleLinkClick} />
@@ -111,17 +129,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className="mt-auto pt-4">
                 <Button 
                   variant="outline" 
-                  className="w-full justify-start bg-white/10 text-white border-white/20 hover:bg-white/20 hover:text-white"
+                  className="w-full justify-start bg-teal-600 text-white border-teal-600 hover:bg-teal-500 hover:text-white"
                   onClick={handleLogout}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
                 </Button>
-                <div className="mt-3 text-center">
-                  <p className="text-xs text-white/60">
-                    Copyright © 2024 Mukhsin Hadi.<br />Hak Cipta Dilindungi Undang-Undang
-                  </p>
-                </div>
               </div>
             </SheetContent>
           </Sheet>
@@ -139,7 +152,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </header>
 
         {/* Header dengan nama user */}
-        <header className="hidden md:flex h-14 items-center justify-between border-b bg-sidebar px-6 shadow-sm">
+        <header className="hidden md:flex h-14 items-center justify-between border-b bg-sidebar px-6 shadow-sm will-change-transform">
           <div className="flex items-center gap-4">
             <Button
               variant="outline"
@@ -201,8 +214,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Page Content */}
         <SidebarToggleProvider onOpen={() => setIsSheetOpen(true)}>
-          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
-            {children || <Outlet />}
+          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-transparent">
+            <Suspense fallback={<div className="flex flex-1 items-center justify-center text-teal-800"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mr-3"></div><span>Memuat konten...</span></div>}>
+              {children || <Outlet />}
+            </Suspense>
           </main>
         </SidebarToggleProvider>
       </div>

@@ -35,10 +35,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, UserPlus, Shield, Trash2, Edit, Eye, Crown, UserCog, Users, Settings, Eye as EyeIcon, X, List, BarChart3, Briefcase, Heart, Activity } from "lucide-react";
+import { Loader2, UserPlus, Shield, Trash2, Edit, Eye, Crown, UserCog, Users, Settings, Eye as EyeIcon, X, List, BarChart3, Briefcase, Heart, Activity, ToggleLeft, ToggleRight, Database } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import BrandingSettings from "@/components/ManajemenAkses/BrandingSettings";
 
 interface Role {
   id: string;
@@ -106,6 +107,8 @@ export default function ManajemenAkses() {
   const [menuAccess, setMenuAccess] = useState<MenuAccess[]>([]);
   const [selectedRoleMenu, setSelectedRoleMenu] = useState<RoleMenuDetail[]>([]);
   const [selectedRoleForMenu, setSelectedRoleForMenu] = useState<string>("");
+  const [triggerStatus, setTriggerStatus] = useState<boolean>(true);
+  const [triggerLoading, setTriggerLoading] = useState<boolean>(false);
   
   const { toast } = useToast();
 
@@ -114,6 +117,7 @@ export default function ManajemenAkses() {
     fetchUsers();
     fetchRoles();
     fetchMenuAccess();
+    checkTriggerStatus();
   }, []);
 
   const checkUserRole = async () => {
@@ -410,6 +414,50 @@ export default function ManajemenAkses() {
     setUserPermissions([]);
   };
 
+  const checkTriggerStatus = async () => {
+    try {
+      // Simulasi cek status trigger - dalam implementasi nyata akan menggunakan RPC function
+      setTriggerStatus(true); // Default enabled
+    } catch (error) {
+      console.error("Error checking trigger status:", error);
+    }
+  };
+
+  const toggleTriggers = async () => {
+    setTriggerLoading(true);
+    try {
+      if (triggerStatus) {
+        // Disable triggers
+        const { data, error } = await supabase.rpc('disable_data_kegiatan_triggers');
+        if (error) throw error;
+        
+        setTriggerStatus(false);
+        toast({
+          title: "Berhasil",
+          description: "Trigger otomatis telah dinonaktifkan",
+        });
+      } else {
+        // Enable triggers
+        const { data, error } = await supabase.rpc('reenable_data_kegiatan_triggers');
+        if (error) throw error;
+        
+        setTriggerStatus(true);
+        toast({
+          title: "Berhasil",
+          description: "Trigger otomatis telah diaktifkan",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Gagal mengubah status trigger",
+      });
+    } finally {
+      setTriggerLoading(false);
+    }
+  };
+
   const getRoleBadgeVariant = (roleName: string) => {
     switch (roleName) {
       case "Super Admin":
@@ -513,7 +561,7 @@ export default function ManajemenAkses() {
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="users" className="gap-2">
             <Users className="h-4 w-4" />
             Kelola User
@@ -521,6 +569,14 @@ export default function ManajemenAkses() {
           <TabsTrigger value="menu-access" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Menu & Akses Role
+          </TabsTrigger>
+          <TabsTrigger value="system-control" className="gap-2">
+            <Database className="h-4 w-4" />
+            Kontrol Sistem
+          </TabsTrigger>
+          <TabsTrigger value="branding" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Branding
           </TabsTrigger>
         </TabsList>
 
@@ -746,6 +802,128 @@ export default function ManajemenAkses() {
             </Card>
           )}
         </div>
+      </TabsContent>
+
+      <TabsContent value="system-control" className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Kontrol Trigger Otomatis
+            </CardTitle>
+            <CardDescription>
+              Kelola trigger otomatis untuk perhitungan data kegiatan
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="space-y-1">
+                <h3 className="font-semibold">Trigger Otomatis Data Kegiatan</h3>
+                <p className="text-sm text-muted-foreground">
+                  Trigger ini akan otomatis menghitung dan memperbarui data terkait ketika ada perubahan pada data kegiatan
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Badge variant={triggerStatus ? "default" : "outline"} 
+                         className={triggerStatus ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                    {triggerStatus ? "Aktif" : "Nonaktif"}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    Status: {triggerStatus ? "Trigger berjalan otomatis" : "Trigger dinonaktifkan"}
+                  </span>
+                </div>
+              </div>
+              <Button 
+                onClick={toggleTriggers}
+                disabled={triggerLoading}
+                variant={triggerStatus ? "destructive" : "default"}
+                className="gap-2"
+              >
+                {triggerLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : triggerStatus ? (
+                  <ToggleLeft className="h-4 w-4" />
+                ) : (
+                  <ToggleRight className="h-4 w-4" />
+                )}
+                {triggerStatus ? "Nonaktifkan" : "Aktifkan"} Trigger
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Trigger yang Dikontrol</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="text-xs space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span>Auto Populate Alokasi Gizi</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Auto Populate Data Akomodasi</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                      <span>Auto Update Daftar Resep</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                      <span>Recalc Prosentase</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
+                      <span>Sync Akomodasi</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Dampak Trigger</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="text-xs space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-teal-500 rounded-full"></div>
+                      <span>Kalkulasi Biaya Gizi</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                      <span>Kalkulasi Biaya Akomodasi</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-pink-500 rounded-full"></div>
+                      <span>Kalkulasi Biaya Farmasi</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                      <span>Distribusi Biaya</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                      <span>Rekapitulasi Unit Cost</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Peringatan:</strong> Menonaktifkan trigger akan menghentikan perhitungan otomatis. 
+                Pastikan untuk mengaktifkan kembali setelah selesai melakukan perubahan data manual.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="branding" className="space-y-6">
+        <BrandingSettings />
       </TabsContent>
       </Tabs>
 

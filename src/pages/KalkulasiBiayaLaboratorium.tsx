@@ -8,14 +8,16 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Calculator, RefreshCw } from "lucide-react";
+import { manualRecalculateLaboratorium, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const KalkulasiBiayaLaboratorium: React.FC = () => {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [year, setYear] = useState<number>(new Date().getFullYear());
-  const [userId, setUserId] = useState<string | null>(null);
+  const { isAdmin, isSuperAdmin } = usePermissions();
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [bahanText, setBahanText] = useState<string>(
     JSON.stringify(
@@ -31,7 +33,6 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
   const [importProgress, setImportProgress] = useState<{current: number, total: number, message: string, status: string}>({current: 0, total: 0, message: "", status: ""});
   const [autoCalculating, setAutoCalculating] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [autoUpdateInterval, setAutoUpdateInterval] = useState<any>(null);
   const [showBahanFarmasiForm, setShowBahanFarmasiForm] = useState<boolean>(false);
   const [selectedRowForBahan, setSelectedRowForBahan] = useState<any | null>(null);
   const [bahanFarmasiList, setBahanFarmasiList] = useState<any[]>([]);
@@ -39,260 +40,95 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
   const [manualInputData, setManualInputData] = useState<any>({});
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
+  // State untuk manual recalculation
+  const [recalculating, setRecalculating] = useState<boolean>(false);
+  const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
 
-  // Initialize user session
   useEffect(() => {
-    const initializeUser = async () => {
-      try {
-      const { data: { session } } = await supabase.auth.getSession();
-        const currentUserId = session?.user?.id || null;
-        console.log("Session user ID:", currentUserId);
-        setUserId(currentUserId);
-        
-        // If no session, try to load data anyway (for testing)
-        if (!currentUserId) {
-          console.log("No session found, trying to load data anyway...");
-          setTimeout(async () => {
-            try {
-              await loadData('3394a4f5-b2ec-444d-b290-a6bdf477dc99'); // Fallback user ID
-            } catch (err) {
-              console.error("Fallback load failed:", err);
-            }
-          }, 1000);
-        }
-      } catch (err) {
-        console.error("Error getting session:", err);
-      }
-    };
-    
-    initializeUser();
-  }, []);
+    fetchData();
 
-  // Load data when userId and year are available
-  useEffect(() => {
-    console.log("=== USEEFFECT TRIGGERED ===");
-    console.log("UserId:", userId);
-    console.log("Year:", year);
-    
-    let isMounted = true;
-    
-    const loadDataWhenReady = async () => {
-      console.log("loadDataWhenReady called");
-      if (userId && isMounted) {
-        console.log("UserId available, starting data load");
-        try {
-          // Generate initial data if not exists
-          console.log("Generating initial data...");
-          await generateInitialData(userId);
-          
-          // Load data
-          console.log("Loading data...");
-          await loadData(userId);
-          
-          // Setup realtime listener for automatic updates
-          const channel = supabase
-            .channel('kalkulasi_biaya_laboratorium_changes')
-            .on('postgres_changes', 
-              { 
-                event: '*', 
-                schema: 'public', 
-                table: 'kalkulasi_biaya_laboratorium',
-                filter: `user_id=eq.${userId}`
-              }, 
-              (payload) => {
-                console.log('Kalkulasi biaya laboratorium change detected:', payload);
-                if (isMounted && !loading && !importing && !autoCalculating) {
-                  console.log('Auto-updating data due to kalkulasi change...');
-                  updateData();
-                }
-              }
-            )
-            .on('postgres_changes', 
-              { 
-                event: '*', 
-                schema: 'public', 
-                table: 'data_biaya',
-                filter: `kode_unit_kerja=eq.UK038`
-              }, 
-              (payload) => {
-                console.log('Data biaya change detected:', payload);
-                if (isMounted && !loading && !importing && !autoCalculating) {
-                  console.log('Auto-updating data due to data_biaya change...');
-                  updateData();
-                }
-              }
-            )
-            .on('postgres_changes', 
-              { 
-                event: '*', 
-                schema: 'public', 
-                table: 'distribusi_biaya_rekap',
-                filter: `kode_unit_kerja=eq.UK038`
-              }, 
-              (payload) => {
-                console.log('Distribusi biaya rekap change detected:', payload);
-                if (isMounted && !loading && !importing && !autoCalculating) {
-                  console.log('Auto-updating data due to distribusi_biaya_rekap change...');
-                  updateData();
-                }
-              }
-            )
-            .subscribe();
-          
-          setAutoUpdateInterval(channel);
-        } catch (err) {
-          console.error("Error loading data:", err);
-        }
-      } else {
-        console.log("UserId not available or component unmounted");
-      }
-    };
-    
-    loadDataWhenReady();
-    
+    // Realtime subscription to auto-refresh when kalkulasi_biaya_laboratorium changes
+    const channel = supabase
+      .channel('kalkulasi_biaya_laboratorium_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'kalkulasi_biaya_laboratorium' }, () => {
+        fetchData();
+      })
+      .subscribe();
+
     return () => {
-      isMounted = false;
-      if (autoUpdateInterval) {
-        console.log('Unsubscribing from realtime channel...');
-        supabase.removeChannel(autoUpdateInterval);
-      }
+      try { supabase.removeChannel(channel); } catch (_) {}
     };
-  }, [userId, year]);
+  }, [year]);
 
-  const generateInitialData = async (currentUserId: string) => {
+
+  const fetchData = async () => {
     try {
-      console.log("Checking existing data for user:", currentUserId, "year:", year);
-      const { data: existingData, error: checkError } = await supabase
-        .from("kalkulasi_biaya_laboratorium")
-        .select("id")
-        .eq("user_id", currentUserId)
-        .eq("tahun", year)
-        .limit(1);
-        
-      console.log("Existing data check result:", { existingData, checkError });
-        
-      if (checkError) {
-        console.error("Error checking existing data:", checkError);
-        throw checkError;
-      }
-        
-      if (!existingData || existingData.length === 0) {
-        console.log("No existing data found, generating initial data for user:", currentUserId);
-        const { data: generateResult, error: generateError } = await supabase.rpc('generate_kalkulasi_biaya_laboratorium', {
-          p_user_id: currentUserId,
-          p_tahun: year
-        });
-        
-        console.log("Generate function result:", { generateResult, generateError });
-        
-        if (generateError) {
-          console.error("Error generating initial data:", generateError);
-          if (generateError.message.includes("row-level security policy")) {
-            console.error("RLS Policy Error: Akses database terbatas");
-            // Don't show toast for RLS error during initialization
-          } else {
-            console.error(`Gagal membuat data awal: ${generateError.message}`);
-            // Don't show toast for generation error during initialization
-          }
-          throw generateError;
-        } else {
-          console.log("Initial data generated successfully");
-          // Don't show success toast during initialization
-        }
-      } else {
-        console.log("Data already exists for user:", currentUserId, "year:", year);
-      }
-    } catch (err: any) {
-      console.error("Error in generateInitialData:", err);
-      // Don't show toast errors during initialization
-      throw err;
-    }
-  };
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('kalkulasi_biaya_laboratorium')
+        .select('*')
+        .eq('tahun', year)
+        .order('jenis_pemeriksaan');
 
-  const loadData = async (currentUserId?: string) => {
-    const userIdToUse = currentUserId || userId;
-    console.log("=== LOAD DATA START ===");
-    console.log("User ID:", userIdToUse);
-    console.log("Year:", year);
-    
-    setLoading(true);
-    try {
-      // Pastikan user_id ada sebelum query
-      if (!userIdToUse) {
-        console.log("No user ID, skipping load");
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
-    const { data, error } = await supabase
-      .from("kalkulasi_biaya_laboratorium")
-        .select(`
-        id, kode, kode_unit_kerja, jenis_pemeriksaan, jumlah, waktu_pemeriksaan, profesionalisme, tingkat_kesulitan, 
-        hasil_kali_waktu, dasar_alokasi_waktu, hasil_kali, dasar_alokasi_hasil_kali, 
-        biaya_bahan_pemeriksaan_numeric, unit_cost_per_pemeriksaan, bahan_pemeriksaan,
-        biaya_gaji_tunjangan, biaya_rumah_tangga, biaya_cetak, biaya_atk, biaya_listrik, 
-        biaya_air, biaya_telp, biaya_pemeliharaan_bangunan, biaya_pemeliharaan_alat_medis,
-        biaya_pemeliharaan_alat_non_medis, biaya_operasional_lainnya, biaya_penyusutan_gedung,
-        biaya_penyusutan_jaringan, biaya_penyusutan_alat_medis, biaya_penyusutan_alat_non_medis,
-        biaya_pendidikan_pelatihan, biaya_laundry, biaya_sterilisasi, biaya_tidak_langsung_terdistribusi
-      `)
-      .eq("tahun", year)
-      .eq("user_id", userIdToUse)
-      .order("jenis_pemeriksaan", { ascending: true });
-        
-      console.log("Load query result:", { data, error });
-      console.log("Data length:", data?.length);
-      console.log("Error details:", error);
-        
-    if (error) {
-        console.error("Error fetching data:", error);
-        toast.error(`Gagal memuat data kalkulasi: ${error.message}`);
-        setRows([]);
-      } else {
-        console.log("Fetched data:", data?.length, "rows");
-        console.log("Sample data:", data?.slice(0, 2));
-        
-        // Store data in state - always set data, even if empty
-        const processedData = data || [];
-        setRows(processedData);
-        
-        console.log("Data set to state:", processedData.length, "rows");
-        
-        // Store in localStorage for persistence
-        try {
-          localStorage.setItem(`kalkulasi_lab_${userIdToUse}_${year}`, JSON.stringify(processedData));
-          console.log("Data saved to localStorage");
-        } catch (storageError) {
-          console.warn("Could not save to localStorage:", storageError);
-        }
-      }
-    } catch (err: any) {
-      console.error("Load error:", err);
-      toast.error("Gagal memuat data kalkulasi.");
-      setRows([]);
+      if (error) throw error;
+      console.log('Data kalkulasi loaded:', data);
+      setRows(data || []);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error("Gagal memuat data kalkulasi biaya laboratorium");
     } finally {
       setLoading(false);
-      console.log("=== LOAD DATA END ===");
     }
   };
 
   const updateData = async () => {
-    console.log("=== UPDATE DATA START ===");
-    try {
-      if (!userId) {
-        console.log("No user ID, skipping update");
-        return;
-      }
+    await fetchData();
+  };
 
-      // Use loadData function for consistency
-      await loadData(userId);
+  const handleManualRecalculation = async () => {
+    const userId = (await supabase.auth.getUser())?.data?.user?.id;
+    if (!userId) {
+      toast.error("User tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
+    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya berdasarkan rumus tabel.")) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+
+      console.log("🔄 Starting manual recalculation...");
+
+      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
-    } catch (err: any) {
-      console.error("Update error:", err);
-      toast.error("Gagal memperbarui data.");
+      const result = await manualRecalculateLaboratorium(year, userId);
+
+      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
+      
+      // Refresh data setelah recalculation
+      await fetchData();
+
+      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+
+      // Show detailed success message
+      toast.success(
+        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
+        `📊 ${result.affected_rows} records diperbarui\n` +
+        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
+      );
+
+      console.log("✅ Manual recalculation completed successfully");
+      console.log("📈 Recalculation stats:", result);
+      
+    } catch (error: any) {
+      console.error("Manual recalculation failed:", error);
+      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
     } finally {
-      console.log("=== UPDATE DATA END ===");
+      setRecalculating(false);
+      setRecalcProgress({step: 0, total: 5, message: ''});
     }
   };
 
@@ -416,10 +252,6 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
 
   const handleManualInput = async (data: any) => {
     try {
-      if (!userId) {
-        toast.error("User tidak ditemukan. Silakan login kembali.");
-        return;
-      }
 
       setAutoCalculating(true);
       
@@ -461,7 +293,6 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
         const { error: insertError } = await supabase
           .from("kalkulasi_biaya_laboratorium")
           .insert({
-            user_id: userId,
             tahun: year,
             kode: tindakan.kode,
             kode_unit_kerja: 'UK038',
@@ -691,13 +522,8 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    if (!userId) {
-      toast.error("User tidak ditemukan. Silakan login kembali.");
-      return;
-    }
     
     console.log("=== IMPORT START ===");
-    console.log("User ID:", userId);
     console.log("Year:", year);
     console.log("File:", file.name);
     
@@ -730,10 +556,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
           console.log(`Processing ${records.length} records`);
           setImportProgress({current: 0, total: records.length, message: `Memproses ${records.length} baris data...`, status: "processing"});
           
-          // First, ensure data exists for this user/year
-          console.log("Ensuring initial data exists...");
-          setImportProgress({current: 0, total: records.length, message: "Menyiapkan data awal...", status: "preparing"});
-          await generateInitialData(userId);
+          // Skip initial data generation for now
           
           let successCount = 0;
           let errorCount = 0;
@@ -805,7 +628,6 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                 .from("kalkulasi_biaya_laboratorium")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
-                .eq("user_id", userId)
                 .eq("jenis_pemeriksaan", targetJenis)
                 .maybeSingle();
               
@@ -926,6 +748,49 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
             >
               Input Manual
             </Button>
+            <Button 
+              variant="default" 
+              disabled={loading || importing || autoCalculating || recalculating} 
+              onClick={handleManualRecalculation}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+            >
+              {recalculating ? (
+                <span className="flex items-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {recalcProgress.message || 'Rekalkulasi...'}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Rekalkulasi Semua
+                </span>
+              )}
+            </Button>
+            
+            {recalculating && (
+              <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
+                    ></div>
+                  </div>
+                  <span className="text-xs font-medium">
+                    {recalcProgress.step}/{recalcProgress.total}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs">
+                  {recalcProgress.message}
+                </div>
+              </div>
+            )}
+            
+            {rows && rows.length > 0 && !recalculating && (
+              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
+                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
+              </div>
+            )}
           </div>
 
           {importing && (
@@ -1014,9 +879,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Kode Unit Kerja</TableHead>
-                  <TableHead>Jenis Pemeriksaan</TableHead>
+                  <TableHead className="max-w-[200px]">Jenis Pemeriksaan</TableHead>
                   <TableHead>Jumlah</TableHead>
                   <TableHead>Waktu</TableHead>
                   <TableHead>Prof</TableHead>
@@ -1026,14 +889,13 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                   <TableHead>Biaya Tidak Langsung Terdistribusi</TableHead>
                   <TableHead>Unit Cost</TableHead>
                   <TableHead>Update Bahan</TableHead>
-                  <TableHead>Edit</TableHead>
-                  <TableHead>Hapus</TableHead>
+                  <TableHead>Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <div className="text-gray-500">Memuat data...</div>
@@ -1042,7 +904,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="text-gray-500">Tidak ada data.</div>
                         <div className="text-xs text-blue-600">
@@ -1053,9 +915,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                   </TableRow>
                 ) : rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-mono text-sm bg-blue-50 font-semibold">{r.kode}</TableCell>
-                    <TableCell className="font-mono text-sm bg-green-50 font-semibold">{r.kode_unit_kerja || 'UK038'}</TableCell>
-                    <TableCell className="font-medium">{r.jenis_pemeriksaan}</TableCell>
+                    <TableCell className="font-medium max-w-[200px] truncate" title={r.jenis_pemeriksaan}>{r.jenis_pemeriksaan}</TableCell>
                     <TableCell>{r.jumlah}</TableCell>
                     <TableCell>{r.waktu_pemeriksaan}</TableCell>
                     <TableCell>{r.profesionalisme}</TableCell>
@@ -1075,24 +935,24 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleEditRow(r)}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDeleteRow(r)}
-                        className="bg-red-100 hover:bg-red-200 text-red-800"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditRow(r)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteRow(r)}
+                          className="bg-red-100 hover:bg-red-200 text-red-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

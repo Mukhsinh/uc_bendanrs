@@ -9,7 +9,8 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2, Download } from "lucide-react";
+import { Edit, Trash2, Download, Calculator, RefreshCw } from "lucide-react";
+import { manualRecalculateOperatif, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 
 const KalkulasiBiayaOperatif: React.FC = () => {
@@ -29,6 +30,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'operator' | 'tindakan', value: string}>({type: 'all', value: ''});
   const [tindakanList, setTindakanList] = useState<{kode: string, nama: string}[]>([]);
+  const [recalculating, setRecalculating] = useState<boolean>(false);
+  const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
 
   // Initialize user session
   useEffect(() => {
@@ -161,6 +164,52 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       setRows([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualRecalculation = async () => {
+    if (!userId) {
+      toast.error("User tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
+    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya berdasarkan rumus tabel.")) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+
+      console.log("🔄 Starting manual recalculation...");
+
+      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
+      
+      const result = await manualRecalculateOperatif(year, userId);
+
+      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
+      
+      // Refresh data setelah recalculation
+      await loadData();
+
+      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+
+      // Show detailed success message
+      toast.success(
+        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
+        `📊 ${result.affected_rows} records diperbarui\n` +
+        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
+      );
+
+      console.log("✅ Manual recalculation completed successfully");
+      console.log("📈 Recalculation stats:", result);
+      
+    } catch (error: any) {
+      console.error("Manual recalculation failed:", error);
+      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
+    } finally {
+      setRecalculating(false);
+      setRecalcProgress({step: 0, total: 5, message: ''});
     }
   };
 
@@ -617,6 +666,49 @@ const KalkulasiBiayaOperatif: React.FC = () => {
             >
               Input Manual
             </Button>
+            <Button 
+              variant="default" 
+              disabled={loading || importing || autoCalculating || recalculating} 
+              onClick={handleManualRecalculation}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+            >
+              {recalculating ? (
+                <span className="flex items-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {recalcProgress.message || 'Rekalkulasi...'}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Rekalkulasi Semua
+                </span>
+              )}
+            </Button>
+            
+            {recalculating && (
+              <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-full bg-blue-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
+                    ></div>
+                  </div>
+                  <span className="text-xs font-medium">
+                    {recalcProgress.step}/{recalcProgress.total}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs">
+                  {recalcProgress.message}
+                </div>
+              </div>
+            )}
+            
+            {rows && rows.length > 0 && !recalculating && (
+              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
+                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
+              </div>
+            )}
           </div>
 
           {(importing || autoCalculating) && (

@@ -67,8 +67,8 @@ const navItems: NavItem[] = [
       { title: "Barang Gizi", href: "/data-master/barang-gizi", icon: Utensils },
       { title: "Data Kamar", href: "/data-master/kamar", icon: Bed },
       { title: "Data Klinik", href: "/data-master/klinik", icon: Stethoscope },
+      { title: "Data Dokter", href: "/data-master/data-dokter", icon: Users },
       { title: "Menu Gizi", href: "/data-master/menu-gizi", icon: Utensils },
-      { title: "Data Diklat", href: "/data-master/diklat", icon: GraduationCap },
       { title: "Daftar Tindakan", href: "/data-master/daftar-tindakan", icon: Scissors },
       { title: "Tindakan Laboratorium", href: "/data-master/tindakan-lab", icon: Microscope },
       { title: "Tindakan Radiologi", href: "/data-master/tindakan-radiologi", icon: Scan },
@@ -82,9 +82,9 @@ const navItems: NavItem[] = [
     icon: Settings,
     allowedRoles: ["Super Admin", "Admin"], // Sesuai gambar: Admin bisa akses semua kecuali Modul Teknis & Manajemen Akses
     subItems: [
-      { title: "Data Kegiatan", href: "/data-master/kegiatan", icon: Activity },
-      { title: "Data Pendapatan", href: "/data-master/pendapatan", icon: Wallet },
-      { title: "Data Biaya", href: "/data-master/biaya", icon: Landmark },
+      { title: "Data Kegiatan RS", href: "/data-operasional/kegiatan-rs", icon: ActivitySquare },
+      { title: "Data Pendapatan", href: "/data-operasional/pendapatan", icon: Wallet },
+      { title: "Data Biaya", href: "/data-operasional/biaya", icon: Landmark },
     ],
   },
   {
@@ -126,6 +126,7 @@ const navItems: NavItem[] = [
     icon: BookOpen,
     subItems: [
       { title: "Kalkulasi Biaya Diklat", href: "/kalkulasi-biaya-diklat", icon: GraduationCap },
+      { title: "Kalkulasi Aktivitas Diklat", href: "/unit-diklat/kalkulasi-aktivitas", icon: Calculator },
     ],
   },
   {
@@ -156,10 +157,13 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    title: "Cost Recovery",
+    title: "Analisis Revenue Cost",
     icon: PieChart,
-    href: "/cost-recovery",
     allowedRoles: ["Super Admin", "Admin", "Manager", "Viewer"], // Menu laporan bisa diakses oleh Manager dan Viewer
+    subItems: [
+      { title: "Cost Recovery", href: "/cost-recovery", icon: PieChart },
+      { title: "Struktur Biaya", href: "/analisis-revenue-cost/struktur-biaya", icon: BarChart3 },
+    ],
   },
         {
           title: "Budgeting BHP",
@@ -171,10 +175,13 @@ const navItems: NavItem[] = [
           ],
         },
   {
-    title: "Produk Layanan",
-    icon: ShoppingCart,
-    href: "/produk-layanan",
+    title: "Analisis Bisnis",
+    icon: TrendingUp,
     allowedRoles: ["Super Admin", "Admin", "Manager", "Viewer"], // Menu laporan bisa diakses oleh Manager dan Viewer
+    subItems: [
+      { title: "Produk Layanan", href: "/produk-layanan", icon: ShoppingCart },
+      { title: "Pola Remunerasi", href: "/pola-remunerasi", icon: PieChart },
+    ],
   },
   {
     title: "Modul Teknis",
@@ -188,6 +195,12 @@ const navItems: NavItem[] = [
     href: "/manajemen-akses",
     allowedRoles: ["Super Admin"], // Hanya Super Admin yang bisa akses
   },
+  {
+    title: "Audit Trail",
+    icon: FileText,
+    href: "/audit-trail",
+    allowedRoles: ["Super Admin"], // Hanya Super Admin yang bisa akses
+  },
 ];
 
 interface SidebarNavProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -199,6 +212,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
   const location = useLocation();
   const [userRole, setUserRole] = useState<string | null>(null);
   const [filteredNavItems, setFilteredNavItems] = useState<NavItem[]>(navItems);
+  const [openGroup, setOpenGroup] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     getUserRole();
@@ -255,6 +269,64 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
     }
   };
 
+  // Prefetch halaman saat hover agar modul sudah siap sebelum diklik
+  const prefetchRoute = (path?: string) => {
+    if (!path) return;
+    // Map beberapa rute ke dynamic import yang sama seperti di App.tsx
+    const routeMap: Record<string, () => Promise<unknown>> = {
+      "/": () => import("@/pages/Index"),
+      "/manajemen-akses": () => import("@/pages/ManajemenAkses"),
+      "/modul-teknis": () => import("@/pages/ModulTeknis"),
+      "/rekapitulasi-unit-cost": () => import("@/pages/RekapitulasiUnitCost"),
+      "/produk-layanan": () => import("@/pages/ProdukLayanan"),
+      "/pola-remunerasi": () => import("@/pages/PolaRemunerasi"),
+      "/cost-recovery": () => import("@/pages/CostRecovery"),
+      "/budgeting-bhp/rupiah": () => import("@/pages/BudgetingBHPRupiah"),
+      "/budgeting-bhp/rincian": () => import("@/pages/BudgetingBHPRincian"),
+      "/distribusi-biaya-pertama": () => import("@/pages/DistribusiBiayaPertama"),
+      "/distribusi-biaya-kedua": () => import("@/pages/DistribusiBiayaKedua"),
+      "/distribusi-biaya-rekap": () => import("@/pages/DistribusiBiayaRekap"),
+      "/kalkulasi-biaya-gizi": () => import("@/pages/KalkulasiBiayaGizi"),
+      "/kalkulasi-biaya-laboratorium": () => import("@/pages/KalkulasiBiayaLaboratorium"),
+      "/kalkulasi-biaya-radiologi": () => import("@/pages/KalkulasiBiayaRadiologi"),
+      "/kalkulasi-biaya-bdrs": () => import("@/pages/KalkulasiBiayaBDRS"),
+      "/pelayanan/manajemen-tindakan-rawat-jalan": () => import("@/pages/ManajemenTindakanRawatJalan"),
+      "/pelayanan/kalkulasi-tindakan-rawat-jalan": () => import("@/pages/KalkulasiTindakanRawatJalan"),
+      "/pelayanan/kalkulasi-pendaftaran-resep": () => import("@/pages/KalkulasiPendaftaranDanPeresepan"),
+      "/kalkulasi-biaya-operatif": () => import("@/pages/KalkulasiBiayaOperatif"),
+      "/kalkulasi-biaya-cathlab": () => import("@/pages/KalkulasiBiayaCathlab"),
+      "/keperawatan/manajemen-tindakan-inap": () => import("@/pages/ManajemenTindakanInap"),
+      "/keperawatan/kalkulasi-tindakan-inap": () => import("@/pages/KalkulasiTindakanInap"),
+      "/keperawatan/kalkulasi-biaya-kelas-akomodasi": () => import("@/pages/KalkulasiBiayaKelasAkomodasi"),
+      "/keperawatan/data-akomodasi-inap": () => import("@/pages/AlokasiBiayaGizi"),
+      "/data-master/unit-kerja": () => import("@/pages/DataUnitKerja"),
+      "/data-master/barang": () => import("@/pages/DataBarang"),
+      "/data-master/barang-gizi": () => import("@/pages/DataBarangGizi"),
+      "/data-master/kamar": () => import("@/pages/DataKamar"),
+      "/data-master/klinik": () => import("@/pages/DataKlinik"),
+      "/data-master/kegiatan": () => import("@/pages/DataKegiatan"),
+      "/data-operasional/kegiatan": () => import("@/pages/DataKegiatan"),
+      "/data-operasional/kegiatan-rs": () => import("@/pages/DataKegiatanRS"),
+      "/data-master/pendapatan": () => import("@/pages/DataPendapatan"),
+      "/data-master/biaya": () => import("@/pages/DataBiaya"),
+      "/data-master/menu-gizi": () => import("@/pages/MenuGizi"),
+      "/data-master/daftar-tindakan": () => import("@/pages/DataTindakan"),
+      "/data-master/tindakan-lab": () => import("@/pages/DataTindakanLaboratorium"),
+      "/data-master/tindakan-radiologi": () => import("@/pages/DataTindakanRadiologi"),
+      "/data-master/tindakan-operatif": () => import("@/pages/DataTindakanOperatif"),
+      "/data-master/tindakan-bdrs": () => import("@/pages/DataTindakanBDRS"),
+      "/data-master/tindakan-cathlab": () => import("@/pages/DataTindakanCathlab"),
+      "/skenario-tarif-tindakan": () => import("@/pages/SkenarioTarif"),
+      "/skenario-tarif-akomodasi": () => import("@/pages/SkenarioTarifAkomodasi"),
+      "/skenario-tarif-visit": () => import("@/pages/SkenarioTarifVisit"),
+      "/kalkulasi-biaya-diklat": () => import("@/pages/KalkulasiBiayaDiklat"),
+      "/unit-diklat/kalkulasi-aktivitas": () => import("@/pages/KalkulasiAktivitasDiklat"),
+      "/analisis-revenue-cost/struktur-biaya": () => import("@/pages/StrukturBiaya"),
+    };
+    const importer = routeMap[path];
+    if (importer) importer().catch(() => {});
+  };
+
   const renderLink = (item: NavItem) => (
     <NavLink
       key={item.title}
@@ -266,33 +338,48 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
           isMobile && "text-base",
         )
       }
-      onClick={onLinkClick}
+      onClick={isMobile ? onLinkClick : undefined}
+      onMouseEnter={() => prefetchRoute(item.href)}
     >
       {item.icon && <item.icon className="h-4 w-4 flex-shrink-0" />}
       <span className="text-left flex-1">{item.title}</span>
     </NavLink>
   );
 
+  // Tentukan grup accordion yang harus terbuka berdasarkan path aktif
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const resolveGroupForPath = (): string | undefined => {
+      if (currentPath.startsWith("/data-master")) return "Data Master";
+      if (["/data-operasional/kegiatan","/data-operasional/kegiatan-rs","/data-operasional/pendapatan","/data-operasional/biaya"].some(p => currentPath.startsWith(p))) return "Data Operasional";
+      if (["kalkulasi-biaya-gizi","kalkulasi-biaya-laboratorium","kalkulasi-biaya-radiologi","kalkulasi-biaya-bdrs"].some(seg => currentPath.includes(seg))) return "Unit Penunjang";
+      if (currentPath.startsWith("/keperawatan/")) return "Unit Keperawatan";
+      if (currentPath.startsWith("/pelayanan/")) return "Unit Pelayanan";
+      if (currentPath.includes("kalkulasi-biaya-diklat")) return "Unit Diklat";
+      if (currentPath.startsWith("/skenario-tarif")) return "Skenario Tarif";
+      if (currentPath.startsWith("/distribusi-biaya")) return "Distribusi Biaya";
+      if (currentPath.startsWith("/budgeting-bhp/")) return "Budgeting BHP";
+      if (currentPath.startsWith("/analisis-revenue-cost/")) return "Analisis Revenue Cost";
+      if (currentPath.startsWith("/produk-layanan") || currentPath.startsWith("/pola-remunerasi")) return "Analisis Bisnis";
+      return undefined;
+    };
+    setOpenGroup(resolveGroupForPath());
+  }, [location.pathname]);
+
   return (
     <div className={cn("flex flex-col gap-2 bg-teal-800 text-white", className)} {...props}>
-      {filteredNavItems.map((item) => (
-        item.subItems ? (
-          <Accordion type="single" collapsible key={item.title} defaultValue={
-            (() => {
-              const currentPath = location.pathname;
-              if (item.title === "Data Master" && currentPath.startsWith("/data-master")) return item.title;
-              if (item.title === "Data Operasional" && (currentPath.includes("/data-master/kegiatan") || currentPath.includes("/data-master/pendapatan") || currentPath.includes("/data-master/biaya"))) return item.title;
-              if (item.title === "Unit Penunjang" && (currentPath.includes("kalkulasi-biaya-gizi") || currentPath.includes("kalkulasi-biaya-laboratorium") || currentPath.includes("kalkulasi-biaya-radiologi") || currentPath.includes("kalkulasi-biaya-bdrs"))) return item.title;
-              if (item.title === "Unit Keperawatan" && (currentPath.includes("kalkulasi-biaya-rawat-inap") || currentPath.includes("/keperawatan/"))) return item.title;
-              if (item.title === "Unit Pelayanan" && (currentPath.includes("kalkulasi-biaya-rawat-jalan") || currentPath.includes("kalkulasi-biaya-operatif") || currentPath.includes("kalkulasi-biaya-cathlab") || currentPath.includes("/pelayanan/"))) return item.title;
-              if (item.title === "Unit Diklat" && currentPath.includes("kalkulasi-biaya-diklat")) return item.title;
-              if (item.title === "Skenario Tarif" && (currentPath.includes("skenario-tarif-tindakan") || currentPath.includes("skenario-tarif-akomodasi") || currentPath.includes("skenario-tarif-visit"))) return item.title;
-              if (item.title === "Budgeting BHP" && currentPath.includes("/budgeting-bhp/")) return item.title;
-              return undefined;
-            })()
-          }>
-            <AccordionItem value={item.title} className="border-none">
-              <AccordionTrigger className="flex items-center gap-3 rounded-lg px-3 py-2 text-white hover:text-teal-200 transition-all [&[data-state=open]>svg]:rotate-180 [&[data-state=open]]:bg-teal-900">
+      <Accordion 
+        type="single" 
+        collapsible 
+        value={openGroup} 
+        onValueChange={setOpenGroup}
+      >
+        {filteredNavItems.map((item) => (
+          item.subItems ? (
+            <AccordionItem value={item.title} className="border-none" key={item.title}>
+              <AccordionTrigger 
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-white hover:text-teal-200 transition-all [&[data-state=open]>svg]:rotate-180 [&[data-state=open]]:bg-teal-900"
+              >
                 {item.icon && <item.icon className="h-4 w-4 flex-shrink-0" />}
                 <span className="text-left flex-1">{item.title}</span>
               </AccordionTrigger>
@@ -302,11 +389,11 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
                 </div>
               </AccordionContent>
             </AccordionItem>
-          </Accordion>
-        ) : (
-          renderLink(item)
-        )
-      ))}
+          ) : (
+            <div key={item.title}>{renderLink(item)}</div>
+          )
+        ))}
+      </Accordion>
     </div>
   );
 }

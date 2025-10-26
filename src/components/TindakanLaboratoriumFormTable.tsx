@@ -13,6 +13,10 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  safeCRUDOperation,
+  handleDatabaseError 
+} from "@/utils/database-operations";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -42,8 +46,7 @@ interface TindakanLab {
 }
 
 const formSchema = z.object({
-  jenis: z.enum(["PK", "PA", "Mi"], { required_error: "Jenis wajib." }),
-  kode: z.string().min(1, { message: "Kode wajib." }),
+  jenis: z.enum(["PK", "PA", "Mi"], { required_error: "Jenis wajib dipilih." }),
   nama: z.string().min(1, { message: "Nama tindakan wajib." }),
 });
 
@@ -66,14 +69,47 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { jenis: "PK", kode: "", nama: "" },
+    defaultValues: { jenis: undefined, nama: "" },
   });
+
+  // Function to generate next available code
+  const generateNextCode = async (jenis: JenisLab): Promise<string> => {
+    const { data, error } = await supabase
+      .from("tindakan_laboratorium")
+      .select("kode")
+      .eq("jenis", jenis)
+      .order("kode", { ascending: false })
+      .limit(1);
+    
+    if (error) {
+      console.error("Error fetching last code:", error);
+      return `${jenis}.001`; // Default fallback
+    }
+    
+    if (!data || data.length === 0) {
+      return `${jenis}.001`; // First code
+    }
+    
+    const lastCode = data[0].kode;
+    const match = lastCode.match(new RegExp(`^${jenis}\\.(\\d+)$`));
+    
+    if (match) {
+      const lastNumber = parseInt(match[1], 10);
+      const nextNumber = lastNumber + 1;
+      return `${jenis}.${nextNumber.toString().padStart(3, '0')}`;
+    }
+    
+    return `${jenis}.001`; // Fallback if format doesn't match
+  };
 
   useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
-    if (editing) form.reset({ jenis: editing.jenis, kode: editing.kode, nama: editing.nama });
-    else form.reset({ jenis: "PK", kode: "", nama: "" });
+    if (editing) {
+      form.reset({ jenis: editing.jenis, nama: editing.nama });
+    } else {
+      form.reset({ jenis: undefined, nama: "" });
+    }
   }, [editing, form]);
 
   const fetchAll = async () => {
@@ -94,42 +130,31 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      // enforce kode prefix client-side too
-      const expectedPrefix = `${values.jenis}.`;
-      if (!values.kode.startsWith(expectedPrefix)) {
-        toast.error(`Kode harus diawali '${expectedPrefix}'`);
-        return;
-      }
-      
       if (editing) {
-        // Check if kode is being changed and if new kode already exists
-        if (editing.kode !== values.kode) {
-          const existingItem = list.find(item => item.kode === values.kode && item.id !== editing.id);
-          if (existingItem) {
-            toast.error("Kode sudah digunakan oleh tindakan lain.");
-            return;
-          }
-        }
-        
+        // Direct database call like operatif - avoid trigger issues
         const { error } = await supabase
           .from("tindakan_laboratorium")
-          .update({ jenis: values.jenis as JenisLab, kode: values.kode, nama: values.nama })
+          .update({
+            jenis: values.jenis as JenisLab,
+            nama: values.nama
+          })
           .eq("id", editing.id);
+        
         if (error) throw error;
         toast.success("Data diperbarui.");
       } else {
-        // Check if kode already exists for new records
-        const existingItem = list.find(item => item.kode === values.kode);
-        if (existingItem) {
-          toast.error("Kode sudah digunakan. Silakan gunakan kode yang berbeda.");
-          return;
-        }
-        
+        // For new records, generate automatic code and use direct insert
+        const newCode = await generateNextCode(values.jenis as JenisLab);
         const { error } = await supabase
           .from("tindakan_laboratorium")
-          .insert([{ jenis: values.jenis as JenisLab, kode: values.kode, nama: values.nama }]);
+          .insert([{
+            jenis: values.jenis as JenisLab,
+            kode: newCode,
+            nama: values.nama
+          }]);
+        
         if (error) throw error;
-        toast.success("Data ditambahkan.");
+        toast.success(`Data ditambahkan dengan kode ${newCode}.`);
       }
       await fetchAll();
       setEditing(null);
@@ -137,33 +162,39 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
       form.reset();
     } catch (err: any) {
       console.error(err);
-      if (err.message?.includes('duplicate key value violates unique constraint')) {
-        toast.error("Kode sudah digunakan. Silakan gunakan kode yang berbeda.");
-      } else {
-        toast.error(`Gagal menyimpan: ${err.message}`);
-      }
+      handleDatabaseError(err, editing ? "memperbarui data" : "menambahkan data");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("tindakan_laboratorium").delete().eq("id", id);
+      // Direct database call like operatif - avoid trigger issues
+      const { error } = await supabase
+        .from("tindakan_laboratorium")
+        .delete()
+        .eq("id", id);
+      
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
     } catch (err: any) {
       console.error(err);
-      toast.error(`Gagal menghapus: ${err.message}`);
+      handleDatabaseError(err, "menghapus data");
     }
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Jenis (PK/PA/Mi)", "Kode (ex: PK.xxx)", "Nama Tindakan"];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const headers = ["Jenis (PK/PA/Mi)", "Nama Tindakan"];
+    const sampleData = [
+      ["PK", "Hematologi Lengkap"],
+      ["PA", "Biopsi Jaringan"],
+      ["Mi", "Kultur Bakteri"]
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Tindakan Laboratorium");
     XLSX.writeFile(wb, "template_tindakan_laboratorium.xlsx");
-    toast.info("Template impor diunduh.");
+    toast.info("Template impor diunduh. Kode akan digenerate otomatis.");
   };
 
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,15 +210,14 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
         skipEmptyLines: true,
         complete: async (results: Papa.ParseResult<any>) => {
           try {
-            const rows: Omit<TindakanLab, "id">[] = [];
+            const rows: { jenis: JenisLab, nama: string }[] = [];
             let missingCount = 0;
             
             for (const row of results.data) {
               const jenisRaw = (row["Jenis (PK/PA/Mi)"] || "").toString().trim() as JenisLab;
-              const kode = (row["Kode (ex: PK.xxx)"] || "").toString().trim();
               const nama = (row["Nama Tindakan"] || "").toString().trim();
               
-              if (!jenisRaw || !kode || !nama) {
+              if (!jenisRaw || !nama) {
                 missingCount++;
                 continue;
               }
@@ -195,12 +225,8 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
                 missingCount++;
                 continue;
               }
-              if (!kode.startsWith(`${jenisRaw}.`)) {
-                missingCount++;
-                continue;
-              }
               
-              rows.push({ jenis: jenisRaw, kode, nama, created_at: undefined as any });
+              rows.push({ jenis: jenisRaw, nama });
             }
             
             if (rows.length === 0) { 
@@ -208,51 +234,42 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
               return; 
             }
             
-            // Check for existing codes and handle duplicates
-            const existingCodes = new Set(list.map(item => item.kode));
-            const newRows = rows.filter(row => !existingCodes.has(row.kode));
-            const duplicateCount = rows.length - newRows.length;
-            
-            if (newRows.length === 0) {
-              toast.warning("Semua data sudah ada di database.");
-              return;
-            }
-            
             // Start upload progress
-            startUpload(newRows.length, 'Sedang mengimpor data tindakan laboratorium...');
+            startUpload(rows.length, 'Sedang mengimpor data tindakan laboratorium...');
             
-            // Insert new rows one by one to handle individual errors
+            // Import rows one by one to generate automatic codes
             let successCount = 0;
             let errorCount = 0;
             const errors: string[] = [];
             
-            for (let i = 0; i < newRows.length; i++) {
-              const row = newRows[i];
+            for (let i = 0; i < rows.length; i++) {
+              const row = rows[i];
               try {
+                const newCode = await generateNextCode(row.jenis);
                 const { error } = await supabase
                   .from("tindakan_laboratorium")
-                  .insert([{ jenis: row.jenis, kode: row.kode, nama: row.nama }]);
+                  .insert([{ jenis: row.jenis, kode: newCode, nama: row.nama }]);
                 
                 if (error) {
                   errorCount++;
-                  errors.push(`${row.kode}: ${error.message}`);
+                  errors.push(`${row.nama}: ${error.message}`);
                 } else {
                   successCount++;
                 }
                 
                 // Update progress
-                updateProgress(i + 1, successCount, errorCount, `Mengimpor data ${i + 1} dari ${newRows.length}...`);
+                updateProgress(i + 1, successCount, errorCount, `Mengimpor data ${i + 1} dari ${rows.length}...`);
                 
               } catch (err: any) {
                 errorCount++;
-                errors.push(`${row.kode}: ${err.message}`);
+                errors.push(`${row.nama}: ${err.message}`);
               }
             }
             
             await fetchAll();
             
             // Show final status
-            completeUpload(successCount, errorCount, missingCount + duplicateCount);
+            completeUpload(successCount, errorCount, missingCount);
             
           } catch (err: any) {
             console.error(err);
@@ -300,6 +317,22 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                  {editing && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Kode Tindakan</label>
+                      <div className="p-2 bg-muted rounded-md text-sm font-mono">
+                        {editing.kode}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Kode tidak dapat diubah setelah dibuat
+                      </p>
+                    </div>
+                  )}
+                  {!editing && (
+                    <div className="text-xs text-muted-foreground bg-blue-50 p-2 rounded-md">
+                      💡 Kode akan digenerate otomatis berdasarkan jenis yang dipilih
+                    </div>
+                  )}
                   <FormField
                     control={form.control}
                     name="jenis"
@@ -318,19 +351,6 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
                             <SelectItem value="Mi">Mikrobiologi (Mi)</SelectItem>
                           </SelectContent>
                         </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="kode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kode Tindakan</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: PK.HEM001" {...field} />
-                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -410,5 +430,3 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
 };
 
 export default TindakanLaboratoriumFormTable;
-
-

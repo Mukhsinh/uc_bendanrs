@@ -14,16 +14,20 @@ export const useUploadProgress = () => {
   });
 
   const startUpload = useCallback((total: number, message: string = 'Sedang mengimpor data...') => {
-    setUploadProgress({
+    console.log('startUpload called with:', { total, message });
+    const newProgress = {
       isVisible: true,
       current: 0,
       total,
       successCount: 0,
       errorCount: 0,
       missingCount: 0,
-      status: 'uploading',
+      status: 'uploading' as const,
       message
-    });
+    };
+    console.log('Setting progress state to:', newProgress);
+    setUploadProgress(newProgress);
+    console.log('Progress state set to visible');
   }, []);
 
   const updateProgress = useCallback((current: number, successCount: number, errorCount: number, message?: string) => {

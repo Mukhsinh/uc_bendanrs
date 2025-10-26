@@ -11,9 +11,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Upload, Plus, Edit, Trash2, Calculator } from "lucide-react";
+import { Download, Upload, Plus, Edit, Trash2, Calculator, Clock, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 import BahanPorsiForm from "@/components/BahanPorsiForm";
+import { manualRecalculateGizi, handleDatabaseError } from "@/utils/database-operations";
 
 interface MenuGizi {
   id: number;
@@ -110,6 +111,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
   const [isUpdateWaktuDialogOpen, setIsUpdateWaktuDialogOpen] = useState(false);
   const [selectedItemForWaktu, setSelectedItemForWaktu] = useState<KalkulasiBiayaGiziData | null>(null);
   const { toast } = useToast();
+  
+  // State untuk manual recalculation
+  const [recalculating, setRecalculating] = useState(false);
+  const [recalcProgress, setRecalcProgress] = useState({step: 0, total: 5, message: ''});
 
   // Summary AUC per kelas (SVIP/VIP/I/II/III)
   const [aucSummary, setAucSummary] = useState({
@@ -291,6 +296,63 @@ const KalkulasiBiayaGizi: React.FC = () => {
       unit_cost_per_porsi: d.unit_cost_per_porsi,
     }));
     downloadExcel(`detail_kalkulasi_gizi_${currentYear}.xlsx`, rows);
+  };
+
+  // Manual recalculation function
+  const handleManualRecalculation = async () => {
+    const userId = (await supabase.auth.getUser())?.data?.user?.id;
+    if (!userId) {
+      toast({
+        title: "❌ Error",
+        description: "User tidak ditemukan. Silakan login kembali.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya berdasarkan rumus tabel.")) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+
+      console.log("🔄 Starting manual recalculation...");
+
+      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
+      
+      const result = await manualRecalculateGizi(2025, userId);
+
+      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
+      
+      // Refresh data setelah recalculation
+      await fetchData();
+
+      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+
+      // Show detailed success message
+      toast({
+        title: "🎉 Rekalkulasi berhasil diselesaikan!",
+        description: `📊 ${result.affected_rows} records diperbarui\n⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`,
+        duration: 6000,
+      });
+
+      console.log("✅ Manual recalculation completed successfully");
+      console.log("📈 Recalculation stats:", result);
+      
+    } catch (error: any) {
+      console.error("Manual recalculation failed:", error);
+      toast({
+        title: "❌ Gagal melakukan rekalkulasi",
+        description: error.message,
+        variant: "destructive",
+        duration: 8000,
+      });
+    } finally {
+      setRecalculating(false);
+      setRecalcProgress({step: 0, total: 5, message: ''});
+    }
   };
 
   // Download laporan detail biaya (semua kolom biaya), dengan filter jenis makanan
@@ -970,6 +1032,51 @@ const KalkulasiBiayaGizi: React.FC = () => {
             <Button variant="outline" onClick={handleDownloadDetailBiaya}>
               <Download className="h-4 w-4 mr-2" /> Unduh Laporan Detail Biaya
             </Button>
+            
+            <Button 
+              variant="default" 
+              disabled={loading || recalculating} 
+              onClick={handleManualRecalculation}
+              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+            >
+              {recalculating ? (
+                <span className="flex items-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {recalcProgress.message || 'Rekalkulasi...'}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Rekalkulasi Semua
+                </span>
+              )}
+            </Button>
+            
+            {recalculating && (
+              <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-full bg-green-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300" 
+                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
+                    ></div>
+                  </div>
+                  <span className="text-xs font-medium">
+                    {recalcProgress.step}/{recalcProgress.total}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs">
+                  {recalcProgress.message}
+                </div>
+              </div>
+            )}
+            
+            {data && data.length > 0 && !recalculating && (
+              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
+                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
+              </div>
+            )}
+            
             <div className="ml-auto flex items-center gap-2">
               <Label htmlFor="filter-jenis" className="text-sm">Filter Jenis Makanan</Label>
               <Input
@@ -1028,10 +1135,9 @@ const KalkulasiBiayaGizi: React.FC = () => {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <Tabs defaultValue="basic" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="basic">Data Dasar</TabsTrigger>
                     <TabsTrigger value="time">Waktu</TabsTrigger>
-                    <TabsTrigger value="cost">Biaya</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="basic" className="space-y-4">
@@ -1173,118 +1279,6 @@ const KalkulasiBiayaGizi: React.FC = () => {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="cost" className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="biaya_gaji_tunjangan">Biaya Gaji & Tunjangan</Label>
-                        <Input
-                          id="biaya_gaji_tunjangan"
-                          type="number"
-                          value={formData.biaya_gaji_tunjangan}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_gaji_tunjangan: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_jasa_pelayanan">Biaya Jasa Pelayanan</Label>
-                        <Input
-                          id="biaya_jasa_pelayanan"
-                          type="number"
-                          value={formData.biaya_jasa_pelayanan}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_jasa_pelayanan: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_obat">Biaya Obat</Label>
-                        <Input
-                          id="biaya_obat"
-                          type="number"
-                          value={formData.biaya_obat}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_obat: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_bhp">Biaya BHP</Label>
-                        <Input
-                          id="biaya_bhp"
-                          type="number"
-                          value={formData.biaya_bhp}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_bhp: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_makan_karyawan">Biaya Makan Karyawan</Label>
-                        <Input
-                          id="biaya_makan_karyawan"
-                          type="number"
-                          value={formData.biaya_makan_karyawan}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_makan_karyawan: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_makan_pasien">Biaya Makan Pasien</Label>
-                        <Input
-                          id="biaya_makan_pasien"
-                          type="number"
-                          value={formData.biaya_makan_pasien}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_makan_pasien: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_rumah_tangga">Biaya Rumah Tangga</Label>
-                        <Input
-                          id="biaya_rumah_tangga"
-                          type="number"
-                          value={formData.biaya_rumah_tangga}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_rumah_tangga: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_cetak">Biaya Cetak</Label>
-                        <Input
-                          id="biaya_cetak"
-                          type="number"
-                          value={formData.biaya_cetak}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_cetak: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_atk">Biaya ATK</Label>
-                        <Input
-                          id="biaya_atk"
-                          type="number"
-                          value={formData.biaya_atk}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_atk: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_listrik">Biaya Listrik</Label>
-                        <Input
-                          id="biaya_listrik"
-                          type="number"
-                          value={formData.biaya_listrik}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_listrik: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_air">Biaya Air</Label>
-                        <Input
-                          id="biaya_air"
-                          type="number"
-                          value={formData.biaya_air}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_air: Number(e.target.value) }))}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="biaya_telp">Biaya Telepon</Label>
-                        <Input
-                          id="biaya_telp"
-                          type="number"
-                          value={formData.biaya_telp}
-                          onChange={(e) => setFormData(prev => ({ ...prev, biaya_telp: Number(e.target.value) }))}
-                        />
-                      </div>
-                    </div>
-                  </TabsContent>
                 </Tabs>
 
                 <div className="flex justify-end gap-2">
@@ -1338,7 +1332,6 @@ const KalkulasiBiayaGizi: React.FC = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Kode</TableHead>
                     <TableHead>Jenis Makanan</TableHead>
                     <TableHead>Total Porsi</TableHead>
                     <TableHead>Waktu (Meracik/Memasak/Menata)</TableHead>
@@ -1353,14 +1346,18 @@ const KalkulasiBiayaGizi: React.FC = () => {
                     const totalBiayaBahanPorsi = bahanPorsiTotals.get(item.jenis_makanan) || 0;
                     const hasBahanPorsi = menusWithBahan.has(item.jenis_makanan);
                     
+                    // Debug logging
+                    console.log('Rendering item:', {
+                      kode: item.kode,
+                      jenis_makanan: item.jenis_makanan,
+                      length: item.jenis_makanan?.length
+                    });
+                    
                     return (
                       <TableRow key={item.id}>
-                        <TableCell>
-                          <Badge variant="outline">{item.kode}</Badge>
-                        </TableCell>
-                        <TableCell className="max-w-xs">
+                        <TableCell className="min-w-[200px] max-w-[300px]">
                           <div className="flex items-center justify-between">
-                            <span className="truncate">{item.jenis_makanan}</span>
+                            <span className="text-sm font-medium" title={item.jenis_makanan}>{item.jenis_makanan || 'N/A'}</span>
                             <div className="flex gap-1 ml-2">
                               <Button
                                 size="sm"
@@ -1369,7 +1366,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
                                   hasBahanPorsi 
                                     ? "bg-green-600 hover:bg-green-700 text-white" 
                                     : "hover:bg-gray-50"
-                                }`}
+                                } text-xs px-2 py-1 min-w-[60px]`}
                                 onClick={() => {
                                   const selectedMenu = menuGizi.find(menu => menu.nama_makanan === item.jenis_makanan);
                                   if (selectedMenu) {
@@ -1377,16 +1374,17 @@ const KalkulasiBiayaGizi: React.FC = () => {
                                   }
                                 }}
                               >
-                                <Calculator className="h-4 w-4 mr-1" />
-                                {hasBahanPorsi ? 'Update Bahan Porsi' : 'Tambah Bahan Porsi'}
+                                <Calculator className="h-3 w-3 mr-1" />
+                                Bahan
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                                className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 min-w-[60px]"
                                 onClick={() => handleUpdateWaktu(item)}
                               >
-                                Update Waktu
+                                <Clock className="h-3 w-3 mr-1" />
+                                Waktu
                               </Button>
                             </div>
                           </div>
@@ -1415,22 +1413,24 @@ const KalkulasiBiayaGizi: React.FC = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="secondary">
-                            Rp {(() => {
-                              // Hitung total biaya bahan porsi dari data JSON di kalkulasi_biaya_gizi
-                              if (item.bahan_porsi && Array.isArray(item.bahan_porsi) && item.bahan_porsi.length > 0) {
-                                const total = item.bahan_porsi.reduce((sum, bahan) => {
-                                  const biaya = Number(bahan.biaya_bahan_porsi) || 0;
-                                  console.log('Bahan:', bahan.nama_barang, 'Biaya:', biaya);
-                                  return sum + biaya;
-                                }, 0);
-                                console.log('Total bahan porsi untuk', item.jenis_makanan, ':', total);
-                                return total.toLocaleString('id-ID');
-                              }
-                              console.log('Tidak ada data bahan porsi untuk', item.jenis_makanan);
-                              return '0';
-                            })()}
-                          </Badge>
+                          <div className="text-sm">
+                            {item.bahan_porsi && Array.isArray(item.bahan_porsi) && item.bahan_porsi.length > 0 ? (
+                              <div className="space-y-1">
+                                {item.bahan_porsi.slice(0, 2).map((bahan, index) => (
+                                  <div key={index} className="text-xs">
+                                    {bahan.nama_barang}: {bahan.konsumsi} {bahan.satuan}
+                                  </div>
+                                ))}
+                                {item.bahan_porsi.length > 2 && (
+                                  <div className="text-xs text-muted-foreground">
+                                    +{item.bahan_porsi.length - 2} bahan lainnya
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">Belum ada bahan</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
@@ -1526,17 +1526,17 @@ const KalkulasiBiayaGizi: React.FC = () => {
                 <BahanPorsiForm
                   jenisMakanan={selectedMenuForBahan.nama_makanan}
                   kode={selectedMenuForBahan.kode_makanan}
-                  onSave={async (data) => {
+                  onSave={async (dataArray) => {
                     try {
                       const { error } = await supabase
                         .from('bahan_porsi')
-                        .insert([data]);
+                        .insert(dataArray);
 
                       if (error) throw error;
                       
                       toast({
                         title: "Berhasil",
-                        description: "Bahan porsi berhasil ditambahkan",
+                        description: `${dataArray.length} bahan porsi berhasil ditambahkan`,
                       });
                       
                       fetchBahanPorsi();

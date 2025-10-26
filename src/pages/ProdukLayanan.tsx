@@ -39,9 +39,8 @@ interface ProdukLayanan {
   id: string;
   tahun: number;
   jenis: string;
-  inacbg: string | null;
+  deskripsi_inacbg: string | null;
   grouper: string | null;
-  inacbgs: string | null;
   diaglist: string | null;
   diagnosa_1: string | null;
   diagnosa_2: string | null;
@@ -70,6 +69,15 @@ interface ProdukLayanan {
   tarif_inacbgs_numeric: number;
   saldo_distribusi: number;
   prosentase_saldo: number;
+  jp_tindakan: number;
+  jp_ibs: number;
+  jp_laboratorium: number;
+  jp_radiologi: number;
+  jp_farmasi: number;
+  jp_kamar_akomodasi: number;
+  jp_visite: number;
+  jp_konsultasi: number;
+  jp_farmasi_prosentase: number;
 }
 
 const ProdukLayanan = () => {
@@ -246,10 +254,10 @@ const ProdukLayanan = () => {
     const csvContent = [
       // Header
       [
+        "tahun",
         "jenis",
-        "inacbg",
+        "deskripsi_inacbg",
         "grouper",
-        "tarif_inacbgs_numeric",
         "diaglist",
         "diagnosa_1",
         "diagnosa_2",
@@ -266,6 +274,8 @@ const ProdukLayanan = () => {
         "spesialisasi_dokter",
         "nama_dokter",
         "kode_dokter",
+        "tarif_inacbgs_numeric",
+        "jp_farmasi_prosentase",
         "total_biaya",
         "saldo_distribusi",
         "prosentase_saldo",
@@ -273,10 +283,10 @@ const ProdukLayanan = () => {
       // Data rows
       ...data.map((row) =>
         [
+          row.tahun || tahun,
           row.jenis,
-          row.inacbg || "",
+          row.deskripsi_inacbg || "",
           row.grouper || "",
-          row.tarif_inacbgs_numeric || 0,
           row.diaglist || "",
           row.diagnosa_1 || "",
           row.diagnosa_2 || "",
@@ -293,6 +303,8 @@ const ProdukLayanan = () => {
           row.spesialisasi_dokter || "",
           row.nama_dokter || "",
           row.kode_dokter || "",
+          row.tarif_inacbgs_numeric || 0,
+          row.jp_farmasi_prosentase || 0,
           row.total_biaya,
           row.saldo_distribusi || 0,
           row.prosentase_saldo || 0,
@@ -304,17 +316,37 @@ const ProdukLayanan = () => {
       "ID": item.id || "",
       "Tahun": item.tahun || tahun,
       "Jenis": item.jenis || "",
-      "INACBG": item.inacbg || "",
+      "Deskripsi INA-CBG": item.deskripsi_inacbg || "",
       "Grouper": item.grouper || "",
-      "INACBGS": item.inacbgs || "",
-      "Total Biaya": item.total_biaya || 0,
-      "Tarif INACBGS": item.tarif_inacbgs_numeric || 0,
-      "Saldo Distribusi": item.saldo_distribusi || 0,
-      "Prosentase Saldo": item.prosentase_saldo || 0,
+      "Diaglist": item.diaglist || "",
+      "Diagnosa 1": item.diagnosa_1 || "",
+      "Diagnosa 2": item.diagnosa_2 || "",
+      "Diagnosa 3": item.diagnosa_3 || "",
+      "Diagnosa 4": item.diagnosa_4 || "",
+      "Diagnosa 5": item.diagnosa_5 || "",
+      "Proclist": item.proclist || "",
+      "Prosedur 1": item.proc_1 || "",
+      "Prosedur 2": item.proc_2 || "",
+      "Prosedur 3": item.proc_3 || "",
+      "Prosedur 4": item.proc_4 || "",
+      "Prosedur 5": item.proc_5 || "",
+      "LOS": item.los || 0,
+      "Spesialisasi Dokter": item.spesialisasi_dokter || "",
       "Nama Dokter": item.nama_dokter || "",
       "Kode Dokter": item.kode_dokter || "",
-      "Spesialisasi": item.spesialisasi_dokter || "",
-      "LOS": item.los || 0
+      "Tarif INA-CBGs": item.tarif_inacbgs_numeric || 0,
+      "JP Farmasi Prosentase": item.jp_farmasi_prosentase || 0,
+      "Total Biaya": item.total_biaya || 0,
+      "Saldo Distribusi": item.saldo_distribusi || 0,
+      "Prosentase Saldo": item.prosentase_saldo || 0,
+      "JP Tindakan": item.jp_tindakan || 0,
+      "JP IBS": item.jp_ibs || 0,
+      "JP Laboratorium": item.jp_laboratorium || 0,
+      "JP Radiologi": item.jp_radiologi || 0,
+      "JP Farmasi": item.jp_farmasi || 0,
+      "JP Kamar Akomodasi": item.jp_kamar_akomodasi || 0,
+      "JP Visite": item.jp_visite || 0,
+      "JP Konsultasi": item.jp_konsultasi || 0
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataForExport);
@@ -330,14 +362,78 @@ const ProdukLayanan = () => {
 
   const handleDownloadTemplate = () => {
     const headers = [
-      "Kode Unit Kerja",
-      "Kode Layanan", 
-      "Jumlah",
-      "Pendapatan"
+      "tahun",
+      "jenis",
+      "deskripsi_inacbg",
+      "grouper",
+      "diaglist",
+      "diagnosa_1",
+      "diagnosa_2",
+      "diagnosa_3",
+      "diagnosa_4",
+      "diagnosa_5",
+      "proclist",
+      "proc_1",
+      "proc_2",
+      "proc_3",
+      "proc_4",
+      "proc_5",
+      "los",
+      "spesialisasi_dokter",
+      "nama_dokter",
+      "kode_dokter",
+      "tarif_inacbgs_numeric",
+      "jp_farmasi_prosentase"
     ];
     const sampleData = [
-      ["UK001", "L001", "100", "5000000"],
-      ["UK002", "L002", "50", "2500000"]
+      [
+        2025,
+        "rawat jalan",
+        "Hipertensi Esensial",
+        "Mild",
+        "I10",
+        "Hipertensi Esensial",
+        "",
+        "",
+        "",
+        "",
+        "Z00.0",
+        "Pemeriksaan Medis Umum",
+        "",
+        "",
+        "",
+        "",
+        1,
+        "Spesialis Penyakit Dalam",
+        "Dr. Andi",
+        "DK001",
+        300000,
+        15.0
+      ],
+      [
+        2025,
+        "rawat inap",
+        "Pneumonia",
+        "Moderate",
+        "J18",
+        "Pneumonia",
+        "",
+        "",
+        "",
+        "",
+        "J44.1",
+        "Bronkitis Kronis",
+        "",
+        "",
+        "",
+        "",
+        3,
+        "Spesialis Paru",
+        "Dr. Budi",
+        "DK002",
+        8000000,
+        20.0
+      ]
     ];
     
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
@@ -373,8 +469,10 @@ const ProdukLayanan = () => {
           const obj: any = { user_id: user.id, tahun };
           headers.forEach((header, index) => {
             const value = row[index]?.trim();
-            if (header === "los" || header === "total_biaya" || header === "tarif_inacbgs_numeric") {
+            if (header === "los" || header === "tahun" || header === "tarif_inacbgs_numeric") {
               obj[header] = value ? parseInt(value) : 0;
+            } else if (header === "jp_farmasi_prosentase") {
+              obj[header] = value ? parseFloat(value) : 0;
             } else {
               obj[header] = value || null;
             }
@@ -553,12 +651,12 @@ const ProdukLayanan = () => {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="inacbg">INA-CBG</Label>
+                        <Label htmlFor="deskripsi_inacbg">Deskripsi INA-CBG</Label>
                         <Input
-                          id="inacbg"
-                          value={formData.inacbg || ""}
+                          id="deskripsi_inacbg"
+                          value={formData.deskripsi_inacbg || ""}
                           onChange={(e) =>
-                            setFormData({ ...formData, inacbg: e.target.value })
+                            setFormData({ ...formData, deskripsi_inacbg: e.target.value })
                           }
                         />
                       </div>
@@ -710,6 +808,22 @@ const ProdukLayanan = () => {
                       filterType="radiologi"
                     />
 
+                    <div className="space-y-2">
+                      <Label htmlFor="jp_farmasi_prosentase">Prosentase JP Farmasi (%)</Label>
+                      <Input
+                        id="jp_farmasi_prosentase"
+                        type="number"
+                        value={formData.jp_farmasi_prosentase || 0}
+                        onChange={(e) =>
+                          setFormData({ ...formData, jp_farmasi_prosentase: parseFloat(e.target.value) || 0 })
+                        }
+                        placeholder="Masukkan prosentase JP Farmasi"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                      />
+                    </div>
+
                     <FarmasiInputTable
                       label="Farmasi"
                       value={formData.farmasi || []}
@@ -782,11 +896,20 @@ const ProdukLayanan = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Jenis</TableHead>
-                    <TableHead>INA-CBG</TableHead>
+                    <TableHead>Deskripsi INA-CBG</TableHead>
                     <TableHead>LOS</TableHead>
                     <TableHead>Dokter</TableHead>
                     <TableHead className="text-right">Tarif INA-CBGs</TableHead>
                     <TableHead className="text-right">Total Biaya</TableHead>
+                    <TableHead className="text-right">JP Tindakan</TableHead>
+                    <TableHead className="text-right">JP IBS</TableHead>
+                    <TableHead className="text-right">JP Lab</TableHead>
+                    <TableHead className="text-right">JP Radiologi</TableHead>
+                    <TableHead className="text-right">JP Farmasi</TableHead>
+                    <TableHead className="text-right">JP Kamar</TableHead>
+                    <TableHead className="text-right">JP Visite</TableHead>
+                    <TableHead className="text-right">JP Konsultasi</TableHead>
+                    <TableHead className="text-right font-bold">Total JP</TableHead>
                     <TableHead className="text-right">Saldo Distribusi</TableHead>
                     <TableHead className="text-center">% Saldo</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
@@ -796,11 +919,22 @@ const ProdukLayanan = () => {
                   {data.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium capitalize">{item.jenis}</TableCell>
-                      <TableCell>{item.inacbg || "-"}</TableCell>
+                      <TableCell>{item.deskripsi_inacbg || "-"}</TableCell>
                       <TableCell>{item.los} hari</TableCell>
                       <TableCell>{item.nama_dokter || "-"}</TableCell>
                       <TableCell className="text-right">{formatCurrency(item.tarif_inacbgs_numeric || 0)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(item.total_biaya)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_tindakan || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_ibs || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_laboratorium || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_radiologi || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_farmasi || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_kamar_akomodasi || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_visite || 0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.jp_konsultasi || 0)}</TableCell>
+                      <TableCell className="text-right font-bold text-green-600">
+                        {formatCurrency((item.jp_tindakan || 0) + (item.jp_ibs || 0) + (item.jp_laboratorium || 0) + (item.jp_radiologi || 0) + (item.jp_farmasi || 0) + (item.jp_kamar_akomodasi || 0) + (item.jp_visite || 0) + (item.jp_konsultasi || 0))}
+                      </TableCell>
                       <TableCell className={`text-right font-semibold ${
                         (item.saldo_distribusi || 0) >= 0 ? "text-green-600" : "text-red-600"
                       }`}>

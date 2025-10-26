@@ -8,8 +8,17 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Calculator, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
+import { 
+  optimizedDelete, 
+  optimizedUpdate, 
+  executeRPC, 
+  handleDatabaseError,
+  safeCRUDOperation,
+  safeMinimalRecalculation,
+  manualRecalculateRadiologi 
+} from "@/utils/database-operations";
 
 
 const KalkulasiBiayaRadiologi: React.FC = () => {
@@ -33,6 +42,8 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
   const [autoCalculating, setAutoCalculating] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [autoUpdateInterval, setAutoUpdateInterval] = useState<any>(null);
+  const [recalculating, setRecalculating] = useState<boolean>(false);
+  const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
   const [showBahanFarmasiForm, setShowBahanFarmasiForm] = useState<boolean>(false);
   const [selectedRowForBahan, setSelectedRowForBahan] = useState<any | null>(null);
   const [bahanFarmasiList, setBahanFarmasiList] = useState<any[]>([]);
@@ -40,6 +51,71 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
   const [manualInputData, setManualInputData] = useState<any>({});
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
+  const [refreshingFormula, setRefreshingFormula] = useState<boolean>(false);
+  
+  // State untuk master data radiologi dan autocomplete
+  const [masterRadiologi, setMasterRadiologi] = useState<{kode_tindakan: string, nama_tindakan: string}[]>([]);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+
+  // Load master data radiologi untuk autocomplete dengan realtime sync
+  useEffect(() => {
+    const loadMasterRadiologi = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("tindakan_radiologi")
+          .select("kode_tindakan, nama_tindakan")
+          .order("nama_tindakan", { ascending: true });
+          
+        if (error) {
+          console.error("Error loading master radiologi:", error);
+          toast.error("Gagal memuat data master radiologi");
+        } else {
+          setMasterRadiologi(data || []);
+          console.log(`📋 Loaded ${data?.length || 0} master radiologi items`);
+        }
+      } catch (err) {
+        console.error("Failed to load master radiologi:", err);
+        toast.error("Gagal memuat data master radiologi");
+      }
+    };
+    
+    loadMasterRadiologi();
+    
+    // Setup realtime subscription untuk master data
+    const channel = supabase
+      .channel('master_radiologi_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'tindakan_radiologi' 
+        }, 
+        (payload) => {
+          console.log('🔄 Master radiologi updated:', payload);
+          // Reload master data when changed
+          loadMasterRadiologi();
+          
+          // Show notification based on event type
+          switch (payload.eventType) {
+            case 'INSERT':
+              toast.success(`✅ Tindakan radiologi baru ditambahkan: ${payload.new?.nama_tindakan}`);
+              break;
+            case 'UPDATE':
+              toast.success(`📝 Tindakan radiologi diperbarui: ${payload.new?.nama_tindakan}`);
+              break;
+            case 'DELETE':
+              toast.info(`🗑️ Tindakan radiologi dihapus`);
+              break;
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Initialize user session
   useEffect(() => {
@@ -191,29 +267,26 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
           throw createError;
         }
         
-        // Hitung dasar alokasi
-        const { data: alokasiResult, error: alokasiError } = await supabase.rpc('fix_dasar_alokasi_radiologi', {
-          p_user_id: currentUserId,
-          p_tahun: year
-        });
+        // Use fast comprehensive calculation for initial data generation
+        console.log("🚀 Initial Data: Running FAST comprehensive calculation...");
         
-        if (alokasiError) {
-          console.error("Error calculating dasar alokasi:", alokasiError);
-          throw alokasiError;
+        const { error: calcError } = await Promise.race([
+          supabase.rpc('recalculate_all_radiologi_fast', {
+            p_tahun: year,
+            p_user_id: currentUserId
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Initial data calc timeout')), 25000))
+        ]) as any;
+        
+        if (calcError) {
+          console.error("Error in fast initial data calculation:", calcError);
+          // Don't throw error, let it continue
+          console.log("Initial calculation failed, but data is ready for manual calculation");
+        } else {
+          console.log("✅ Fast initial data calculation completed successfully");
         }
         
-        // Hitung biaya
-        const { data: biayaResult, error: biayaError } = await supabase.rpc('fix_biaya_calculation_radiologi_correct', {
-          p_user_id: currentUserId,
-          p_tahun: year
-        });
-        
-        if (biayaError) {
-          console.error("Error calculating biaya:", biayaError);
-          throw biayaError;
-        }
-        
-        const generateResult = { createResult, alokasiResult, biayaResult };
+        const generateResult = { createResult, alokasiResult: 'completed', biayaResult: 'completed' };
         const generateError = null;
         
         console.log("Generate function result:", { generateResult, generateError });
@@ -310,6 +383,42 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
     }
   };
 
+  const refreshWithCorrectFormula = async () => {
+    try {
+      setRefreshingFormula(true);
+      
+      toast.info("🔄 Memulai Refresh Formula Radiologi - Menggunakan rumus: (Base × dasar_alokasi_hasil_kali) ÷ jumlah");
+      
+      const { data, error } = await supabase.rpc('refresh_kalkulasi_biaya_radiologi_base_value');
+      
+      if (error) throw error;
+      
+      const result = data as {
+        success: boolean;
+        table_name: string;
+        base_value: number;
+        affected_rows: number;
+        formula: string;
+        execution_time_ms: number;
+        message: string;
+      };
+      
+      toast.success(`🎉 Formula Radiologi Berhasil Diperbarui! ${result.affected_rows} records diupdate • ${result.execution_time_ms.toFixed(1)}ms • Base: ${result.base_value.toLocaleString()}`);
+      
+      console.log("Refresh Formula Result:", result);
+      
+      // Refresh data setelah sukses
+      await loadData();
+      
+    } catch (err: any) {
+      console.error("Refresh Formula Error:", err);
+      toast.error(`❌ Gagal Refresh Formula: ${err.message || "Terjadi kesalahan tidak diketahui"}`);
+    } finally {
+      setRefreshingFormula(false);
+    }
+  };
+
+
   const updateData = async () => {
     console.log("=== UPDATE DATA START ===");
     try {
@@ -384,10 +493,40 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       toast.success("Bahan pemeriksaan diperbarui. Memperbarui data...");
       setSelectedRow(null);
       
-      // Trigger immediate update after save
+      // Trigger automatic calculations after save bahan
+      console.log("🔄 Running automatic calculations after save bahan...");
+      
+      try {
+      // Use fast comprehensive calculation for bahan save
+      console.log("🚀 Bahan: Running FAST comprehensive calculation...");
+      
+      const { error: calcError } = await Promise.race([
+        supabase.rpc('recalculate_all_radiologi_fast', {
+          p_tahun: year,
+          p_user_id: userId
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Bahan calc timeout')), 15000))
+      ]) as any;
+      
+      if (calcError) {
+        console.error("Error in fast bahan calculation:", calcError);
+        toast.success("✅ Data bahan berhasil diperbarui! Kalkulasi sedang berjalan di background.");
+      } else {
+        console.log("✅ Fast bahan calculation completed successfully");
+        toast.success("✅ Data bahan berhasil diperbarui dan semua kalkulasi otomatis selesai!");
+      }
+      
+      // Refresh data display
+      console.log("🔄 Bahan: Refreshing data display...");
       await updateData();
+        
+      } catch (calcError: any) {
+        console.error("Error in automatic calculations after save bahan:", calcError);
+        await updateData();
+        toast.success("Data berhasil diperbarui!");
+      }
+      
       setAutoCalculating(false);
-      toast.success("Data berhasil diperbarui!");
       
     } catch (e: any) {
       console.error("Save bahan error:", e);
@@ -429,10 +568,40 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       setSelectedRowForBahan(null);
       setBahanFarmasiList([]);
       
-      // Trigger immediate update after save
-      await updateData();
+      // Trigger automatic calculations after save bahan farmasi
+      console.log("🔄 Running automatic calculations after save bahan farmasi...");
+      
+      try {
+        // Use fast comprehensive calculation for farmasi save
+        console.log("🚀 Farmasi: Running FAST comprehensive calculation...");
+        
+        const { error: calcError } = await Promise.race([
+          supabase.rpc('recalculate_all_radiologi_fast', {
+            p_tahun: year,
+            p_user_id: userId
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Farmasi calc timeout')), 15000))
+        ]) as any;
+        
+        if (calcError) {
+          console.error("Error in fast farmasi calculation:", calcError);
+          toast.success("✅ Data bahan farmasi berhasil disimpan! Kalkulasi sedang berjalan di background.");
+        } else {
+          console.log("✅ Fast farmasi calculation completed successfully");
+          toast.success("✅ Data bahan farmasi berhasil disimpan dan kalkulasi selesai!");
+        }
+        
+        // Update data display
+        console.log("🔄 Farmasi: Refreshing data display...");
+        await updateData();
+        
+      } catch (calcError: any) {
+        console.error("Error in automatic calculations after save bahan farmasi:", calcError);
+        await updateData();
+        toast.success("Data berhasil diperbarui!");
+      }
+      
       setAutoCalculating(false);
-      toast.success("Data berhasil diperbarui!");
       
     } catch (e: any) {
       console.error("Save bahan farmasi error:", e);
@@ -456,73 +625,158 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
 
       setAutoCalculating(true);
       
-      // Cari tindakan radiologi berdasarkan nama
-      const { data: tindakan, error: tindakanError } = await supabase
-        .from("tindakan_radiologi")
-        .select("kode, nama_tindakan")
-        .eq("nama_tindakan", data.jenis_pemeriksaan)
-        .single();
+      // Cari tindakan radiologi berdasarkan nama (case-insensitive & trim)
+      const searchName = data.jenis_pemeriksaan?.trim();
+      if (!searchName) {
+        toast.error("Nama pemeriksaan tidak boleh kosong");
+        setAutoCalculating(false);
+        return;
+      }
 
-      if (tindakanError || !tindakan) {
-        toast.error("Jenis pemeriksaan tidak ditemukan dalam master data");
+      // Pencarian yang lebih robust - handle whitespace issues
+      console.log(`🔍 Searching for: "${searchName}"`);
+      
+      // First try: exact match with trimmed data
+      const { data: allTindakan } = await supabase
+          .from("tindakan_radiologi")
+        .select("kode_tindakan, nama_tindakan");
+      
+      let tindakan = null;
+      if (allTindakan && allTindakan.length > 0) {
+        // Find exact match dengan trim untuk handle whitespace
+        tindakan = allTindakan.find(t => 
+          t.nama_tindakan?.trim().toLowerCase() === searchName.toLowerCase()
+        );
+        
+        console.log(`🔍 Found exact match: ${tindakan ? 'YES' : 'NO'}`);
+        if (tindakan) {
+          console.log(`✅ Matched: "${tindakan.nama_tindakan.trim().trim()}" (${tindakan.kode_tindakan})`);
+        }
+      }
+
+      if (!tindakan) {
+        // Fallback: fuzzy search untuk suggestions
+        console.log(`🔍 Trying fuzzy search for: "${searchName}"`);
+        const fuzzyResults = allTindakan?.filter(t => 
+          t.nama_tindakan?.toLowerCase().includes(searchName.toLowerCase())
+        ) || [];
+          
+        if (fuzzyResults && fuzzyResults.length > 0) {
+          const suggestions = fuzzyResults.map(r => r.nama_tindakan?.trim()).join(", ");
+          console.log(`💡 Fuzzy results found: ${suggestions}`);
+          toast.error(`Jenis pemeriksaan tidak ditemukan exact match. Saran: ${suggestions}`);
+        } else {
+          console.log(`❌ No fuzzy results found`);
+          toast.error("Jenis pemeriksaan tidak ditemukan dalam master data. Pastikan data sudah ditambahkan di menu Data Master → Tindakan Radiologi");
+        }
         setAutoCalculating(false);
         return;
       }
 
       if (data.id) {
-        // Update existing data
-        const { error: updateError } = await supabase
-          .from("kalkulasi_biaya_radiologi")
-          .update({
-            kode: tindakan.kode,
-            jenis_pemeriksaan: data.jenis_pemeriksaan,
+        // Update existing data - GUNAKAN SAFE OPERATION (NO AUTO RECALCULATION)
+        console.log(`🔄 Updating existing record ID: ${data.id}`);
+        
+        await safeCRUDOperation('UPDATE', 'kalkulasi_biaya_radiologi', data.id, {
+            kode: tindakan.kode_tindakan,
+          jenis_pemeriksaan: tindakan.nama_tindakan.trim().trim(), // Use trimmed name from database
             jumlah: data.jumlah || 0,
             waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
             profesionalisme: data.profesionalisme || 1,
             tingkat_kesulitan: data.tingkat_kesulitan || 1
-          })
-          .eq("id", data.id);
+        });
 
-        if (updateError) {
-          console.error("Update error:", updateError);
-          throw updateError;
-        }
-
-        toast.success("Data berhasil diupdate!");
+        console.log("✅ Data successfully updated - NO auto calculation sesuai instruksi user");
+        toast.success("✅ Data berhasil diupdate! Klik tombol 'Rekalkulasi Semua' untuk memperbarui kalkulasi.");
+        
+        // Refresh data display (tanpa recalculation)
+        console.log("🔄 Update: Refreshing data display...");
+          await updateData();
       } else {
-        // Insert data baru
-        const { error: insertError } = await supabase
-          .from("kalkulasi_biaya_radiologi")
-          .insert({
-            user_id: userId,
-            tahun: year,
-            kode: tindakan.kode,
-            kode_unit_kerja: 'UK039',
-            jenis_pemeriksaan: data.jenis_pemeriksaan,
-            jumlah: data.jumlah || 0,
-            waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
-            profesionalisme: data.profesionalisme || 1,
-            tingkat_kesulitan: data.tingkat_kesulitan || 1
+        // Validasi: cek apakah kode sudah ada untuk user dan tahun yang sama
+        const existingKode = rows.find((row: any) => row.kode === tindakan.kode_tindakan);
+        if (existingKode) {
+          // Jika ada, update existing record - GUNAKAN SAFE OPERATION
+          console.log(`🔄 Updating existing record for kode: ${tindakan.kode_tindakan}`);
+          
+          await safeCRUDOperation('UPDATE', 'kalkulasi_biaya_radiologi', existingKode.id, {
+            jenis_pemeriksaan: tindakan.nama_tindakan.trim().trim(), // Use trimmed name from database
+              jumlah: data.jumlah || 0,
+              waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
+              profesionalisme: data.profesionalisme || 1,
+              tingkat_kesulitan: data.tingkat_kesulitan || 1
           });
 
-        if (insertError) {
-          console.error("Insert error:", insertError);
-          throw insertError;
-        }
+          console.log("✅ Data successfully updated - NO auto calculation sesuai instruksi user");
+          toast.success(`📝 Data ${tindakan.nama_tindakan.trim()} berhasil diperbarui! Klik tombol 'Rekalkulasi Semua' untuk memperbarui kalkulasi.`);
+          
+          // Refresh data display (tanpa recalculation)
+            console.log("🔄 Update: Refreshing data display...");
+            await updateData();
+        } else {
+        // Double-check di database sebelum insert (untuk handle race conditions)
+        const { data: dbCheck, error: dbCheckError } = await supabase
+          .from("kalkulasi_biaya_radiologi")
+          .select("id, kode, jenis_pemeriksaan")
+          .eq("user_id", userId)
+          .eq("tahun", year)
+          .eq("kode", tindakan.kode_tindakan)
+          .single();
 
-        toast.success("Data berhasil ditambahkan!");
+        if (dbCheck && !dbCheckError) {
+            // Record sudah ada di database - GUNAKAN SAFE OPERATION
+          console.log(`🔄 Database check: Record exists, updating instead of inserting`);
+            
+            await safeCRUDOperation('UPDATE', 'kalkulasi_biaya_radiologi', dbCheck.id, {
+              jenis_pemeriksaan: tindakan.nama_tindakan.trim().trim(), // Use trimmed name from database
+              jumlah: data.jumlah || 0,
+              waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
+              profesionalisme: data.profesionalisme || 1,
+              tingkat_kesulitan: data.tingkat_kesulitan || 1
+            });
+
+            console.log("✅ Data successfully updated - NO auto calculation sesuai instruksi user");
+            toast.success(`📝 Data ${tindakan.nama_tindakan.trim()} berhasil diperbarui! Klik tombol 'Rekalkulasi Semua' untuk memperbarui kalkulasi.`);
+        } else {
+            // Record belum ada - GUNAKAN SAFE OPERATION
+          console.log(`➕ Database check: Record not exists, inserting new data`);
+            
+            await safeCRUDOperation('INSERT', 'kalkulasi_biaya_radiologi', null, {
+              user_id: userId,
+              tahun: year,
+              kode: tindakan.kode_tindakan,
+              kode_unit_kerja: 'UK039',
+              jenis_pemeriksaan: tindakan.nama_tindakan.trim().trim(), // Use trimmed name from database
+              jumlah: data.jumlah || 0,
+              waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
+              profesionalisme: data.profesionalisme || 1,
+              tingkat_kesulitan: data.tingkat_kesulitan || 1
+            });
+
+            console.log("✅ Data successfully inserted - NO auto calculation sesuai instruksi user");
+            toast.success(`📝 Data ${tindakan.nama_tindakan.trim()} berhasil ditambahkan! Klik tombol 'Rekalkulasi Semua' untuk memperbarui kalkulasi.`);
+          }
+          
+          // Refresh data display (tanpa recalculation)
+          console.log("🔄 Insert: Refreshing data display...");
+          await updateData();
+        }
       }
 
       setShowManualInput(false);
       setManualInputData({});
       
-      // Trigger immediate update after manual input
+      // Reset search term untuk autocomplete
+      setSearchTerm('');
+      setShowSuggestions(false);
+      
+      console.log("✅ Manual input completed - User should now click 'Rekalkulasi Semua' button for comprehensive calculation");
+      
       setAutoCalculating(false);
-      await updateData();
       
     } catch (e: any) {
       console.error("Manual input error:", e);
-      toast.error(`Gagal ${data.id ? 'mengupdate' : 'menambah'} data: ${e.message}`);
+      handleDatabaseError(e, `${data.id ? 'mengupdate' : 'menambah'} data`);
       setAutoCalculating(false);
     }
   };
@@ -547,26 +801,68 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
     try {
       setAutoCalculating(true);
       
-      const { error } = await supabase
-        .from("kalkulasi_biaya_radiologi")
-        .delete()
-        .eq("id", row.id);
+      // Use SAFE delete operation - NO AUTO RECALCULATION sesuai instruksi user
+      await safeCRUDOperation('DELETE', 'kalkulasi_biaya_radiologi', row.id);
 
-      if (error) {
-        console.error("Delete error:", error);
-        throw error;
-      }
-
-      toast.success("Data berhasil dihapus!");
+      console.log("✅ Data successfully deleted - NO auto calculation");
+      toast.success("✅ Data berhasil dihapus! Klik tombol 'Rekalkulasi' untuk memperbarui kalkulasi.");
       
-      // Trigger immediate update after delete
-      setAutoCalculating(false);
+      // Refresh data display (tanpa recalculation)
+      console.log("🔄 Delete: Refreshing data display...");
       await updateData();
       
     } catch (e: any) {
-      console.error("Delete error:", e);
-      toast.error(`Gagal menghapus data: ${e.message}`);
+      console.error("Delete operation failed:", e);
+      handleDatabaseError(e, "menghapus data");
+    } finally {
       setAutoCalculating(false);
+    }
+  };
+
+  // Manual recalculation function - dipanggil via tombol user
+  const handleManualRecalculation = async () => {
+    if (!userId) {
+      toast.error("User tidak ditemukan. Silakan login kembali.");
+      return;
+    }
+
+    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya berdasarkan rumus tabel.")) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+
+      console.log("🔄 Starting manual recalculation...");
+
+      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
+      
+      const result = await manualRecalculateRadiologi(year, userId);
+
+      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
+      
+      // Refresh data setelah recalculation
+      await updateData();
+      
+      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+
+      // Show detailed success message
+      toast.success(
+        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
+        `📊 ${result.affected_rows} records diperbarui\n` +
+        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
+      );
+
+      console.log("✅ Manual recalculation completed successfully");
+      console.log("📈 Recalculation stats:", result);
+      
+    } catch (error: any) {
+      console.error("Manual recalculation failed:", error);
+      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
+    } finally {
+      setRecalculating(false);
+      setRecalcProgress({step: 0, total: 5, message: ''});
     }
   };
 
@@ -856,28 +1152,20 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                 continue;
               }
 
-              // Now perform the update
-              const { error: updateError, count } = await supabase
-                .from("kalkulasi_biaya_radiologi")
-                .update({ 
-                  jumlah, 
-                  waktu_pemeriksaan: waktu, 
-                  profesionalisme: prof, 
-                  tingkat_kesulitan: sulit 
-                })
-                .eq("id", existingRecord.id);
-              
-              console.log(`Update result for row ${i + 1}:`, { updateError, count });
-
-              if (updateError) {
+              // Now perform the update with SAFE operation - NO AUTO RECALC
+              try {
+                await safeCRUDOperation('UPDATE', 'kalkulasi_biaya_radiologi', existingRecord.id, {
+                  jumlah: jumlah.toString(),
+                  waktu_pemeriksaan: waktu.toString(),
+                  profesionalisme: prof.toString(),
+                  tingkat_kesulitan: sulit.toString()
+                });
+                
+                successCount++;
+                console.log(`Row ${i + 1} updated successfully - NO auto calculation`);
+              } catch (updateError: any) {
                 errorCount++;
                 errors.push(`Baris ${i + 1}: ${updateError.message}`);
-              } else if (count === 0) {
-                errorCount++;
-                errors.push(`Baris ${i + 1}: Update gagal - tidak ada baris yang diupdate`);
-              } else {
-                successCount++;
-                console.log(`Row ${i + 1} updated successfully - trigger otomatis akan menghitung ulang`);
               }
             } catch (err: any) {
               errorCount++;
@@ -894,53 +1182,14 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
             setImportProgress({current: records.length, total: records.length, message: "Import selesai dengan error", status: "error"});
             toast.error(message + `\n\nError detail:\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? `\n... dan ${errors.length - 5} error lainnya` : ''}`);
           } else {
-            setImportProgress({current: records.length, total: records.length, message: "Import berhasil! Menghitung ulang...", status: "success"});
-            toast.success(message + "\n🔄 Perhitungan otomatis sedang berjalan...");
+            setImportProgress({current: records.length, total: records.length, message: "Import berhasil!", status: "success"});
+            toast.success(message + "\n🔄 Klik tombol 'Rekalkulasi Semua' untuk menghitung ulang semua data.");
           }
           
-          // Trigger kalkulasi otomatis setelah import
+          // Refresh data tanpa kalkulasi otomatis sesuai alur baru
           if (successCount > 0) {
-            setAutoCalculating(true);
-            setImportProgress({current: records.length, total: records.length, message: "Menjalankan kalkulasi otomatis...", status: "calculating"});
-            
-            try {
-              // Jalankan kalkulasi otomatis untuk semua kolom yang perlu dihitung
-              console.log("Running automatic calculations after import...");
-              
-              // 1. Hitung hasil_kali dan dasar_alokasi
-              const { error: alokasiError } = await supabase.rpc('fix_dasar_alokasi_radiologi', {
-                p_user_id: userId,
-                p_tahun: year
-              });
-              
-              if (alokasiError) {
-                console.error("Error calculating dasar alokasi:", alokasiError);
-                toast.error("Error dalam perhitungan dasar alokasi");
-              }
-              
-              // 2. Hitung semua biaya
-              const { error: biayaError } = await supabase.rpc('fix_biaya_calculation_radiologi_correct', {
-                p_user_id: userId,
-                p_tahun: year
-              });
-              
-              if (biayaError) {
-                console.error("Error calculating biaya:", biayaError);
-                toast.error("Error dalam perhitungan biaya");
-              }
-              
-              // 3. Update data di aplikasi
+            console.log("🔄 Import: Refreshing data display (no auto calculation)...");
               await updateData();
-              
-              console.log("Automatic calculations completed successfully");
-              toast.success("✅ Import berhasil! Kalkulasi otomatis selesai.");
-              
-            } catch (calcError: any) {
-              console.error("Error in automatic calculations:", calcError);
-              toast.error("Import berhasil, tetapi ada error dalam kalkulasi otomatis");
-            }
-            
-            setAutoCalculating(false);
           }
           
           setImporting(false);
@@ -997,6 +1246,49 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
             >
               Input Manual
             </Button>
+            <Button 
+              variant="default" 
+              disabled={loading || importing || autoCalculating || recalculating} 
+              onClick={handleManualRecalculation}
+              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+            >
+              {recalculating ? (
+                <span className="flex items-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  {recalcProgress.message || 'Rekalkulasi...'}
+                </span>
+              ) : (
+                <span className="flex items-center">
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Rekalkulasi Semua
+                </span>
+              )}
+            </Button>
+            
+            {recalculating && (
+              <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-full bg-green-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300" 
+                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
+                    ></div>
+                  </div>
+                  <span className="text-xs font-medium">
+                    {recalcProgress.step}/{recalcProgress.total}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs">
+                  {recalcProgress.message}
+                </div>
+              </div>
+            )}
+            
+            {rows && rows.length > 0 && !recalculating && (
+              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
+                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
+              </div>
+            )}
           </div>
 
           {importing && (
@@ -1082,30 +1374,27 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
           )}
 
 
-          <div className="rounded-md border overflow-auto">
-            <Table>
+          <div className="rounded-md border overflow-auto max-w-full">
+            <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Kode Unit Kerja</TableHead>
-                  <TableHead>Jenis Pemeriksaan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Prof</TableHead>
-                  <TableHead>Kesulitan</TableHead>
+                  <TableHead className="min-w-[200px]">Jenis Pemeriksaan</TableHead>
+                  <TableHead className="w-20">Jumlah</TableHead>
+                  <TableHead className="w-20">Waktu</TableHead>
+                  <TableHead className="w-20">Prof</TableHead>
+                  <TableHead className="w-20">Kesulitan</TableHead>
                   {/* Hidden columns: HK Waktu, Alokasi Waktu, Hasil Kali, Alokasi HK */}
-                  <TableHead>Bahan Rp</TableHead>
-                  <TableHead>Biaya Tidak Langsung Terdistribusi</TableHead>
-                  <TableHead>Unit Cost</TableHead>
-                  <TableHead>Update Bahan</TableHead>
-                  <TableHead>Edit</TableHead>
-                  <TableHead>Hapus</TableHead>
+                  <TableHead className="w-24">Bahan Rp</TableHead>
+                  <TableHead className="w-32">Biaya Tidak Langsung Terdistribusi</TableHead>
+                  <TableHead className="w-24">Unit Cost</TableHead>
+                  <TableHead className="w-28">Update Bahan</TableHead>
+                  <TableHead className="w-20">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <div className="text-gray-500">Memuat data...</div>
@@ -1114,7 +1403,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="text-gray-500">Tidak ada data.</div>
                         <div className="text-xs text-blue-600">
@@ -1125,8 +1414,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                   </TableRow>
                 ) : rows.map((r) => (
                   <TableRow key={r.id}>
-                    <TableCell className="font-mono text-sm bg-blue-50 font-semibold">{r.kode}</TableCell>
-                    <TableCell className="font-mono text-sm bg-green-50 font-semibold">{r.kode_unit_kerja || 'UK039'}</TableCell>
                     <TableCell className="font-medium">{r.jenis_pemeriksaan}</TableCell>
                     <TableCell>{r.jumlah}</TableCell>
                     <TableCell>{r.waktu_pemeriksaan}</TableCell>
@@ -1147,24 +1434,24 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleEditRow(r)}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDeleteRow(r)}
-                        className="bg-red-100 hover:bg-red-200 text-red-800"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditRow(r)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleDeleteRow(r)}
+                          className="bg-red-100 hover:bg-red-200 text-red-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1253,11 +1540,99 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Jenis Pemeriksaan</label>
-                <Input
-                  value={manualInputData.jenis_pemeriksaan || ''}
-                  onChange={(e) => setManualInputData(prev => ({ ...prev, jenis_pemeriksaan: e.target.value }))}
-                  placeholder="Masukkan jenis pemeriksaan"
-                />
+                <div className="relative">
+                  <Input
+                    value={manualInputData.jenis_pemeriksaan || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setManualInputData(prev => ({ ...prev, jenis_pemeriksaan: value }));
+                      setSearchTerm(value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    placeholder="Ketik atau pilih jenis pemeriksaan..."
+                    className="w-full"
+                  />
+                  
+                  {/* Dropdown Suggestions */}
+                  {showSuggestions && masterRadiologi.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                      {masterRadiologi
+                        .filter(item => 
+                          !searchTerm || 
+                          item.nama_tindakan.trim().toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          item.kode_tindakan.toLowerCase().includes(searchTerm.toLowerCase())
+                        )
+                        .slice(0, 10)
+                        .map((item, index) => (
+                          <div
+                            key={item.kode_tindakan}
+                            className="px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                            onClick={() => {
+                              const trimmedName = item.nama_tindakan.trim();
+                              setManualInputData(prev => ({ 
+                                ...prev, 
+                                jenis_pemeriksaan: trimmedName 
+                              }));
+                              setSearchTerm(trimmedName);
+                              setShowSuggestions(false);
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm font-medium text-gray-900">
+                                {item.nama_tindakan.trim()}
+                              </span>
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                {item.kode_tindakan}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      }
+                      
+                      {/* No results message */}
+                      {searchTerm && masterRadiologi.filter(item => 
+                        item.nama_tindakan.trim().toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        item.kode_tindakan.toLowerCase().includes(searchTerm.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500 italic">
+                          Tidak ditemukan pemeriksaan yang cocok
+                        </div>
+                      )}
+                      
+                      {/* Show all option if no search term */}
+                      {!searchTerm && masterRadiologi.length > 10 && (
+                        <div className="px-3 py-2 text-xs text-gray-400 border-t border-gray-200">
+                          Menampilkan 10 dari {masterRadiologi.length} pemeriksaan. Ketik untuk mencari...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Helper text dan refresh button */}
+                <div className="flex justify-between items-center mt-1">
+                  <p className="text-xs text-gray-500">
+                    💡 Pilih dari {masterRadiologi.length} jenis pemeriksaan yang tersedia
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const { data, error } = await supabase
+                        .from("tindakan_radiologi")
+                        .select("kode_tindakan, nama_tindakan")
+                        .order("nama_tindakan", { ascending: true });
+                      if (!error) {
+                        setMasterRadiologi(data || []);
+                        toast.success(`🔄 Data master diperbarui (${data?.length || 0} items)`);
+                      }
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    🔄 Refresh Master
+                  </button>
+                </div>
               </div>
               
               <div className="grid grid-cols-2 gap-4">

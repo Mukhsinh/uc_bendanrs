@@ -13,6 +13,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { safeCRUDOperation, handleDatabaseError } from "@/utils/database-operations";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -149,29 +150,24 @@ const TindakanOperatifFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        const { error } = await supabase
-          .from("tindakan_operatif")
-          .update({
-            kode_jenis: values.kode_jenis,
-            kode_operator_spesialistik: values.kode_operator_spesialistik,
-            nama_operator_spesialistik: values.nama_operator_spesialistik,
-            kode_tindakan_operatif: values.kode_tindakan_operatif,
-            nama_tindakan_operatif: values.nama_tindakan_operatif,
-          })
-          .eq("id", editing.id);
-        if (error) throw error;
+        // Use new signature: (operation, table, recordId, data)
+        await safeCRUDOperation('UPDATE', 'tindakan_operatif', editing.id, {
+          kode_jenis: values.kode_jenis,
+          kode_operator_spesialistik: values.kode_operator_spesialistik,
+          nama_operator_spesialistik: values.nama_operator_spesialistik,
+          kode_tindakan_operatif: values.kode_tindakan_operatif,
+          nama_tindakan_operatif: values.nama_tindakan_operatif,
+        });
         toast.success("Data diperbarui.");
       } else {
-        const { error } = await supabase
-          .from("tindakan_operatif")
-          .insert([{ 
-            kode_jenis: values.kode_jenis,
-            kode_operator_spesialistik: values.kode_operator_spesialistik,
-            nama_operator_spesialistik: values.nama_operator_spesialistik,
-            kode_tindakan_operatif: values.kode_tindakan_operatif,
-            nama_tindakan_operatif: values.nama_tindakan_operatif,
-          }]);
-        if (error) throw error;
+        // Use new signature: (operation, table, undefined, data)
+        await safeCRUDOperation('INSERT', 'tindakan_operatif', undefined, {
+          kode_jenis: values.kode_jenis,
+          kode_operator_spesialistik: values.kode_operator_spesialistik,
+          nama_operator_spesialistik: values.nama_operator_spesialistik,
+          kode_tindakan_operatif: values.kode_tindakan_operatif,
+          nama_tindakan_operatif: values.nama_tindakan_operatif,
+        });
         toast.success("Data ditambahkan.");
       }
       await fetchAll();
@@ -180,19 +176,19 @@ const TindakanOperatifFormTable: React.FC = () => {
       form.reset();
     } catch (err: any) {
       console.error(err);
-      toast.error(`Gagal menyimpan: ${err.message}`);
+      handleDatabaseError(err, editing ? "memperbarui" : "menyimpan");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("tindakan_operatif").delete().eq("id", id);
-      if (error) throw error;
+      // Use new signature: (operation, table, recordId)
+      await safeCRUDOperation('DELETE', 'tindakan_operatif', id);
       await fetchAll();
       toast.success("Data dihapus.");
     } catch (err: any) {
       console.error(err);
-      toast.error(`Gagal menghapus: ${err.message}`);
+      handleDatabaseError(err, "menghapus");
     }
   };
 

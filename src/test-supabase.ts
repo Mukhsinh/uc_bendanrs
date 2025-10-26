@@ -28,13 +28,22 @@ export const testSupabaseConnection = async () => {
     console.log('   - Table data:', tableInfo);
     console.log('   - Table error:', tableError);
     
-    // Test 4: Check RLS policies
-    const { data: policies, error: policyError } = await supabase
-      .rpc('get_table_policies', { table_name: 'data_biaya' });
+    // Test 4: Check get_data_biaya_for_user RPC function
+    let rpcTestResult = null;
+    let rpcError = null;
     
-    console.log('6. RLS policies check:');
-    console.log('   - Policies:', policies);
-    console.log('   - Policy error:', policyError);
+    if (session?.user?.id) {
+      const { data: rpcData, error: rpcTestError } = await supabase
+        .rpc('get_data_biaya_for_user', { input_user_id: session.user.id });
+      
+      rpcTestResult = rpcData;
+      rpcError = rpcTestError;
+    }
+    
+    console.log('6. RPC get_data_biaya_for_user test:');
+    console.log('   - RPC data count:', Array.isArray(rpcTestResult) ? rpcTestResult.length : 0);
+    console.log('   - RPC error:', rpcError);
+    console.log('   - User authenticated:', !!session?.user?.id);
     
     console.log('=== END TEST ===');
     
@@ -42,7 +51,8 @@ export const testSupabaseConnection = async () => {
       success: true,
       session,
       tableInfo,
-      policies
+      rpcTestResult,
+      rpcError
     };
     
   } catch (error) {

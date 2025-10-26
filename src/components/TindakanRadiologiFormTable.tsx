@@ -13,6 +13,13 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  optimizedDelete, 
+  optimizedUpdate, 
+  optimizedInsert, 
+  handleDatabaseError,
+  safeCRUDOperation 
+} from "@/utils/database-operations";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -121,20 +128,18 @@ const TindakanRadiologiFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        // For editing, only update nama_tindakan, kode_tindakan cannot be changed
-        const { error } = await supabase
-          .from("tindakan_radiologi")
-          .update({ nama_tindakan: values.nama_tindakan })
-          .eq("id", editing.id);
-        if (error) throw error;
+        // For editing, use SAFE update operation
+        await safeCRUDOperation('UPDATE', 'tindakan_radiologi', editing.id, {
+          nama_tindakan: values.nama_tindakan
+        });
         toast.success("Data diperbarui.");
       } else {
-        // For new records, generate automatic code
+        // For new records, generate automatic code and use SAFE insert
         const newCode = await generateNextCode();
-        const { error } = await supabase
-          .from("tindakan_radiologi")
-          .insert([{ kode_tindakan: newCode, nama_tindakan: values.nama_tindakan }]);
-        if (error) throw error;
+        await safeCRUDOperation('INSERT', 'tindakan_radiologi', undefined, {
+          kode_tindakan: newCode,
+          nama_tindakan: values.nama_tindakan
+        });
         toast.success(`Data ditambahkan dengan kode ${newCode}.`);
       }
       await fetchAll();
@@ -143,23 +148,19 @@ const TindakanRadiologiFormTable: React.FC = () => {
       form.reset();
     } catch (err: any) {
       console.error(err);
-      if (err.message?.includes('duplicate key value violates unique constraint')) {
-        toast.error("Kode sudah digunakan. Silakan coba lagi.");
-      } else {
-        toast.error(`Gagal menyimpan: ${err.message}`);
-      }
+      handleDatabaseError(err, editing ? "memperbarui data" : "menambahkan data");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("tindakan_radiologi").delete().eq("id", id);
-      if (error) throw error;
+      // Use SAFE delete operation
+      await safeCRUDOperation('DELETE', 'tindakan_radiologi', id);
       await fetchAll();
       toast.success("Data dihapus.");
     } catch (err: any) {
       console.error(err);
-      toast.error(`Gagal menghapus: ${err.message}`);
+      handleDatabaseError(err, "menghapus data");
     }
   };
 

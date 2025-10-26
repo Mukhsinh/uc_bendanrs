@@ -1,247 +1,534 @@
-# 🚀 Panduan Deployment Aplikasi Unit Cost RS ke Vercel
+# Deployment Guide - Aplikasi Unit Cost RS
 
-## 📋 Checklist Persiapan
+## Overview
+Aplikasi Unit Cost RS adalah aplikasi web yang dibangun dengan React, TypeScript, dan Supabase. Dokumentasi ini menjelaskan cara deployment dan maintenance aplikasi.
 
-Sebelum deployment, pastikan:
-- ✅ Kode sudah di-commit dan push ke GitHub
-- ✅ File `vercel.json` sudah ada
-- ✅ File `env.example` sudah ada
-- ✅ Supabase project sudah setup
-- ✅ Database sudah di-setup dengan script `database-setup.sql`
+## Prerequisites
 
-## 🎯 Langkah-langkah Deployment
+### System Requirements
+- **Node.js**: v18.0.0 atau lebih baru
+- **npm**: v8.0.0 atau lebih baru
+- **Git**: v2.30.0 atau lebih baru
+- **Browser**: Chrome, Firefox, Safari, Edge (versi terbaru)
 
-### 1. Persiapan di Cursor/VS Code
+### Development Tools
+- **VS Code**: Editor yang direkomendasikan
+- **Supabase CLI**: Untuk database management
+- **PostgreSQL**: Database (via Supabase)
 
-#### 1.1 Commit dan Push Kode
+## Environment Setup
+
+### 1. Local Development
+
+#### Clone Repository
 ```bash
-# Di terminal Cursor/VS Code
-git status
-git add .
-git commit -m "Prepare for Vercel deployment"
-git push origin main
+git clone <repository-url>
+cd Aplikasi-Unit-Cost-RS
 ```
 
-#### 1.2 Pastikan File Konfigurasi Ada
-- ✅ `vercel.json` - Konfigurasi Vercel
-- ✅ `package.json` - Script build
-- ✅ `vite.config.ts` - Konfigurasi Vite
-- ✅ `env.example` - Template environment variables
-
-### 2. Login ke Vercel
-
-#### 2.1 Buka Vercel
-1. Buka browser dan kunjungi [vercel.com](https://vercel.com)
-2. Klik tombol **"Sign up"** atau **"Log in"** di pojok kanan atas
-
-#### 2.2 Login dengan GitHub
-1. Pilih **"Continue with GitHub"**
-2. Klik **"Authorize Vercel"** untuk memberikan akses
-3. Tunggu proses authorization selesai
-
-### 3. Import Project
-
-#### 3.1 Buat Project Baru
-1. Di dashboard Vercel, klik tombol **"New Project"**
-2. Anda akan melihat daftar repository GitHub Anda
-
-#### 3.2 Pilih Repository
-1. Cari dan klik repository **"Aplikasi-Unit-Cost-RS"** (atau nama repository Anda)
-2. Klik tombol **"Import"** di samping repository
-
-### 4. Konfigurasi Project
-
-#### 4.1 Project Settings
-- **Project Name**: `aplikasi-unit-cost-rs` (atau sesuai keinginan)
-- **Framework Preset**: `Vite` (otomatis terdeteksi)
-- **Root Directory**: `./` (default)
-- **Build Command**: `npm run build` (otomatis terdeteksi)
-- **Output Directory**: `dist` (otomatis terdeteksi)
-
-#### 4.2 Environment Variables
-1. Scroll ke bagian **"Environment Variables"**
-2. Klik **"Add"** untuk menambah variable baru
-
-**Variable 1:**
-- **Name**: `VITE_SUPABASE_URL`
-- **Value**: `https://your-project-id.supabase.co`
-- **Environment**: `Production, Preview, Development` (pilih semua)
-
-**Variable 2:**
-- **Name**: `VITE_SUPABASE_ANON_KEY`
-- **Value**: `your_supabase_anon_key_here`
-- **Environment**: `Production, Preview, Development` (pilih semua)
-
-3. Klik **"Save"** untuk setiap variable
-
-### 5. Deploy
-
-#### 5.1 Mulai Deploy
-1. Setelah semua konfigurasi selesai, klik tombol **"Deploy"**
-2. Tunggu proses build selesai (biasanya 2-3 menit)
-
-#### 5.2 Monitor Build Process
-- Anda akan melihat log build real-time
-- Jika ada error, akan ditampilkan di console
-- Build berhasil jika status menunjukkan "Ready"
-
-### 6. Testing Deployment
-
-#### 6.1 Akses Aplikasi
-1. Setelah build selesai, Anda akan mendapat URL seperti: `https://aplikasi-unit-cost-rs.vercel.app`
-2. Klik URL tersebut untuk membuka aplikasi
-
-#### 6.2 Test Fitur Utama
-1. **Test Login**: Coba login dengan user yang ada
-2. **Test Navigation**: Pastikan semua menu sesuai role
-3. **Test Access Control**: Pastikan role-based access berfungsi
-4. **Test Responsive**: Test di berbagai ukuran layar
-
-### 7. Setup Domain Custom (Optional)
-
-#### 7.1 Tambah Domain
-1. Di project dashboard, klik tab **"Settings"**
-2. Scroll ke bagian **"Domains"**
-3. Klik **"Add Domain"**
-
-#### 7.2 Konfigurasi DNS
-1. Masukkan domain Anda (contoh: `myapp.com`)
-2. Follow instruksi untuk setup DNS records
-3. Tunggu DNS propagation (bisa 24-48 jam)
-
-## 🔄 Auto-Deployment Setup
-
-### 8. Konfigurasi Auto-Deploy
-
-#### 8.1 Git Integration
-- Vercel otomatis terintegrasi dengan GitHub
-- Setiap push ke branch `main` akan trigger deployment otomatis
-- Pull request akan membuat preview deployment
-
-#### 8.2 Branch Settings
-1. Di project settings, klik **"Git"**
-2. **Production Branch**: `main`
-- **Preview Branches**: `develop`, `staging` (optional)
-
-## 🐛 Troubleshooting
-
-### Error: "Build Failed"
-
-#### 9.1 Cek Build Logs
-1. Di deployment page, klik tab **"Functions"** atau **"Build Logs"**
-2. Scroll ke bawah untuk melihat error details
-3. Common errors:
-   - Missing environment variables
-   - TypeScript errors
-   - Missing dependencies
-
-#### 9.2 Fix Common Issues
+#### Install Dependencies
 ```bash
-# Pastikan dependencies terinstall
 npm install
+```
 
-# Fix TypeScript errors
-npm run lint
+#### Environment Variables
+Buat file `.env.local`:
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-# Test build lokal
+#### Start Development Server
+```bash
+npm run dev
+```
+
+Aplikasi akan berjalan di `http://localhost:8082`
+
+### 2. Production Deployment
+
+#### Build Application
+```bash
 npm run build
 ```
 
-### Error: "Environment Variables Missing"
+#### Deploy to Vercel
+```bash
+# Install Vercel CLI
+npm i -g vercel
 
-#### 9.3 Setup Environment Variables
-1. Kembali ke project settings
-2. Tambah environment variables yang missing
-3. Redeploy aplikasi
+# Deploy
+vercel --prod
+```
 
-### Error: "Supabase Connection Failed"
+#### Deploy to Netlify
+```bash
+# Install Netlify CLI
+npm i -g netlify-cli
 
-#### 9.4 Cek Supabase Config
-1. Pastikan Supabase URL dan API key benar
-2. Pastikan Supabase project aktif
-3. Cek RLS policies di Supabase
+# Build and deploy
+npm run build
+netlify deploy --prod --dir=dist
+```
 
-## 📱 Monitoring & Analytics
+#### Deploy to Custom Server
+```bash
+# Build application
+npm run build
 
-### 10. Vercel Analytics
+# Copy dist folder to server
+scp -r dist/* user@server:/var/www/html/
+```
 
-#### 10.1 Enable Analytics
-1. Di project dashboard, klik **"Analytics"**
-2. Enable **"Web Analytics"**
-3. Monitor traffic dan performance
+## Database Setup
 
-#### 10.2 Performance Monitoring
-- **Core Web Vitals**: Monitor loading performance
-- **Real User Monitoring**: Track user experience
-- **Error Tracking**: Monitor JavaScript errors
+### 1. Supabase Setup
 
-## 🔐 Security Best Practices
+#### Create Supabase Project
+1. Login ke [Supabase](https://supabase.com)
+2. Create new project
+3. Pilih region terdekat
+4. Set password untuk database
 
-### 11. Security Checklist
+#### Get Project Credentials
+1. Go to Settings > API
+2. Copy Project URL dan anon key
+3. Update environment variables
 
-#### 11.1 Environment Variables
-- ✅ Jangan commit `.env` files
-- ✅ Gunakan Vercel environment variables
-- ✅ Rotate API keys secara berkala
+### 2. Database Migrations
 
-#### 11.2 Supabase Security
-- ✅ Enable RLS (Row Level Security)
-- ✅ Set proper CORS settings
-- ✅ Monitor API usage
+#### Run Migrations
+```bash
+# Install Supabase CLI
+npm install -g supabase
 
-#### 11.3 Application Security
-- ✅ Validasi input di frontend dan backend
-- ✅ Implement proper error handling
-- ✅ Regular security updates
+# Login to Supabase
+supabase login
 
-## 📞 Support & Maintenance
+# Link to project
+supabase link --project-ref your-project-ref
 
-### 12. Monitoring
+# Run migrations
+supabase db push
+```
 
-#### 12.1 Vercel Dashboard
-- Monitor deployments
-- Track performance metrics
-- View error logs
+#### Manual Migration
+Jika menggunakan Supabase Dashboard:
+1. Go to SQL Editor
+2. Copy dan paste migration files
+3. Execute migrations satu per satu
 
-#### 12.2 Supabase Dashboard
-- Monitor database performance
-- Track API usage
-- View auth logs
+### 3. Database Configuration
 
-### 12.3 Regular Maintenance
-- Update dependencies secara berkala
-- Monitor error logs
-- Backup database secara berkala
-- Test aplikasi setelah update
+#### Enable RLS
+```sql
+-- Enable RLS for all tables
+ALTER TABLE audit_trail ENABLE ROW LEVEL SECURITY;
+ALTER TABLE data_biaya ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kalkulasi_biaya_gizi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bahan_porsi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE data_barang_gizi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE unit_kerja ENABLE ROW LEVEL SECURITY;
+```
 
-## ✅ Deployment Checklist
+#### Create RLS Policies
+```sql
+-- Audit trail policies
+CREATE POLICY "Audit trail is viewable by everyone" ON audit_trail FOR SELECT USING (true);
+CREATE POLICY "Audit trail is insertable by system" ON audit_trail FOR INSERT WITH CHECK (true);
 
-- [ ] Kode sudah di-commit dan push ke GitHub
-- [ ] Supabase project sudah setup
-- [ ] Database sudah di-setup dengan script
-- [ ] Environment variables sudah dikonfigurasi
-- [ ] Build berhasil tanpa error
-- [ ] Aplikasi bisa diakses via URL Vercel
-- [ ] Login berfungsi dengan baik
-- [ ] Role-based access control berfungsi
-- [ ] Responsive design berfungsi di mobile
-- [ ] Auto-deployment sudah dikonfigurasi
-- [ ] Domain custom sudah di-setup (jika diperlukan)
-- [ ] Analytics sudah di-enable
-- [ ] Monitoring sudah dikonfigurasi
+-- Data biaya policies
+CREATE POLICY "Data biaya is viewable by everyone" ON data_biaya FOR SELECT USING (true);
+CREATE POLICY "Data biaya is manageable by authenticated users" ON data_biaya FOR ALL USING (auth.role() = 'authenticated');
 
-## 🎉 Selamat!
+-- Similar policies for other tables...
+```
 
-Aplikasi Anda sudah berhasil di-deploy ke Vercel! 
+## Configuration
 
-**Next Steps:**
-1. Share URL aplikasi dengan tim
-2. Setup monitoring dan alerts
-3. Plan regular maintenance schedule
-4. Consider setting up staging environment
+### 1. Application Configuration
 
-**URL Aplikasi**: `https://your-project-name.vercel.app`
+#### Supabase Configuration
+```typescript
+// src/integrations/supabase/client.ts
+import { createClient } from '@supabase/supabase-js'
 
-**Dashboard Vercel**: [vercel.com/dashboard](https://vercel.com/dashboard)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-**Supabase Dashboard**: [supabase.com/dashboard](https://supabase.com/dashboard)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+```
+
+#### Environment Variables
+```env
+# Production
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+
+# Development
+VITE_SUPABASE_URL=http://localhost:54321
+VITE_SUPABASE_ANON_KEY=your-local-anon-key
+```
+
+### 2. Database Configuration
+
+#### Connection Settings
+```typescript
+// Supabase connection settings
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true
+    }
+  }
+)
+```
+
+#### Performance Settings
+```sql
+-- Database performance settings
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET effective_cache_size = '1GB';
+ALTER SYSTEM SET maintenance_work_mem = '64MB';
+ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+ALTER SYSTEM SET wal_buffers = '16MB';
+ALTER SYSTEM SET default_statistics_target = 100;
+```
+
+## Monitoring
+
+### 1. Application Monitoring
+
+#### Error Tracking
+```typescript
+// Error boundary component
+import { ErrorBoundary } from 'react-error-boundary'
+
+function ErrorFallback({error, resetErrorBoundary}) {
+  return (
+    <div role="alert">
+      <h2>Something went wrong:</h2>
+      <pre>{error.message}</pre>
+      <button onClick={resetErrorBoundary}>Try again</button>
+    </div>
+  )
+}
+
+// Usage
+<ErrorBoundary FallbackComponent={ErrorFallback}>
+  <App />
+</ErrorBoundary>
+```
+
+#### Performance Monitoring
+```typescript
+// Performance monitoring
+import { getCLS, getFID, getFCP, getLCP, getTTFB } from 'web-vitals'
+
+function sendToAnalytics(metric) {
+  // Send to analytics service
+  console.log(metric)
+}
+
+getCLS(sendToAnalytics)
+getFID(sendToAnalytics)
+getFCP(sendToAnalytics)
+getLCP(sendToAnalytics)
+getTTFB(sendToAnalytics)
+```
+
+### 2. Database Monitoring
+
+#### Query Performance
+```sql
+-- Monitor slow queries
+SELECT query, mean_time, calls, total_time
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+
+-- Monitor table sizes
+SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+```
+
+#### Connection Monitoring
+```sql
+-- Monitor active connections
+SELECT count(*) as active_connections
+FROM pg_stat_activity
+WHERE state = 'active';
+
+-- Monitor database size
+SELECT pg_size_pretty(pg_database_size(current_database())) as database_size;
+```
+
+## Maintenance
+
+### 1. Regular Maintenance
+
+#### Database Maintenance
+```sql
+-- Analyze tables for better query planning
+ANALYZE;
+
+-- Vacuum tables to reclaim space
+VACUUM ANALYZE;
+
+-- Reindex for better performance
+REINDEX DATABASE your_database;
+```
+
+#### Application Maintenance
+```bash
+# Update dependencies
+npm update
+
+# Check for security vulnerabilities
+npm audit
+
+# Fix security vulnerabilities
+npm audit fix
+```
+
+### 2. Backup and Recovery
+
+#### Database Backup
+```bash
+# Backup database
+pg_dump -h your-host -U your-user -d your-database > backup.sql
+
+# Restore database
+psql -h your-host -U your-user -d your-database < backup.sql
+```
+
+#### Application Backup
+```bash
+# Backup application files
+tar -czf app-backup.tar.gz dist/
+
+# Backup configuration
+cp .env.local .env.local.backup
+```
+
+### 3. Security Maintenance
+
+#### Security Updates
+```bash
+# Update all dependencies
+npm update
+
+# Check for security issues
+npm audit
+
+# Fix security issues
+npm audit fix --force
+```
+
+#### Database Security
+```sql
+-- Review user permissions
+SELECT * FROM information_schema.role_table_grants
+WHERE grantee = 'your-user';
+
+-- Review RLS policies
+SELECT * FROM pg_policies
+WHERE schemaname = 'public';
+```
+
+## Troubleshooting
+
+### 1. Common Issues
+
+#### Build Errors
+```bash
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
+
+# Check TypeScript errors
+npm run build
+```
+
+#### Database Connection Issues
+```typescript
+// Check connection
+const { data, error } = await supabase
+  .from('audit_trail')
+  .select('count')
+  .limit(1)
+
+if (error) {
+  console.error('Database connection error:', error)
+}
+```
+
+#### Performance Issues
+```sql
+-- Check slow queries
+SELECT query, mean_time, calls
+FROM pg_stat_statements
+WHERE mean_time > 1000
+ORDER BY mean_time DESC;
+
+-- Check table bloat
+SELECT schemaname, tablename, n_dead_tup, n_live_tup
+FROM pg_stat_user_tables
+WHERE n_dead_tup > 1000;
+```
+
+### 2. Error Handling
+
+#### Application Errors
+```typescript
+// Global error handler
+window.addEventListener('error', (event) => {
+  console.error('Global error:', event.error)
+  // Send to error tracking service
+})
+
+// Unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason)
+  // Send to error tracking service
+})
+```
+
+#### Database Errors
+```typescript
+// Database error handling
+try {
+  const { data, error } = await supabase
+    .from('table_name')
+    .select('*')
+  
+  if (error) {
+    throw error
+  }
+} catch (error) {
+  console.error('Database error:', error)
+  // Handle specific error types
+  if (error.code === 'PGRST116') {
+    // Handle RLS error
+  } else if (error.code === '23505') {
+    // Handle unique constraint error
+  }
+}
+```
+
+## Scaling
+
+### 1. Database Scaling
+
+#### Connection Pooling
+```typescript
+// Configure connection pooling
+const supabase = createClient(url, key, {
+  db: {
+    schema: 'public'
+  },
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'app-name'
+    }
+  }
+})
+```
+
+#### Read Replicas
+```sql
+-- Configure read replicas
+-- This is handled by Supabase automatically
+```
+
+### 2. Application Scaling
+
+#### CDN Configuration
+```typescript
+// Configure CDN for static assets
+const cdnUrl = 'https://cdn.your-domain.com'
+const assetUrl = `${cdnUrl}/assets/`
+```
+
+#### Caching Strategy
+```typescript
+// Implement caching
+const cache = new Map()
+
+function getCachedData(key: string) {
+  if (cache.has(key)) {
+    return cache.get(key)
+  }
+  return null
+}
+
+function setCachedData(key: string, data: any) {
+  cache.set(key, data)
+  // Set expiration
+  setTimeout(() => cache.delete(key), 300000) // 5 minutes
+}
+```
+
+## Security
+
+### 1. Application Security
+
+#### Content Security Policy
+```html
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval';
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: https:;
+  connect-src 'self' https://*.supabase.co;
+">
+```
+
+#### Authentication Security
+```typescript
+// Secure authentication
+const supabase = createClient(url, key, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false // Prevent URL-based session detection
+  }
+})
+```
+
+### 2. Database Security
+
+#### RLS Policies
+```sql
+-- Comprehensive RLS policies
+CREATE POLICY "Users can only see their own data" ON data_biaya
+FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can only update their own data" ON data_biaya
+FOR UPDATE USING (auth.uid() = user_id);
+```
+
+#### Audit Trail Security
+```sql
+-- Audit trail security
+CREATE POLICY "Audit trail is read-only" ON audit_trail
+FOR SELECT USING (true);
+
+CREATE POLICY "Audit trail is insert-only" ON audit_trail
+FOR INSERT WITH CHECK (true);
+```
+
+---
+
+*Deployment Guide untuk Aplikasi Unit Cost RS v1.0*
+*Terakhir diperbarui: 24 Oktober 2025*

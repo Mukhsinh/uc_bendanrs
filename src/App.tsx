@@ -12,7 +12,9 @@ const DataBarang = lazy(() => import("./pages/DataBarang"));
 const DataBarangGizi = lazy(() => import("./pages/DataBarangGizi"));
 const DataKamar = lazy(() => import("./pages/DataKamar"));
 const DataKlinik = lazy(() => import("./pages/DataKlinik"));
+const DataDokter = lazy(() => import("./pages/DataDokter"));
 const DataKegiatan = lazy(() => import("./pages/DataKegiatan"));
+const DataKegiatanRS = lazy(() => import("./pages/DataKegiatanRS"));
 const DataTindakan = lazy(() => import("./pages/DataTindakan"));
 const DataTindakanLaboratorium = lazy(() => import("./pages/DataTindakanLaboratorium"));
 const DataTindakanRadiologi = lazy(() => import("./pages/DataTindakanRadiologi"));
@@ -27,9 +29,11 @@ const KalkulasiBiayaLaboratorium = lazy(() => import("./pages/KalkulasiBiayaLabo
 const KalkulasiBiayaRadiologi = lazy(() => import("./pages/KalkulasiBiayaRadiologi"));
 const KalkulasiBiayaCathlab = lazy(() => import("./pages/KalkulasiBiayaCathlab"));
 const KalkulasiBiayaDiklat = lazy(() => import("./pages/KalkulasiBiayaDiklat"));
+const KalkulasiAktivitasDiklat = lazy(() => import("./pages/KalkulasiAktivitasDiklat"));
 const KalkulasiBiayaBDRS = lazy(() => import("./pages/KalkulasiBiayaBDRS"));
 const RekapitulasiUnitCost = lazy(() => import("./pages/RekapitulasiUnitCost"));
 const ProdukLayanan = lazy(() => import("./pages/ProdukLayanan"));
+const PolaRemunerasi = lazy(() => import("./pages/PolaRemunerasi"));
 const SkenarioTarif = lazy(() => import("./pages/SkenarioTarif"));
 const SkenarioTarifAkomodasi = lazy(() => import("./pages/SkenarioTarifAkomodasi"));
 const SkenarioTarifVisit = lazy(() => import("./pages/SkenarioTarifVisit"));
@@ -54,9 +58,12 @@ const DistribusiBiayaPertama = lazy(() => import("./pages/DistribusiBiayaPertama
 const DistribusiBiayaKedua = lazy(() => import("./pages/DistribusiBiayaKedua"));
 const DistribusiBiayaRekap = lazy(() => import("./pages/DistribusiBiayaRekap"));
 const CostRecovery = lazy(() => import("./pages/CostRecovery"));
+const StrukturBiaya = lazy(() => import("./pages/StrukturBiaya"));
 const TestDasarAlokasi = lazy(() => import("./pages/TestDasarAlokasi"));
 const ManajemenAkses = lazy(() => import("./pages/ManajemenAkses"));
+const AuditTrail = lazy(() => import("./pages/AuditTrail"));
 const ModulTeknis = lazy(() => import("./pages/ModulTeknis"));
+const PengelompokanData = lazy(() => import("./pages/PengelompokanData"));
 const Login = lazy(() => import("./pages/Login"));
 const Health = lazy(() => import("./pages/Health"));
 const TestSupabase = lazy(() => import("./pages/TestSupabase"));
@@ -65,6 +72,7 @@ const SimpleTest = lazy(() => import("./pages/SimpleTest"));
 const ModulTeknisTest = lazy(() => import("./pages/ModulTeknisTest"));
 const ModulTeknisSimple = lazy(() => import("./pages/ModulTeknisSimple"));
 const VercelDebug = lazy(() => import("./pages/VercelDebug"));
+const SupabaseDebug = lazy(() => import("./pages/SupabaseDebug"));
 import { supabase } from "@/integrations/supabase/client";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 
@@ -148,10 +156,10 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Memuat halaman...</div>}>
           <Routes>
             <Route path="/test" element={<TestPage />} />
             <Route path="/debug" element={<VercelDebug />} />
+            <Route path="/supabase-debug" element={<SupabaseDebug />} />
             <Route path="/login" element={<Login />} />
             <Route path="/health" element={<Health />} />
             <Route path="/simple" element={<SimpleTest />} />
@@ -183,6 +191,11 @@ const App = () => {
               <Route path="/data-master/klinik" element={
                 <ProtectedRoute>
                   <DataKlinik />
+                </ProtectedRoute>
+              } />
+              <Route path="/data-master/data-dokter" element={
+                <ProtectedRoute>
+                  <DataDokter />
                 </ProtectedRoute>
               } />
               <Route path="/data-master/kegiatan" element={
@@ -226,6 +239,27 @@ const App = () => {
                 </ProtectedRoute>
               } />
               <Route path="/data-master/biaya" element={
+                <ProtectedRoute>
+                  <DataBiaya />
+                </ProtectedRoute>
+              } />
+              {/* Data Operasional Routes */}
+              <Route path="/data-operasional/kegiatan" element={
+                <ProtectedRoute>
+                  <DataKegiatan />
+                </ProtectedRoute>
+              } />
+              <Route path="/data-operasional/kegiatan-rs" element={
+                <ProtectedRoute>
+                  <DataKegiatanRS />
+                </ProtectedRoute>
+              } />
+              <Route path="/data-operasional/pendapatan" element={
+                <ProtectedRoute>
+                  <DataPendapatan />
+                </ProtectedRoute>
+              } />
+              <Route path="/data-operasional/biaya" element={
                 <ProtectedRoute>
                   <DataBiaya />
                 </ProtectedRoute>
@@ -327,6 +361,11 @@ const App = () => {
                   <KalkulasiBiayaDiklat />
                 </ProtectedRoute>
               } />
+              <Route path="/unit-diklat/kalkulasi-aktivitas" element={
+                <ProtectedRoute>
+                  <KalkulasiAktivitasDiklat />
+                </ProtectedRoute>
+              } />
               <Route path="/kalkulasi-biaya-bdrs" element={
                 <ProtectedRoute>
                   <KalkulasiBiayaBDRS />
@@ -340,6 +379,11 @@ const App = () => {
               <Route path="/produk-layanan" element={
                 <ProtectedRoute>
                   <ProdukLayanan />
+                </ProtectedRoute>
+              } />
+              <Route path="/pola-remunerasi" element={
+                <ProtectedRoute>
+                  <PolaRemunerasi />
                 </ProtectedRoute>
               } />
               <Route path="/skenario-tarif-tindakan" element={
@@ -389,6 +433,11 @@ const App = () => {
                   <CostRecovery />
                 </ProtectedRoute>
               } />
+              <Route path="/analisis-revenue-cost/struktur-biaya" element={
+                <ProtectedRoute>
+                  <StrukturBiaya />
+                </ProtectedRoute>
+              } />
               <Route path="/budgeting-bhp/rupiah" element={
                 <ProtectedRoute>
                   <BudgetingBHPRupiah />
@@ -409,15 +458,24 @@ const App = () => {
                   <ModulTeknis />
                 </RoleProtectedRoute>
               } />
+              <Route path="/pengelompokan-data" element={
+                <ProtectedRoute>
+                  <PengelompokanData />
+                </ProtectedRoute>
+              } />
               <Route path="/manajemen-akses" element={
                 <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Manajemen Akses.">
                   <ManajemenAkses />
                 </RoleProtectedRoute>
               } />
+              <Route path="/audit-trail" element={
+                <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Audit Trail.">
+                  <AuditTrail />
+                </RoleProtectedRoute>
+              } />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-          </Suspense>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Menu, Network, BarChart3, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSidebarToggle } from "@/components/SidebarToggleContext";
+import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 
 const Index = () => {
   const { openSidebar } = useSidebarToggle();
+  const { settings: brandingSettings } = useBrandingSettings();
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-teal-800 via-teal-700 to-teal-600">
@@ -24,7 +26,7 @@ const Index = () => {
             </Button>
             <div className="flex-1">
               <h1 className="text-2xl md:text-3xl font-bold tracking-wide bg-gradient-to-r from-white via-teal-100 to-teal-200 bg-clip-text text-transparent">
-                Aplikasi Unit Cost RS
+                {brandingSettings.app_title}
               </h1>
               <p className="mt-2 text-white/90 text-sm md:text-base max-w-2xl">
                 Aplikasi Penghitungan Integratif, Analitik, dan Rasional Unit Cost
