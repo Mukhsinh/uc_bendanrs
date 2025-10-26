@@ -164,7 +164,7 @@ export default function DistribusiBiayaRekap() {
       });
       
       // Log results for debugging
-      console.log("Refresh Results:", result);
+      console.log("Refresh Results:", refreshData);
       
       // Refresh current data after successful operation
       if (successCount > 0) {

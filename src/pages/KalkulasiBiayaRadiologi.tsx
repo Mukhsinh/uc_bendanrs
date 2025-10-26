@@ -741,7 +741,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
             // Record belum ada - GUNAKAN SAFE OPERATION
           console.log(`➕ Database check: Record not exists, inserting new data`);
             
-            await safeCRUDOperation('INSERT', 'kalkulasi_biaya_radiologi', null, {
+            await safeCRUDOperation('INSERT', 'kalkulasi_biaya_radiologi', undefined, {
               user_id: userId,
               tahun: year,
               kode: tindakan.kode_tindakan,
