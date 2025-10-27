@@ -364,7 +364,7 @@ export async function manualRecalculateLaboratorium(
     return data;
   }, {
     maxRetries: 1,
-    timeoutMs: 120000 // 2 minutes for comprehensive recalculation
+    timeoutMs: 360000 // 6 minutes for comprehensive recalculation (increased from 2 minutes)
   });
 }
 
