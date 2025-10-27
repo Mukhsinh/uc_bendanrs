@@ -344,7 +344,7 @@ export async function manualRecalculateLaboratorium(
 ): Promise<any> {
   return executeWithRetry(async () => {
     console.log(`🔄 Manual comprehensive recalculation Laboratorium for year ${tahun}`);
-    
+
     const { data, error } = await supabase.rpc('manual_recalculate_laboratorium', {
       p_tahun: tahun,
       p_user_id: userId || null

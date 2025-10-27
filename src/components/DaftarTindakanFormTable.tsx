@@ -750,11 +750,16 @@ const DaftarTindakanFormTable: React.FC = () => {
               <label className="text-sm font-medium">Jumlah</label>
               <Input
                 type="number"
-                min="1"
+                min="0.01"
+                step="0.01"
+                placeholder="1"
                 value={bahanJumlah}
-                onChange={(e) => setBahanJumlah(parseInt(e.target.value) || 1)}
+                onChange={(e) => setBahanJumlah(parseFloat(e.target.value) || 1)}
                 className="mt-1"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Masukkan jumlah dalam angka desimal (contoh: 1.5, 2.25)
+              </p>
             </div>
 
             {selectedBarang && (

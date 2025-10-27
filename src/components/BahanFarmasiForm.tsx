@@ -205,10 +205,15 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
           <Input
             id="qty"
             type="number"
-            min="1"
+            min="0.01"
+            step="0.01"
+            placeholder="1"
             value={formData.qty}
-            onChange={(e) => handleQtyChange(parseInt(e.target.value) || 1)}
+            onChange={(e) => handleQtyChange(parseFloat(e.target.value) || 1)}
           />
+          <p className="text-xs text-muted-foreground mt-1">
+            Masukkan jumlah dalam angka desimal (contoh: 1.5, 2.25)
+          </p>
         </div>
 
         {/* Harga Satuan - Auto-filled */}
