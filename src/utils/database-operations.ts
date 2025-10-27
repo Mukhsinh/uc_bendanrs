@@ -364,7 +364,7 @@ export async function manualRecalculateLaboratorium(
     return data;
   }, {
     maxRetries: 1,
-    timeoutMs: 360000 // 6 minutes for comprehensive recalculation (increased from 2 minutes)
+    timeoutMs: 120000 // 2 minutes to match Supabase cloud limit
   });
 }
 
