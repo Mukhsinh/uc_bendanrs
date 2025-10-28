@@ -64,11 +64,31 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const startTime = performance.now();
+      
+      // Optimized query - only select columns needed for display and calculation
       const { data, error } = await supabase
         .from('kalkulasi_biaya_laboratorium')
-        .select('*')
+        .select(`
+          id,
+          kode,
+          jenis_pemeriksaan,
+          jumlah,
+          waktu_pemeriksaan,
+          profesionalisme,
+          tingkat_kesulitan,
+          biaya_bahan_pemeriksaan_numeric,
+          biaya_tidak_langsung_terdistribusi,
+          unit_cost_per_pemeriksaan,
+          bahan_pemeriksaan,
+          created_at,
+          updated_at
+        `)
         .eq('tahun', year)
         .order('jenis_pemeriksaan');
+
+      const endTime = performance.now();
+      console.log(`📊 Data fetch took ${(endTime - startTime).toFixed(2)}ms`);
 
       if (error) throw error;
       console.log('Data kalkulasi loaded:', data);
@@ -100,32 +120,51 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       setRecalculating(true);
       setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
 
-      console.log("🔄 Starting manual recalculation...");
+      console.log("🔄 Starting manual recalculation for laboratorium...");
+      const startTime = performance.now();
 
       setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
       const result = await manualRecalculateLaboratorium(year, userId);
 
+      setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
+      
       setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
       
       // Refresh data setelah recalculation
       await fetchData();
 
+      const endTime = performance.now();
+      const totalTime = (endTime - startTime) / 1000;
+
       setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
 
-      // Show detailed success message
+      // Show detailed success message with performance metrics
       toast.success(
         `🎉 Rekalkulasi berhasil diselesaikan!\n` +
-        `📊 ${result.affected_rows} records diperbarui\n` +
-        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
+        `📊 ${result.affected_rows || 0} records diperbarui\n` +
+        `⏱️ Waktu total: ${totalTime.toFixed(2)}s\n` +
+        `🚀 Database: ${result.execution_time_seconds?.toFixed(2)}s`
       );
 
       console.log("✅ Manual recalculation completed successfully");
       console.log("📈 Recalculation stats:", result);
+      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result.execution_time_seconds?.toFixed(2)}s`);
       
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
-      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
+      
+      // Better error messages based on error type
+      let errorMessage = error.message;
+      if (error.message?.includes('timeout')) {
+        errorMessage = "Rekalkulasi dibatalkan karena timeout - cobalah dengan data yang lebih sedikit";
+      } else if (error.message?.includes('network')) {
+        errorMessage = "Masalah koneksi internet. Periksa koneksi dan coba lagi.";
+      } else if (error.message?.includes('permission')) {
+        errorMessage = "Tidak memiliki izin untuk melakukan rekalkulasi. Hubungi administrator.";
+      }
+      
+      toast.error(`❌ Gagal melakukan rekalkulasi: ${errorMessage}`);
     } finally {
       setRecalculating(false);
       setRecalcProgress({step: 0, total: 5, message: ''});

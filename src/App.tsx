@@ -59,6 +59,7 @@ const DistribusiBiayaKedua = lazy(() => import("./pages/DistribusiBiayaKedua"));
 const DistribusiBiayaRekap = lazy(() => import("./pages/DistribusiBiayaRekap"));
 const CostRecovery = lazy(() => import("./pages/CostRecovery"));
 const StrukturBiaya = lazy(() => import("./pages/StrukturBiaya"));
+const ProyeksiPendapatanLayanan = lazy(() => import("./pages/ProyeksiPendapatanLayanan"));
 const TestDasarAlokasi = lazy(() => import("./pages/TestDasarAlokasi"));
 const ManajemenAkses = lazy(() => import("./pages/ManajemenAkses"));
 const AuditTrail = lazy(() => import("./pages/AuditTrail"));
@@ -436,6 +437,11 @@ const App = () => {
               <Route path="/analisis-revenue-cost/struktur-biaya" element={
                 <ProtectedRoute>
                   <StrukturBiaya />
+                </ProtectedRoute>
+              } />
+              <Route path="/analisis-revenue-cost/proyeksi-pendapatan" element={
+                <ProtectedRoute>
+                  <ProyeksiPendapatanLayanan />
                 </ProtectedRoute>
               } />
               <Route path="/budgeting-bhp/rupiah" element={

@@ -84,7 +84,14 @@ const DaftarTindakanFormTable: React.FC = () => {
   const [selectedBarang, setSelectedBarang] = useState<BarangFarmasi | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [bahanJumlah, setBahanJumlah] = useState(1);
+  const [bahanJumlah, setBahanJumlah] = useState<number>(1);
+
+  // Ensure bahanJumlah is always a valid number
+  useEffect(() => {
+    if (isNaN(bahanJumlah) || bahanJumlah <= 0) {
+      setBahanJumlah(1);
+    }
+  }, [bahanJumlah]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -189,12 +196,16 @@ const DaftarTindakanFormTable: React.FC = () => {
       return;
     }
 
+    // Konversi nilai desimal ke integer untuk kompatibilitas dengan database
+    const hargaSatuanInt = Math.round(selectedBarang.harga);
+    const hargaTotalInt = Math.round(selectedBarang.harga * bahanJumlah);
+
     const newBahan: BahanTindakan = {
       nama: selectedBarang.nama_barang,
       jumlah: bahanJumlah,
       satuan: selectedBarang.satuan,
-      harga_satuan: selectedBarang.harga,
-      harga_total: selectedBarang.harga * bahanJumlah
+      harga_satuan: hargaSatuanInt,
+      harga_total: hargaTotalInt
     };
 
     setBahanList([...bahanList, newBahan]);
@@ -753,8 +764,25 @@ const DaftarTindakanFormTable: React.FC = () => {
                 min="0.01"
                 step="0.01"
                 placeholder="1"
+                inputMode="decimal"
                 value={bahanJumlah}
-                onChange={(e) => setBahanJumlah(parseFloat(e.target.value) || 1)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || value === '.') {
+                    setBahanJumlah(1);
+                  } else {
+                    const parsed = parseFloat(value);
+                    if (!isNaN(parsed) && parsed > 0) {
+                      setBahanJumlah(parsed);
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const value = parseFloat(e.target.value);
+                  if (isNaN(value) || value <= 0) {
+                    setBahanJumlah(1);
+                  }
+                }}
                 className="mt-1"
               />
               <p className="text-xs text-muted-foreground mt-1">

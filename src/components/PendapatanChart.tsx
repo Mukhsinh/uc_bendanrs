@@ -23,6 +23,8 @@ interface DataPendapatan {
   nama_unit_kerja: string;
   pendapatan_umum: number;
   pendapatan_bpjs: number;
+  pendapatan_apbd: number;
+  total_pendapatan: number;
   tahun: number;
   unit_kerja?: UnitKerja;
 }
@@ -31,6 +33,7 @@ interface ChartData {
   unit_kerja: string;
   pendapatan_bpjs: number;
   pendapatan_umum: number;
+  pendapatan_apbd: number;
   total_pendapatan: number;
 }
 
@@ -46,23 +49,29 @@ const PendapatanChart: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedJenis, setSelectedJenis] = useState<string>("all");
   const [selectedTahun, setSelectedTahun] = useState<number>(new Date().getFullYear());
+  const [chartFilter, setChartFilter] = useState<string>("all");
 
   const jenisOptions = [
     { value: "all", label: "Semua Jenis" },
     { value: "1", label: "Rawat Jalan" },
-    { value: "2", label: "Rawat Inap" },
-    { value: "3", label: "Operatif" }
+    { value: "2", label: "Rawat Inap" }
+  ];
+
+  const chartFilterOptions = [
+    { value: "all", label: "Tampilkan Semua" },
+    { value: "without-apbd", label: "Tanpa Pendapatan APBD" }
   ];
 
   const colors = {
     bpjs: "#3b82f6", // blue
     umum: "#10b981", // emerald
+    apbd: "#f59e0b", // amber
     total: "#8b5cf6" // violet
   };
 
   useEffect(() => {
     fetchData();
-  }, [selectedJenis, selectedTahun]);
+  }, [selectedJenis, selectedTahun, chartFilter]);
 
   const fetchData = async () => {
     try {
@@ -110,13 +119,15 @@ const PendapatanChart: React.FC = () => {
           unit_kerja: `${item.kode_unit_kerja} - ${item.nama_unit_kerja}`,
           pendapatan_bpjs: item.pendapatan_bpjs || 0,
           pendapatan_umum: item.pendapatan_umum || 0,
-          total_pendapatan: (item.pendapatan_bpjs || 0) + (item.pendapatan_umum || 0)
+          pendapatan_apbd: item.pendapatan_apbd || 0,
+          total_pendapatan: item.total_pendapatan || (item.pendapatan_bpjs || 0) + (item.pendapatan_umum || 0) + (item.pendapatan_apbd || 0)
         };
       });
 
       // Calculate pie chart data
       const totalBpjs = chartData.reduce((sum, item) => sum + item.pendapatan_bpjs, 0);
       const totalUmum = chartData.reduce((sum, item) => sum + item.pendapatan_umum, 0);
+      const totalApbd = chartData.reduce((sum, item) => sum + item.pendapatan_apbd, 0);
 
       const pieChartData: PieData[] = [
         {
@@ -130,6 +141,15 @@ const PendapatanChart: React.FC = () => {
           color: colors.umum
         }
       ];
+
+      // Add APBD only if chartFilter is "all"
+      if (chartFilter === "all") {
+        pieChartData.push({
+          name: "Pendapatan APBD",
+          value: totalApbd,
+          color: colors.apbd
+        });
+      }
 
       setData(chartData);
       setPieData(pieChartData);
@@ -226,6 +246,21 @@ const PendapatanChart: React.FC = () => {
               </SelectContent>
             </Select>
           </div>
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Filter Grafik</label>
+            <Select value={chartFilter} onValueChange={setChartFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih filter grafik" />
+              </SelectTrigger>
+              <SelectContent>
+                {chartFilterOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -276,6 +311,14 @@ const PendapatanChart: React.FC = () => {
                       fill={colors.umum}
                       radius={[2, 2, 0, 0]}
                     />
+                    {chartFilter === "all" && (
+                      <Bar 
+                        dataKey="pendapatan_apbd" 
+                        name="Pendapatan APBD" 
+                        fill={colors.apbd}
+                        radius={[2, 2, 0, 0]}
+                      />
+                    )}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -310,7 +353,7 @@ const PendapatanChart: React.FC = () => {
         
         {/* Summary Statistics */}
         {data.length > 0 && (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h4 className="font-medium text-blue-900">Total BPJS Kesehatan</h4>
               <p className="text-2xl font-bold text-blue-600">
@@ -321,6 +364,15 @@ const PendapatanChart: React.FC = () => {
               <h4 className="font-medium text-emerald-900">Total Umum/Asuransi</h4>
               <p className="text-2xl font-bold text-emerald-600">
                 {formatCurrency(pieData.find(p => p.name === "Umum/Asuransi")?.value || 0)}
+              </p>
+            </div>
+            <div className="bg-amber-50 p-4 rounded-lg">
+              <h4 className="font-medium text-amber-900">
+                Total Pendapatan APBD
+                <span className="text-xs text-amber-700 ml-1">(SUBSIDI)</span>
+              </h4>
+              <p className="text-2xl font-bold text-amber-600">
+                {formatCurrency(pieData.find(p => p.name === "Pendapatan APBD")?.value || 0)}
               </p>
             </div>
             <div className="bg-violet-50 p-4 rounded-lg">

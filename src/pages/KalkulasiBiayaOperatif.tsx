@@ -141,9 +141,28 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     try {
       await generateInitialData(userIdToUse);
       
+      const startTime = performance.now();
+      
+      // Optimized query - only select columns needed for display and calculation
       let query = supabase
         .from("kalkulasi_biaya_operatif")
-        .select(`*`)
+        .select(`
+          id,
+          kode,
+          kode_operator_spesialistik,
+          nama_operator_spesialistik,
+          jenis_pemeriksaan,
+          jumlah,
+          waktu_pemeriksaan,
+          profesionalisme,
+          tingkat_kesulitan,
+          biaya_bahan_pemeriksaan_numeric,
+          biaya_tidak_langsung_terdistribusi,
+          unit_cost_per_tindakan,
+          bahan_pemeriksaan,
+          created_at,
+          updated_at
+        `)
         .eq("tahun", year)
         .eq("user_id", userIdToUse);
       
@@ -152,6 +171,9 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       }
       
       const { data, error } = await query.order("kode", { ascending: true });
+      
+      const endTime = performance.now();
+      console.log(`📊 Data fetch took ${(endTime - startTime).toFixed(2)}ms`);
         
       if (error) {
         toast.error(`Gagal memuat data: ${error.message}`);
@@ -181,32 +203,51 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       setRecalculating(true);
       setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
 
-      console.log("🔄 Starting manual recalculation...");
+      console.log("🔄 Starting manual recalculation for operatif...");
+      const startTime = performance.now();
 
       setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
       const result = await manualRecalculateOperatif(year, userId);
 
+      setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
+      
       setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
       
       // Refresh data setelah recalculation
       await loadData();
 
+      const endTime = performance.now();
+      const totalTime = (endTime - startTime) / 1000;
+
       setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
 
-      // Show detailed success message
+      // Show detailed success message with performance metrics
       toast.success(
         `🎉 Rekalkulasi berhasil diselesaikan!\n` +
-        `📊 ${result.affected_rows} records diperbarui\n` +
-        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
+        `📊 ${result.affected_rows || 0} records diperbarui\n` +
+        `⏱️ Waktu total: ${totalTime.toFixed(2)}s\n` +
+        `🚀 Database: ${result.execution_time_seconds?.toFixed(2)}s`
       );
 
       console.log("✅ Manual recalculation completed successfully");
       console.log("📈 Recalculation stats:", result);
+      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result.execution_time_seconds?.toFixed(2)}s`);
       
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
-      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
+      
+      // Better error messages based on error type
+      let errorMessage = error.message;
+      if (error.message?.includes('timeout')) {
+        errorMessage = "Rekalkulasi dibatalkan karena timeout - cobalah dengan data yang lebih sedikit";
+      } else if (error.message?.includes('network')) {
+        errorMessage = "Masalah koneksi internet. Periksa koneksi dan coba lagi.";
+      } else if (error.message?.includes('permission')) {
+        errorMessage = "Tidak memiliki izin untuk melakukan rekalkulasi. Hubungi administrator.";
+      }
+      
+      toast.error(`❌ Gagal melakukan rekalkulasi: ${errorMessage}`);
     } finally {
       setRecalculating(false);
       setRecalcProgress({step: 0, total: 5, message: ''});
@@ -534,8 +575,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
         "Kode": r.kode,
         "Kode Operator": r.kode_operator_spesialistik,
         "Nama Operator": r.nama_operator_spesialistik,
-        "Kode Tindakan": r.kode_tindakan_operatif,
-        "Nama Tindakan": r.nama_tindakan_operatif,
+        "Kode Tindakan": r.kode,
+        "Nama Tindakan": r.jenis_pemeriksaan,
         "Jenis": r.kode_jenis,
         "Unit Kerja": r.kode_unit_kerja,
         "Nama Unit Kerja": r.nama_unit_kerja,

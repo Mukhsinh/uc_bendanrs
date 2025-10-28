@@ -163,6 +163,7 @@ const navItems: NavItem[] = [
     subItems: [
       { title: "Cost Recovery", href: "/cost-recovery", icon: PieChart },
       { title: "Struktur Biaya", href: "/analisis-revenue-cost/struktur-biaya", icon: BarChart3 },
+      { title: "Proyeksi Pendapatan Layanan", href: "/analisis-revenue-cost/proyeksi-pendapatan", icon: TrendingUp },
     ],
   },
         {
@@ -322,6 +323,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       "/kalkulasi-biaya-diklat": () => import("@/pages/KalkulasiBiayaDiklat"),
       "/unit-diklat/kalkulasi-aktivitas": () => import("@/pages/KalkulasiAktivitasDiklat"),
       "/analisis-revenue-cost/struktur-biaya": () => import("@/pages/StrukturBiaya"),
+      "/analisis-revenue-cost/proyeksi-pendapatan": () => import("../pages/ProyeksiPendapatanLayanan"),
     };
     const importer = routeMap[path];
     if (importer) importer().catch(() => {});

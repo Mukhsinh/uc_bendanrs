@@ -344,11 +344,15 @@ export async function manualRecalculateLaboratorium(
 ): Promise<any> {
   return executeWithRetry(async () => {
     console.log(`🔄 Manual comprehensive recalculation Laboratorium for year ${tahun}`);
+    console.log(`🕐 Start time: ${new Date().toISOString()}`);
 
     const { data, error } = await supabase.rpc('manual_recalculate_laboratorium', {
       p_tahun: tahun,
       p_user_id: userId || null
     });
+
+    console.log(`🕐 End time: ${new Date().toISOString()}`);
+    console.log(`📊 RPC Response:`, { data, error });
 
     if (error) {
       console.error(`Manual recalculation Laboratorium error:`, error);
@@ -356,6 +360,7 @@ export async function manualRecalculateLaboratorium(
     }
 
     if (data && !data.success) {
+      console.error(`Manual recalculation Laboratorium failed:`, data);
       throw new Error(data.error || 'Rekalkulasi gagal');
     }
 
@@ -364,7 +369,7 @@ export async function manualRecalculateLaboratorium(
     return data;
   }, {
     maxRetries: 1,
-    timeoutMs: 120000 // 2 minutes to match Supabase cloud limit
+    timeoutMs: 120000 // 2 minutes - optimized for bulk operations
   });
 }
 
@@ -424,7 +429,7 @@ export async function manualRecalculateOperatif(
     return data;
   }, {
     maxRetries: 1,
-    timeoutMs: 360000 // 6 minutes for comprehensive recalculation (increased from 2 minutes)
+    timeoutMs: 120000 // 2 minutes - optimized for bulk operations
   });
 }
 

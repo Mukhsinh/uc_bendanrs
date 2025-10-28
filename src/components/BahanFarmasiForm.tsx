@@ -44,6 +44,13 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
     hargaTotal: 0
   });
 
+  // Ensure qty is always a valid number
+  useEffect(() => {
+    if (isNaN(formData.qty) || formData.qty <= 0) {
+      setFormData(prev => ({ ...prev, qty: 1 }));
+    }
+  }, [formData.qty]);
+
   // Search barang farmasi
   const searchBarangFarmasi = async (term: string) => {
     if (term.length < 2) {
@@ -208,8 +215,25 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
             min="0.01"
             step="0.01"
             placeholder="1"
+            inputMode="decimal"
             value={formData.qty}
-            onChange={(e) => handleQtyChange(parseFloat(e.target.value) || 1)}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === '' || value === '.') {
+                handleQtyChange(1);
+              } else {
+                const parsed = parseFloat(value);
+                if (!isNaN(parsed) && parsed > 0) {
+                  handleQtyChange(parsed);
+                }
+              }
+            }}
+            onBlur={(e) => {
+              const value = parseFloat(e.target.value);
+              if (isNaN(value) || value <= 0) {
+                handleQtyChange(1);
+              }
+            }}
           />
           <p className="text-xs text-muted-foreground mt-1">
             Masukkan jumlah dalam angka desimal (contoh: 1.5, 2.25)

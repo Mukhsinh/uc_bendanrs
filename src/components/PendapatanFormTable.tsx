@@ -68,6 +68,8 @@ interface DataPendapatan {
   nama_unit_kerja?: string;
   pendapatan_umum?: number;
   pendapatan_bpjs?: number;
+  pendapatan_apbd?: number;
+  total_pendapatan?: number;
   tahun?: number;
   created_at?: string;
   updated_at?: string;
@@ -77,6 +79,7 @@ const formSchema = z.object({
   unit_kerja_id: z.string().min(1, { message: "Unit Kerja harus dipilih." }),
   pendapatan_umum: z.coerce.number().min(0, { message: "Pendapatan Umum harus angka positif." }),
   pendapatan_bpjs: z.coerce.number().min(0, { message: "Pendapatan BPJS harus angka positif." }),
+  pendapatan_apbd: z.coerce.number().min(0, { message: "Pendapatan APBD harus angka positif." }),
   tahun: z.coerce.number().min(1900).max(3000, { message: "Tahun harus antara 1900-3000." }),
 });
 
@@ -105,6 +108,7 @@ const PendapatanFormTable: React.FC = () => {
       unit_kerja_id: "",
       pendapatan_umum: 0,
       pendapatan_bpjs: 0,
+      pendapatan_apbd: 0,
       tahun: new Date().getFullYear(),
     },
   });
@@ -128,6 +132,7 @@ const PendapatanFormTable: React.FC = () => {
         unit_kerja_id: editingPendapatan.unit_kerja_id || "",
         pendapatan_umum: editingPendapatan.pendapatan_umum || 0,
         pendapatan_bpjs: editingPendapatan.pendapatan_bpjs || 0,
+        pendapatan_apbd: editingPendapatan.pendapatan_apbd || 0,
         tahun: editingPendapatan.tahun || new Date().getFullYear(),
       });
     } else {
@@ -135,6 +140,7 @@ const PendapatanFormTable: React.FC = () => {
         unit_kerja_id: "",
         pendapatan_umum: 0,
         pendapatan_bpjs: 0,
+        pendapatan_apbd: 0,
         tahun: new Date().getFullYear(),
       });
     }
@@ -153,11 +159,24 @@ const PendapatanFormTable: React.FC = () => {
         setUnitKerjaList([]);
       }
 
-      // Fetch pendapatan data
+      // Fetch pendapatan data - optimized query with specific columns
+      const startTime = performance.now();
       const { data: pendapatanData, error: pendapatanError } = await supabase
         .from('data_pendapatan')
-        .select('*')
+        .select(`
+          id,
+          kode_tindakan,
+          nama_tindakan,
+          tarif,
+          jumlah_tindakan,
+          total_pendapatan,
+          created_at,
+          updated_at
+        `)
         .order('created_at', { ascending: false });
+      
+      const endTime = performance.now();
+      console.log(`📊 Pendapatan data fetch took ${(endTime - startTime).toFixed(2)}ms`);
 
       if (pendapatanError) {
         toast.error("Gagal memuat data pendapatan.");
@@ -197,6 +216,7 @@ const PendapatanFormTable: React.FC = () => {
         nama_unit_kerja: selectedUnitKerja.nama,
         pendapatan_umum: values.pendapatan_umum,
         pendapatan_bpjs: values.pendapatan_bpjs,
+        pendapatan_apbd: values.pendapatan_apbd,
         tahun: values.tahun,
       };
 
@@ -314,28 +334,33 @@ const PendapatanFormTable: React.FC = () => {
                   // Validate numeric fields - handle empty strings properly with multiple column name variations
                   const pendapatanUmumStr = row["Pendapatan Umum"] || row["pendapatan_umum"] || row["Pendapatan Umum (Rp)"] || row["Pendapatan_Umum"];
                   const pendapatanBpjsStr = row["Pendapatan BPJS"] || row["pendapatan_bpjs"] || row["Pendapatan BPJS (Rp)"] || row["Pendapatan_BPJS"];
+                  const pendapatanApbdStr = row["Pendapatan APBD"] || row["pendapatan_apbd"] || row["Pendapatan APBD (Rp)"] || row["Pendapatan_APBD"];
                   
                   // Debug logging for values
                   console.log(`Row ${processedCount} values:`, {
                     pendapatanUmumStr,
                     pendapatanBpjsStr,
+                    pendapatanApbdStr,
                     pendapatanUmumStrType: typeof pendapatanUmumStr,
-                    pendapatanBpjsStrType: typeof pendapatanBpjsStr
+                    pendapatanBpjsStrType: typeof pendapatanBpjsStr,
+                    pendapatanApbdStrType: typeof pendapatanApbdStr
                   });
                   
-                  // Skip rows where both values are empty
+                  // Skip rows where all values are empty
                   const pendapatanUmumEmpty = !pendapatanUmumStr || pendapatanUmumStr.toString().trim() === "";
                   const pendapatanBpjsEmpty = !pendapatanBpjsStr || pendapatanBpjsStr.toString().trim() === "";
+                  const pendapatanApbdEmpty = !pendapatanApbdStr || pendapatanApbdStr.toString().trim() === "";
                   
                   console.log(`Row ${processedCount} empty check:`, {
                     pendapatanUmumEmpty,
                     pendapatanBpjsEmpty,
-                    bothEmpty: pendapatanUmumEmpty && pendapatanBpjsEmpty
+                    pendapatanApbdEmpty,
+                    allEmpty: pendapatanUmumEmpty && pendapatanBpjsEmpty && pendapatanApbdEmpty
                   });
                   
-                  if (pendapatanUmumEmpty && pendapatanBpjsEmpty) {
-                    // Skip rows where both values are empty - this is expected behavior for template rows
-                    console.log(`Skipping row ${processedCount} - both values empty`);
+                  if (pendapatanUmumEmpty && pendapatanBpjsEmpty && pendapatanApbdEmpty) {
+                    // Skip rows where all values are empty - this is expected behavior for template rows
+                    console.log(`Skipping row ${processedCount} - all values empty`);
                     skippedCount++;
                     continue;
                   }
@@ -343,14 +368,17 @@ const PendapatanFormTable: React.FC = () => {
                   // Parse values, default to 0 if empty
                   const pendapatanUmum = pendapatanUmumEmpty ? 0 : parseFloat(pendapatanUmumStr);
                   const pendapatanBpjs = pendapatanBpjsEmpty ? 0 : parseFloat(pendapatanBpjsStr);
+                  const pendapatanApbd = pendapatanApbdEmpty ? 0 : parseFloat(pendapatanApbdStr);
                   const tahun = parseInt(row["Tahun"]) || new Date().getFullYear();
                   
                   console.log(`Row ${processedCount} parsed values:`, {
                     pendapatanUmum,
                     pendapatanBpjs,
+                    pendapatanApbd,
                     tahun,
                     pendapatanUmumIsNaN: isNaN(pendapatanUmum),
-                    pendapatanBpjsIsNaN: isNaN(pendapatanBpjs)
+                    pendapatanBpjsIsNaN: isNaN(pendapatanBpjs),
+                    pendapatanApbdIsNaN: isNaN(pendapatanApbd)
                   });
                   
                   // Validate that parsed values are valid numbers
@@ -368,6 +396,13 @@ const PendapatanFormTable: React.FC = () => {
                     continue;
                   }
                   
+                  if (!pendapatanApbdEmpty && isNaN(pendapatanApbd)) {
+                    console.log(`Row ${processedCount}: Pendapatan APBD isNaN`);
+                    errors.push(`Baris ${processedCount}: Pendapatan APBD harus berupa angka`);
+                    errorCount++;
+                    continue;
+                  }
+                  
                   const dataToInsert = {
                     user_id: user.id,
                     unit_kerja_id: unitKerja.id,
@@ -375,6 +410,7 @@ const PendapatanFormTable: React.FC = () => {
                     nama_unit_kerja: unitKerja.nama,
                     pendapatan_umum: pendapatanUmum,
                     pendapatan_bpjs: pendapatanBpjs,
+                    pendapatan_apbd: pendapatanApbd,
                     tahun: tahun,
                   };
                   
@@ -478,6 +514,7 @@ const PendapatanFormTable: React.FC = () => {
         "Nama Unit Kerja": unitKerja.nama,
         "Pendapatan Umum": index < 3 ? (index + 1) * 5000000 : "", // Example values for first 3 rows
         "Pendapatan BPJS": index < 3 ? (index + 1) * 3000000 : "", // Example values for first 3 rows
+        "Pendapatan APBD": index < 3 ? (index + 1) * 2000000 : "", // Example values for first 3 rows
         "Tahun": new Date().getFullYear()
       }));
       
@@ -506,7 +543,8 @@ const PendapatanFormTable: React.FC = () => {
       "Nama Unit Kerja": item.nama_unit_kerja,
       "Pendapatan Umum": item.pendapatan_umum,
       "Pendapatan BPJS": item.pendapatan_bpjs,
-      "Total Pendapatan": (item.pendapatan_umum || 0) + (item.pendapatan_bpjs || 0),
+      "Pendapatan APBD": item.pendapatan_apbd,
+      "Total Pendapatan": (item.pendapatan_umum || 0) + (item.pendapatan_bpjs || 0) + (item.pendapatan_apbd || 0),
       "Tahun": item.tahun,
     }));
 
@@ -601,6 +639,19 @@ const PendapatanFormTable: React.FC = () => {
                       </FormItem>
                     )}
                   />
+                  <FormField
+                    control={form.control}
+                    name="pendapatan_apbd"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Pendapatan APBD (Rp)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="0" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <DialogFooter>
                     <Button type="submit">{editingPendapatan ? "Simpan Perubahan" : "Tambah"}</Button>
                   </DialogFooter>
@@ -633,6 +684,7 @@ const PendapatanFormTable: React.FC = () => {
               <TableHead>Tahun</TableHead>
               <TableHead>Pendapatan Umum (Rp)</TableHead>
               <TableHead>Pendapatan BPJS (Rp)</TableHead>
+              <TableHead>Pendapatan APBD (Rp)</TableHead>
               <TableHead>Total Pendapatan (Rp)</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
@@ -646,7 +698,7 @@ const PendapatanFormTable: React.FC = () => {
               </TableRow>
             ) : pendapatanList.length > 0 ? (
               pendapatanList.map((pendapatan) => {
-                const totalPendapatan = (pendapatan.pendapatan_umum || 0) + (pendapatan.pendapatan_bpjs || 0);
+                const totalPendapatan = (pendapatan.pendapatan_umum || 0) + (pendapatan.pendapatan_bpjs || 0) + (pendapatan.pendapatan_apbd || 0);
                 return (
                   <TableRow key={pendapatan.id}>
                     <TableCell className="font-medium">{pendapatan.kode_unit_kerja}</TableCell>
@@ -654,6 +706,7 @@ const PendapatanFormTable: React.FC = () => {
                     <TableCell>{pendapatan.tahun}</TableCell>
                     <TableCell>{pendapatan.pendapatan_umum?.toLocaleString('id-ID')}</TableCell>
                     <TableCell>{pendapatan.pendapatan_bpjs?.toLocaleString('id-ID')}</TableCell>
+                    <TableCell>{pendapatan.pendapatan_apbd?.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="font-medium">{totalPendapatan.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="text-right">
                       <Button

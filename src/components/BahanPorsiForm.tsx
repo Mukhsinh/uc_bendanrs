@@ -183,9 +183,13 @@ export const BahanPorsiForm: React.FC<BahanPorsiFormProps> = ({
       const dataToSave = previewItems.map(item => ({
         kode,
         jenis_makanan: jenisMakanan,
+        nama_barang: item.nama_barang,
+        satuan: item.satuan,
+        harga: item.harga,
         konsumsi: item.konsumsi,
         biaya_produksi: item.biaya_produksi,
-        data_barang_gizi_id: item.id // Use the actual barang gizi ID
+        data_barang_gizi_id: item.id
+        // harga_bah dan biaya_bahan_porsi adalah generated columns, tidak perlu dikirim
       }));
 
       onSave(dataToSave as unknown as BahanPorsiItem[]);
@@ -210,18 +214,60 @@ export const BahanPorsiForm: React.FC<BahanPorsiFormProps> = ({
   // Handle save edited item
   const handleSaveEdit = async (data: any) => {
     try {
-      const { error } = await supabase
+      // Update the item in the existing items array
+      const updatedItems = existingItems.map(item => 
+        item.id === data.id 
+          ? { 
+              ...item, 
+              konsumsi: data.konsumsi, 
+              biaya_produksi: data.biaya_produksi,
+              // Recalculate biaya_bahan_porsi
+              harga_bah: Math.round(data.konsumsi * (item.harga || 0)),
+              biaya_bahan_porsi: Math.round(data.konsumsi * (item.harga || 0)) + Math.round(data.konsumsi * (item.harga || 0) * data.biaya_produksi / 100),
+              updated_at: new Date().toISOString()
+            }
+          : item
+      );
+
+      // Update both tables
+      // 1. Update bahan_porsi table using data_barang_gizi_id
+      const { error: bahanError } = await supabase
         .from('bahan_porsi')
         .update({
           konsumsi: data.konsumsi,
-          biaya_produksi: data.biaya_produksi,
-          data_barang_gizi_id: data.data_barang_gizi_id
+          biaya_produksi: data.biaya_produksi
         })
-        .eq('id', data.id);
+        .eq('data_barang_gizi_id', data.data_barang_gizi_id)
+        .eq('kode', kode)
+        .eq('jenis_makanan', jenisMakanan);
 
-      if (error) throw error;
+      if (bahanError) throw bahanError;
+
+      // 2. Update kalkulasi_biaya_gizi table
+      const { error: kalkulasiError } = await supabase
+        .from('kalkulasi_biaya_gizi')
+        .update({ 
+          bahan_porsi: updatedItems,
+          biaya_bahan_porsi_numeric: updatedItems.reduce((sum, item) => sum + (item.biaya_bahan_porsi || 0), 0)
+        })
+        .eq('kode', kode)
+        .eq('jenis_makanan', jenisMakanan);
+
+      if (kalkulasiError) throw kalkulasiError;
       
-      alert('Bahan porsi berhasil diperbarui');
+      // Show success notification without requiring user confirmation
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = 'Bahan porsi berhasil diperbarui';
+      document.body.appendChild(notification);
+      
+      // Auto remove notification after 3 seconds
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 3000);
+      
       setEditingItem(null);
       loadExistingItems(); // Reload existing items
       if (onRefresh) onRefresh();
@@ -238,14 +284,48 @@ export const BahanPorsiForm: React.FC<BahanPorsiFormProps> = ({
     }
 
     try {
-      const { error } = await supabase
-        .from('bahan_porsi')
-        .delete()
-        .eq('id', id);
+      // Remove the item from the existing items array
+      const updatedItems = existingItems.filter(item => item.id !== id);
 
-      if (error) throw error;
+      // Update both tables
+      // 1. Delete from bahan_porsi table using data_barang_gizi_id if available
+      const itemToDelete = existingItems.find(item => item.id === id);
+      if (itemToDelete?.data_barang_gizi_id) {
+        const { error: bahanError } = await supabase
+          .from('bahan_porsi')
+          .delete()
+          .eq('data_barang_gizi_id', itemToDelete.data_barang_gizi_id)
+          .eq('kode', kode)
+          .eq('jenis_makanan', jenisMakanan);
+
+        if (bahanError) throw bahanError;
+      }
+
+      // 2. Update kalkulasi_biaya_gizi table
+      const { error: kalkulasiError } = await supabase
+        .from('kalkulasi_biaya_gizi')
+        .update({ 
+          bahan_porsi: updatedItems,
+          biaya_bahan_porsi_numeric: updatedItems.reduce((sum, item) => sum + (item.biaya_bahan_porsi || 0), 0)
+        })
+        .eq('kode', kode)
+        .eq('jenis_makanan', jenisMakanan);
+
+      if (kalkulasiError) throw kalkulasiError;
       
-      alert('Bahan porsi berhasil dihapus');
+      // Show success notification without requiring user confirmation
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      notification.textContent = 'Bahan porsi berhasil dihapus';
+      document.body.appendChild(notification);
+      
+      // Auto remove notification after 3 seconds
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 3000);
+      
       loadExistingItems(); // Reload existing items
       if (onRefresh) onRefresh();
     } catch (error) {
@@ -259,10 +339,44 @@ export const BahanPorsiForm: React.FC<BahanPorsiFormProps> = ({
     setEditingItem(null);
   };
 
-  // Load existing bahan porsi
+  // Load existing bahan porsi from both sources
   const loadExistingItems = useCallback(async () => {
     setIsLoadingExisting(true);
     try {
+      // First try to get from kalkulasi_biaya_gizi table (JSONB column)
+      const { data: kalkulasiData, error: kalkulasiError } = await supabase
+        .from('kalkulasi_biaya_gizi')
+        .select('bahan_porsi')
+        .eq('kode', kode)
+        .eq('jenis_makanan', jenisMakanan)
+        .single();
+
+      if (kalkulasiError && kalkulasiError.code !== 'PGRST116') {
+        throw kalkulasiError;
+      }
+
+      if (kalkulasiData && kalkulasiData.bahan_porsi && Array.isArray(kalkulasiData.bahan_porsi)) {
+        // Convert JSONB data to the expected format
+        const existingItems = kalkulasiData.bahan_porsi.map((item: any) => ({
+          id: item.id || item.data_barang_gizi_id || Math.random().toString(),
+          kode: item.kode || kode,
+          jenis_makanan: item.jenis_makanan || jenisMakanan,
+          konsumsi: item.konsumsi || 0,
+          biaya_produksi: item.biaya_produksi || 15,
+          data_barang_gizi_id: item.data_barang_gizi_id,
+          nama_barang: item.nama_barang,
+          satuan: item.satuan,
+          harga: item.harga,
+          harga_bah: item.harga_bah,
+          biaya_bahan_porsi: item.biaya_bahan_porsi,
+          created_at: item.created_at,
+          updated_at: item.updated_at
+        }));
+        setExistingItems(existingItems);
+        return;
+      }
+
+      // Fallback: try to get from bahan_porsi table
       const { data, error } = await supabase
         .from('bahan_porsi')
         .select(`
@@ -532,9 +646,14 @@ export const BahanPorsiForm: React.FC<BahanPorsiFormProps> = ({
               <div key={item.id} className="bg-gray-50 p-3 rounded-lg border">
                 <div className="flex justify-between items-center">
                   <div>
-                    <div className="font-medium">{item.data_barang_gizi?.nama_barang || item.nama_barang || 'N/A'}</div>
+                    <div className="font-medium">{item.nama_barang || item.data_barang_gizi?.nama_barang || 'N/A'}</div>
                     <div className="text-sm text-gray-600">
                       Konsumsi: {item.konsumsi} | Biaya Produksi: {item.biaya_produksi}%
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Harga: Rp {item.harga?.toLocaleString() || '0'} | 
+                      Harga Bahan: Rp {item.harga_bah?.toLocaleString() || '0'} | 
+                      Total: Rp {item.biaya_bahan_porsi?.toLocaleString() || '0'}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -573,12 +692,13 @@ export const BahanPorsiForm: React.FC<BahanPorsiFormProps> = ({
           <div className="space-y-4">
             <div>
               <Label>Nama Barang</Label>
-              <Input value={editingItem.data_barang_gizi?.nama_barang || editingItem.nama_barang || 'N/A'} readOnly />
+              <Input value={editingItem.nama_barang || editingItem.data_barang_gizi?.nama_barang || 'N/A'} readOnly />
             </div>
             <div>
               <Label>Konsumsi</Label>
               <Input 
                 type="number" 
+                step="0.01"
                 value={editingItem.konsumsi} 
                 onChange={(e) => {
                   const updatedItem = { ...editingItem, konsumsi: parseFloat(e.target.value) || 0 };

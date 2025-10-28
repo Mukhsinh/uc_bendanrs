@@ -191,11 +191,63 @@ const KalkulasiBiayaGizi: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const startTime = performance.now();
+      
+      // Optimized query - only select columns needed for display and calculation
       const { data: kalkulasiData, error } = await supabase
         .from('kalkulasi_biaya_gizi')
-        .select('*')
+        .select(`
+          id,
+          tahun,
+          kode,
+          jenis_makanan,
+          jumlah,
+          jumlah_svip,
+          jumlah_vip,
+          jumlah_kelas_i,
+          jumlah_kelas_ii,
+          jumlah_kelas_iii,
+          waktu_meracik,
+          waktu_memasak,
+          waktu_menata,
+          waktu_total,
+          bahan_porsi,
+          hasil_kali_waktu,
+          dasar_alokasi_waktu,
+          biaya_gaji_tunjangan,
+          biaya_jasa_pelayanan,
+          biaya_obat,
+          biaya_bhp,
+          biaya_makan_karyawan,
+          biaya_makan_pasien,
+          biaya_rumah_tangga,
+          biaya_cetak,
+          biaya_atk,
+          biaya_listrik,
+          biaya_air,
+          biaya_telp,
+          biaya_pemeliharaan_bangunan,
+          biaya_pemeliharaan_alat_medis,
+          biaya_pemeliharaan_alat_non_medis,
+          biaya_operasional_lainnya,
+          biaya_penyusutan_gedung,
+          biaya_penyusutan_jaringan,
+          biaya_penyusutan_alat_medis,
+          biaya_penyusutan_alat_non_medis,
+          biaya_pendidikan_pelatihan,
+          biaya_laundry,
+          biaya_sterilisasi,
+          biaya_tidak_langsung_terdistribusi,
+          unit_cost_per_porsi,
+          biaya_bahan_porsi_numeric,
+          created_at,
+          updated_at
+        `)
         .eq('tahun', currentYear)
         .order('kode');
+
+      const endTime = performance.now();
+      console.log(`📊 Data fetch took ${(endTime - startTime).toFixed(2)}ms`);
 
       if (error) throw error;
       console.log('Data kalkulasi loaded:', kalkulasiData);
@@ -318,34 +370,52 @@ const KalkulasiBiayaGizi: React.FC = () => {
       setRecalculating(true);
       setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
 
-      console.log("🔄 Starting manual recalculation...");
+      console.log("🔄 Starting manual recalculation for gizi...");
+      const startTime = performance.now();
 
       setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
-      const result = await manualRecalculateGizi(2025, userId);
+      const result = await manualRecalculateGizi(currentYear, userId);
 
+      setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
+      
       setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
       
       // Refresh data setelah recalculation
       await fetchData();
 
+      const endTime = performance.now();
+      const totalTime = (endTime - startTime) / 1000;
+
       setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
 
-      // Show detailed success message
+      // Show detailed success message with performance metrics
       toast({
         title: "🎉 Rekalkulasi berhasil diselesaikan!",
-        description: `📊 ${result.affected_rows} records diperbarui\n⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`,
+        description: `📊 ${result.affected_rows || 0} records diperbarui\n⏱️ Waktu total: ${totalTime.toFixed(2)}s\n🚀 Database: ${result.execution_time_seconds?.toFixed(2)}s`,
         duration: 6000,
       });
 
       console.log("✅ Manual recalculation completed successfully");
       console.log("📈 Recalculation stats:", result);
+      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result.execution_time_seconds?.toFixed(2)}s`);
       
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
+      
+      // Better error messages based on error type
+      let errorMessage = error.message;
+      if (error.message?.includes('timeout')) {
+        errorMessage = "Rekalkulasi dibatalkan karena timeout - cobalah dengan data yang lebih sedikit";
+      } else if (error.message?.includes('network')) {
+        errorMessage = "Masalah koneksi internet. Periksa koneksi dan coba lagi.";
+      } else if (error.message?.includes('permission')) {
+        errorMessage = "Tidak memiliki izin untuk melakukan rekalkulasi. Hubungi administrator.";
+      }
+      
       toast({
         title: "❌ Gagal melakukan rekalkulasi",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
         duration: 8000,
       });
@@ -1528,18 +1598,50 @@ const KalkulasiBiayaGizi: React.FC = () => {
                   kode={selectedMenuForBahan.kode_makanan}
                   onSave={async (dataArray) => {
                     try {
-                      const { error } = await supabase
+                      // 1. Simpan ke tabel bahan_porsi (untuk form management)
+                      const { error: bahanError } = await supabase
                         .from('bahan_porsi')
                         .insert(dataArray);
 
-                      if (error) throw error;
+                      if (bahanError) throw bahanError;
+
+                      // 2. Simpan ke kolom bahan_porsi di kalkulasi_biaya_gizi (untuk tampilan utama)
+                      // Format data untuk JSONB dengan informasi lengkap
+                      const dataForKalkulasi = dataArray.map(item => ({
+                        id: Math.random().toString(),
+                        kode: selectedMenuForBahan.kode_makanan,
+                        jenis_makanan: selectedMenuForBahan.nama_makanan,
+                        nama_barang: item.nama_barang,
+                        satuan: item.satuan,
+                        harga: item.harga,
+                        konsumsi: item.konsumsi,
+                        harga_bah: Math.round(item.konsumsi * item.harga),
+                        biaya_produksi: item.biaya_produksi,
+                        biaya_bahan_porsi: Math.round(item.konsumsi * item.harga) + Math.round(item.konsumsi * item.harga * item.biaya_produksi / 100),
+                        data_barang_gizi_id: item.id,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                      }));
+
+                      const { error: kalkulasiError } = await supabase
+                        .from('kalkulasi_biaya_gizi')
+                        .update({ 
+                          bahan_porsi: dataForKalkulasi,
+                          biaya_bahan_porsi_numeric: dataForKalkulasi.reduce((sum, item) => sum + item.biaya_bahan_porsi, 0)
+                        })
+                        .eq('kode', selectedMenuForBahan.kode_makanan)
+                        .eq('jenis_makanan', selectedMenuForBahan.nama_makanan);
+
+                      if (kalkulasiError) throw kalkulasiError;
                       
                       toast({
                         title: "Berhasil",
                         description: `${dataArray.length} bahan porsi berhasil ditambahkan`,
                       });
                       
+                      // 3. Refresh kedua data
                       fetchBahanPorsi();
+                      fetchData(); // Refresh data utama agar tampilan langsung update
                       setIsBahanPorsiDialogOpen(false);
                     } catch (error) {
                       console.error('Error saving bahan porsi:', error);
