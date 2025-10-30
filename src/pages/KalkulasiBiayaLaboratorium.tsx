@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { manualRecalculateLaboratorium } from "@/utils/database-operations";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Calculator, RefreshCw } from "lucide-react";
-import { manualRecalculateLaboratorium, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -125,6 +125,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
 
       setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
+      // Pakai helper dengan fallback otomatis (Edge Function → RPC v2)
       const result = await manualRecalculateLaboratorium(year, userId);
 
       setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
@@ -142,14 +143,14 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       // Show detailed success message with performance metrics
       toast.success(
         `🎉 Rekalkulasi berhasil diselesaikan!\n` +
-        `📊 ${result.affected_rows || 0} records diperbarui\n` +
+        `📊 ${result?.affected_rows || 0} records diperbarui\n` +
         `⏱️ Waktu total: ${totalTime.toFixed(2)}s\n` +
-        `🚀 Database: ${result.execution_time_seconds?.toFixed(2)}s`
+        `🚀 Database: ${result?.execution_time_seconds?.toFixed(2)}s`
       );
 
       console.log("✅ Manual recalculation completed successfully");
       console.log("📈 Recalculation stats:", result);
-      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result.execution_time_seconds?.toFixed(2)}s`);
+      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result?.execution_time_seconds?.toFixed(2)}s`);
       
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
@@ -170,6 +171,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       setRecalcProgress({step: 0, total: 5, message: ''});
     }
   };
+
 
   const handleOpenBahanDialog = (row: any) => {
     setSelectedRow(row);
@@ -450,22 +452,69 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
 
   const handleDownloadReport = async () => {
     try {
-      if (!rows || rows.length === 0) {
+      // Query data langsung dari database untuk memastikan sinkronisasi
+      const { data: reportData, error: reportError } = await supabase
+        .from('kalkulasi_biaya_laboratorium')
+        .select(`
+          kode,
+          kode_unit_kerja,
+          jenis_pemeriksaan,
+          jumlah,
+          waktu_pemeriksaan,
+          profesionalisme,
+          tingkat_kesulitan,
+          hasil_kali,
+          hasil_kali_waktu,
+          dasar_alokasi_waktu,
+          dasar_alokasi_hasil_kali,
+          biaya_bahan_pemeriksaan_numeric,
+          biaya_gaji_tunjangan,
+          biaya_makan_pasien,
+          biaya_rumah_tangga,
+          biaya_cetak,
+          biaya_atk,
+          biaya_listrik,
+          biaya_air,
+          biaya_telp,
+          biaya_pemeliharaan_bangunan,
+          biaya_pemeliharaan_alat_medis,
+          biaya_pemeliharaan_alat_non_medis,
+          biaya_operasional_lainnya,
+          biaya_penyusutan_gedung,
+          biaya_penyusutan_jaringan,
+          biaya_penyusutan_alat_medis,
+          biaya_penyusutan_alat_non_medis,
+          biaya_pendidikan_pelatihan,
+          biaya_laundry,
+          biaya_sterilisasi,
+          biaya_tidak_langsung_terdistribusi,
+          unit_cost_per_pemeriksaan
+        `)
+        .eq('tahun', year)
+        .order('kode');
+
+      if (reportError) {
+        console.error('Error fetching report data:', reportError);
+        toast.error(`Gagal mengambil data dari database: ${reportError.message}`);
+        return;
+      }
+
+      if (!reportData || reportData.length === 0) {
         toast.error("Tidak ada data untuk diunduh.");
         return;
       }
 
       // Filter data berdasarkan jenis pemeriksaan jika dipilih
-      let filteredRows = rows;
+      let filteredRows = reportData;
       if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
-        filteredRows = rows.filter(row => row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan);
+        filteredRows = reportData.filter(row => row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan);
         if (filteredRows.length === 0) {
           toast.error("Tidak ada data untuk jenis pemeriksaan yang dipilih.");
           return;
         }
       }
 
-      // Create CSV content for report with all cost columns
+      // Create CSV content for report with all cost columns (LENGKAP)
       const headers = [
         "Kode",
         "Kode Unit Kerja", 
@@ -474,13 +523,12 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
         "Waktu (menit)",
         "Prof",
         "Kesulitan",
-        // Hidden columns: "HK Waktu", "Alokasi Waktu", "Hasil Kali", "Alokasi HK",
+        "Hasil Kali",
+        "Hasil Kali Waktu",
+        "Dasar Alokasi Waktu",
+        "Dasar Alokasi Hasil Kali",
         "Bahan Rp",
         "Gaji Rp",
-        "Jasa Pelayanan Rp",
-        "Obat Rp",
-        "BHP Rp",
-        "Makan Karyawan Rp",
         "Makan Pasien Rp",
         "Rumah Tangga Rp",
         "Cetak Rp",
@@ -511,13 +559,12 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
         "Waktu (menit)": row.waktu_pemeriksaan || 0,
         "Prof": row.profesionalisme || 1,
         "Kesulitan": row.tingkat_kesulitan || 1,
-        // Hidden columns: "HK Waktu", "Alokasi Waktu", "Hasil Kali", "Alokasi HK",
+        "Hasil Kali": row.hasil_kali || 0,
+        "Hasil Kali Waktu": row.hasil_kali_waktu || 0,
+        "Dasar Alokasi Waktu": row.dasar_alokasi_waktu || 0,
+        "Dasar Alokasi Hasil Kali": row.dasar_alokasi_hasil_kali || 0,
         "Bahan Rp": row.biaya_bahan_pemeriksaan_numeric || 0,
         "Gaji Rp": row.biaya_gaji_tunjangan || 0,
-        "Jasa Pelayanan Rp": row.biaya_jasa_pelayanan || 0,
-        "Obat Rp": row.biaya_obat || 0,
-        "BHP Rp": row.biaya_bhp || 0,
-        "Makan Karyawan Rp": row.biaya_makan_karyawan || 0,
         "Makan Pasien Rp": row.biaya_makan_pasien || 0,
         "Rumah Tangga Rp": row.biaya_rumah_tangga || 0,
         "Cetak Rp": row.biaya_cetak || 0,
@@ -548,7 +595,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       XLSX.writeFile(wb, `laporan_kalkulasi_biaya_laboratorium_${year}${filterSuffix}.xlsx`);
       
       const filterText = reportFilter.type === 'specific' ? `untuk ${reportFilter.jenisPemeriksaan}` : 'semua data';
-      toast.success(`Laporan ${filterText} berisi ${rowsCsv.length} data berhasil diunduh.`);
+      toast.success(`Laporan ${filterText} berisi ${rowsCsv.length} data berhasil diunduh (sinkron dengan database).`);
       
       setShowReportFilter(false);
     } catch (e: any) {

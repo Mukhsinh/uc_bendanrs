@@ -503,26 +503,71 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
   const handleDownloadReport = async () => {
     try {
-      if (!rows || rows.length === 0) {
+      // Query data langsung dari database untuk memastikan sinkronisasi
+      let query = supabase
+        .from('kalkulasi_biaya_operatif')
+        .select(`
+          kode,
+          kode_operator_spesialistik,
+          nama_operator_spesialistik,
+          jenis_pemeriksaan,
+          kode_jenis,
+          kode_unit_kerja,
+          nama_unit_kerja,
+          jumlah,
+          waktu_pemeriksaan,
+          profesionalisme,
+          tingkat_kesulitan,
+          hasil_kali,
+          hasil_kali_waktu,
+          dasar_alokasi_waktu,
+          dasar_alokasi_hasil_kali,
+          biaya_gaji_tunjangan,
+          biaya_makan_karyawan,
+          biaya_rumah_tangga,
+          biaya_cetak,
+          biaya_atk,
+          biaya_listrik,
+          biaya_air,
+          biaya_telp,
+          biaya_pemeliharaan_bangunan,
+          biaya_pemeliharaan_alat_medis,
+          biaya_pemeliharaan_alat_non_medis,
+          biaya_operasional_lainnya,
+          biaya_penyusutan_gedung,
+          biaya_penyusutan_jaringan,
+          biaya_penyusutan_alat_medis,
+          biaya_penyusutan_alat_non_medis,
+          biaya_pendidikan_pelatihan,
+          biaya_laundry,
+          biaya_sterilisasi,
+          biaya_tidak_langsung_terdistribusi,
+          biaya_bahan_pemeriksaan_numeric,
+          unit_cost_per_tindakan
+        `)
+        .eq('tahun', year)
+        .eq('user_id', userId);
+      
+      if (reportFilter.type === 'operator' && reportFilter.value) {
+        query = query.eq('kode_operator_spesialistik', reportFilter.value);
+      } else if (reportFilter.type === 'tindakan' && reportFilter.value) {
+        query = query.eq('kode', reportFilter.value);
+      }
+      
+      const { data: reportData, error: reportError } = await query.order('kode');
+
+      if (reportError) {
+        console.error('Error fetching report data:', reportError);
+        toast.error(`Gagal mengambil data dari database: ${reportError.message}`);
+        return;
+      }
+
+      if (!reportData || reportData.length === 0) {
         toast.error("Tidak ada data untuk diunduh.");
         return;
       }
 
-      let filteredRows = rows;
-      
-      if (reportFilter.type === 'operator' && reportFilter.value) {
-        filteredRows = rows.filter(row => row.kode_operator_spesialistik === reportFilter.value);
-        if (filteredRows.length === 0) {
-          toast.error("Tidak ada data untuk operator yang dipilih.");
-          return;
-        }
-      } else if (reportFilter.type === 'tindakan' && reportFilter.value) {
-        filteredRows = rows.filter(row => row.kode === reportFilter.value);
-        if (filteredRows.length === 0) {
-          toast.error("Tidak ada data untuk tindakan yang dipilih.");
-          return;
-        }
-      }
+      let filteredRows = reportData;
 
       const headers = [
         "Kode",
@@ -588,13 +633,13 @@ const KalkulasiBiayaOperatif: React.FC = () => {
         "Hasil Kali Waktu": r.hasil_kali_waktu,
         "Dasar Alokasi Waktu": r.dasar_alokasi_waktu,
         "Dasar Alokasi Hasil Kali": r.dasar_alokasi_hasil_kali,
-        // 24 Komponen Biaya
+        // 24 Komponen Biaya (beberapa kolom tidak ada di database, diisi 0)
         "Biaya Gaji & Tunjangan": r.biaya_gaji_tunjangan || 0,
-        "Biaya Jasa Pelayanan": r.biaya_jasa_pelayanan || 0,
-        "Biaya Obat": r.biaya_obat || 0,
-        "Biaya BHP": r.biaya_bhp || 0,
+        "Biaya Jasa Pelayanan": 0, // Kolom tidak tersedia di tabel
+        "Biaya Obat": 0, // Kolom tidak tersedia di tabel
+        "Biaya BHP": 0, // Kolom tidak tersedia di tabel
         "Biaya Makan Karyawan": r.biaya_makan_karyawan || 0,
-        "Biaya Makan Pasien": r.biaya_makan_pasien || 0,
+        "Biaya Makan Pasien": 0, // Kolom tidak tersedia di tabel
         "Biaya Rumah Tangga": r.biaya_rumah_tangga || 0,
         "Biaya Cetak": r.biaya_cetak || 0,
         "Biaya ATK": r.biaya_atk || 0,
@@ -634,7 +679,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       a.download = filename;
       a.click();
       
-      toast.success(`Laporan berisi ${rowsCsv.length} data berhasil diunduh.`);
+      toast.success(`Laporan berisi ${rowsCsv.length} data berhasil diunduh (sinkron dengan database).`);
       setShowReportFilter(false);
     } catch (e: any) {
       toast.error(`Gagal membuat laporan: ${e.message}`);

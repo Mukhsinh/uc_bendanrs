@@ -100,8 +100,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
               { 
                 event: '*', 
                 schema: 'public', 
-                table: 'kalkulasi_bdrs',
-                filter: `user_id=eq.${userId}`
+                table: 'kalkulasi_bdrs'
               }, 
               (payload) => {
                 console.log('Kalkulasi BDRS change detected:', payload);
@@ -169,7 +168,6 @@ const KalkulasiBiayaBDRS: React.FC = () => {
       const { data: existingData, error: checkError } = await supabase
         .from("kalkulasi_bdrs")
         .select("id")
-        .eq("user_id", currentUserId)
         .eq("tahun", year)
         .limit(1);
         
@@ -200,27 +198,24 @@ const KalkulasiBiayaBDRS: React.FC = () => {
           return;
         }
         
-        // Create initial data for each tindakan
+        // Create initial data for each tindakan (akan di-UPSERT via RPC)
         const initialData = tindakanList.map(tindakan => ({
-          user_id: currentUserId,
-          tahun: year,
           kode: tindakan.kode,
           jenis_pemeriksaan: tindakan.nama,
-          kode_unit_kerja: 'UK044',
-          nama_unit_kerja: 'BDRS',
           jumlah: 0,
           waktu_pemeriksaan: 0,
           profesionalisme: 1,
           tingkat_kesulitan: 1,
-          hasil_kali: 0,
-          dasar_alokasi_hasil_kali: 0,
-          biaya_bahan_pemeriksaan_numeric: 0
+          biaya_bahan_pemeriksaan_numeric: 0,
+          bahan_pemeriksaan: null
         }));
         
-        const { data: insertResult, error: insertError } = await supabase
-          .from("kalkulasi_bdrs")
-          .insert(initialData)
-          .select();
+        // Gunakan RPC bulk_upsert untuk menghindari pelanggaran unique constraint
+        const { data: insertResult, error: insertError } = await supabase.rpc('bulk_upsert_kalkulasi_bdrs', {
+          p_user_id: currentUserId,
+          p_tahun: year,
+          p_data: initialData
+        } as any);
         
         if (insertError) {
           console.error("Error inserting initial data:", insertError);
@@ -301,7 +296,6 @@ const KalkulasiBiayaBDRS: React.FC = () => {
         biaya_pendidikan_pelatihan, biaya_laundry, biaya_sterilisasi, biaya_tidak_langsung_terdistribusi
       `)
       .eq("tahun", year)
-      .eq("user_id", userIdToUse)
       .order("jenis_pemeriksaan", { ascending: true });
         
       console.log("Load query result:", { data, error });
@@ -358,11 +352,15 @@ const KalkulasiBiayaBDRS: React.FC = () => {
 
       setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
-      const result = await manualRecalculateBdrs(year, userId);
+      // Jalankan rekalkulasi secara global (tanpa filter user) agar sesuai desain data saat ini
+      const result = await manualRecalculateBdrs(year, undefined);
 
       setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
       
       // Refresh data setelah recalculation
+      await updateData();
+      // Tambahan: pastikan sinkron dengan DB (beberapa generated column baru tersaji setelah commit selesai)
+      await new Promise((r) => setTimeout(r, 600));
       await updateData();
 
       setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
@@ -566,27 +564,26 @@ const KalkulasiBiayaBDRS: React.FC = () => {
 
         toast.success("Data berhasil diupdate!");
       } else {
-        // Insert data baru
-        const { error: insertError } = await supabase
-          .from("kalkulasi_bdrs")
-          .insert({
-            user_id: userId,
-            tahun: year,
-            kode: tindakan.kode,
-            kode_unit_kerja: 'UK044',
-            jenis_pemeriksaan: data.jenis_pemeriksaan,
-            jumlah: data.jumlah || 0,
-            waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
-            profesionalisme: data.profesionalisme || 1,
-            tingkat_kesulitan: data.tingkat_kesulitan || 1
-          });
+        // Insert/Update data baru via UPSERT RPC untuk menghormati unique (kode, tahun)
+        const { error: upsertError } = await supabase.rpc('upsert_kalkulasi_bdrs', {
+          p_user_id: userId,
+          p_tahun: year,
+          p_kode: tindakan.kode,
+          p_jenis_pemeriksaan: data.jenis_pemeriksaan,
+          p_bahan_pemeriksaan: null,
+          p_jumlah: data.jumlah || 0,
+          p_waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
+          p_profesionalisme: data.profesionalisme || 1,
+          p_tingkat_kesulitan: data.tingkat_kesulitan || 1,
+          p_bahan_pemeriksaan_numeric: 0
+        } as any);
 
-        if (insertError) {
-          console.error("Insert error:", insertError);
-          throw insertError;
+        if (upsertError) {
+          console.error("Upsert error:", upsertError);
+          throw upsertError;
         }
 
-        toast.success("Data berhasil ditambahkan!");
+        toast.success("Data berhasil disimpan!");
       }
 
       setShowManualInput(false);
@@ -969,7 +966,6 @@ const KalkulasiBiayaBDRS: React.FC = () => {
                 .from("kalkulasi_bdrs")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
-                .eq("user_id", userId)
                 .eq("jenis_pemeriksaan", targetJenis)
                 .maybeSingle();
               

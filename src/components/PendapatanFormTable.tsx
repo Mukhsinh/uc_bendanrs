@@ -165,11 +165,15 @@ const PendapatanFormTable: React.FC = () => {
         .from('data_pendapatan')
         .select(`
           id,
-          kode_tindakan,
-          nama_tindakan,
-          tarif,
-          jumlah_tindakan,
+          user_id,
+          unit_kerja_id,
+          kode_unit_kerja,
+          nama_unit_kerja,
+          pendapatan_umum,
+          pendapatan_bpjs,
+          pendapatan_apbd,
           total_pendapatan,
+          tahun,
           created_at,
           updated_at
         `)

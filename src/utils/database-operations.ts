@@ -346,10 +346,30 @@ export async function manualRecalculateLaboratorium(
     console.log(`🔄 Manual comprehensive recalculation Laboratorium for year ${tahun}`);
     console.log(`🕐 Start time: ${new Date().toISOString()}`);
 
-    const { data, error } = await supabase.rpc('manual_recalculate_laboratorium', {
-      p_tahun: tahun,
-      p_user_id: userId || null
-    });
+    // Prefer Edge Function v2 for faster, timeout-safe execution
+    let data: any, error: any;
+    try {
+      const resp = await supabase.functions.invoke('recalc-lab', {
+        body: { p_tahun: tahun, p_user_id: userId || null }
+      });
+      if (resp.error) {
+        console.warn('Edge Function recalc-lab returned error, falling back to RPC v2:', resp.error?.message || resp.error);
+        const rpc = await supabase.rpc('manual_recalculate_laboratorium_v2', {
+          p_tahun: tahun,
+          p_user_id: userId || null
+        });
+        data = rpc.data; error = rpc.error;
+      } else {
+        data = resp.data; error = resp.error;
+      }
+    } catch (e: any) {
+      console.warn('Edge Function recalc-lab failed, falling back to RPC v2:', e?.message || e);
+      const rpc = await supabase.rpc('manual_recalculate_laboratorium_v2', {
+        p_tahun: tahun,
+        p_user_id: userId || null
+      });
+      data = rpc.data; error = rpc.error;
+    }
 
     console.log(`🕐 End time: ${new Date().toISOString()}`);
     console.log(`📊 RPC Response:`, { data, error });
@@ -410,10 +430,30 @@ export async function manualRecalculateOperatif(
   return executeWithRetry(async () => {
     console.log(`🔄 Manual comprehensive recalculation Operatif for year ${tahun}`);
     
-    const { data, error } = await supabase.rpc('manual_recalculate_operatif', {
-      p_tahun: tahun,
-      p_user_id: userId || null
-    });
+    // Prefer Edge Function v2 for faster, timeout-safe execution. Fallback to RPC v2 if EF fails.
+    let data: any, error: any;
+    try {
+      const resp = await supabase.functions.invoke('recalc-operatif', {
+        body: { p_tahun: tahun, p_user_id: userId || null }
+      });
+      if (resp.error) {
+        console.warn('Edge Function recalc-operatif returned error, falling back to RPC v2:', resp.error?.message || resp.error);
+        const rpc = await supabase.rpc('manual_recalculate_operatif_v2', {
+          p_tahun: tahun,
+          p_user_id: userId || null
+        });
+        data = rpc.data; error = rpc.error;
+      } else {
+        data = resp.data; error = resp.error;
+      }
+    } catch (e: any) {
+      console.warn('Edge Function recalc-operatif failed, falling back to RPC v2:', e?.message || e);
+      const rpc = await supabase.rpc('manual_recalculate_operatif_v2', {
+        p_tahun: tahun,
+        p_user_id: userId || null
+      });
+      data = rpc.data; error = rpc.error;
+    }
 
     if (error) {
       console.error(`Manual recalculation Operatif error:`, error);
