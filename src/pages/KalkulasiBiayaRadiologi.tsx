@@ -1488,13 +1488,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                 onCancel={() => setShowBahanFarmasiForm(false)}
               />
 
-              {/* Ringkasan total biaya bahan - diposisikan tepat di atas tombol simpan */}
-              <div className="bg-gray-50 rounded-lg border p-4">
-                <div className="text-sm text-gray-600">Jumlah Biaya Bahan</div>
-                <div className="text-2xl font-bold text-blue-700">Rp {totalBahanFarmasi.toLocaleString()}</div>
-                <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
-              </div>
-              
               {/* Daftar bahan yang sudah ditambahkan */}
               {bahanFarmasiList.length > 0 && (
                 <div className="mt-6">
@@ -1523,17 +1516,27 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
               )}
             </div>
             
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>
-                Batal
-              </Button>
-              <Button 
-                onClick={handleSaveAllBahanFarmasi}
-                disabled={autoCalculating}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {autoCalculating ? "Menyimpan..." : "Simpan Semua Bahan"}
-              </Button>
+            <DialogFooter className="gap-2 w-full">
+              <div className="w-full flex flex-col items-end gap-3">
+                {/* Ringkasan total biaya bahan - posisikan kanan bawah tepat di atas tombol simpan */}
+                <div className="bg-gray-50 rounded-lg border p-4 text-right w-full sm:w-auto">
+                  <div className="text-sm text-gray-600">Jumlah Biaya Bahan</div>
+                  <div className="text-2xl font-bold text-blue-700">Rp {totalBahanFarmasi.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>
+                    Batal
+                  </Button>
+                  <Button 
+                    onClick={handleSaveAllBahanFarmasi}
+                    disabled={autoCalculating}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {autoCalculating ? "Menyimpan..." : "Simpan Semua Bahan"}
+                  </Button>
+                </div>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>

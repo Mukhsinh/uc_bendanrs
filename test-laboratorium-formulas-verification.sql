@@ -163,3 +163,4 @@ WHERE tahun = 2025
   AND kode_unit_kerja = 'UK038' 
   AND jumlah = 0;
 
+

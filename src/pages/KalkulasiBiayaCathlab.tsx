@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,16 @@ const KalkulasiBiayaCathlab: React.FC = () => {
   const [tindakanList, setTindakanList] = useState<{kode: string, nama: string}[]>([]);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
+
+  // Total biaya bahan (Rp) untuk ringkasan di footer form bahan
+  const totalBahanFarmasi = useMemo(() => {
+    return (bahanFarmasiList || []).reduce((sum: number, item: any) => {
+      const hargaTotal = Number(
+        item?.harga_total ?? item?.hargaTotal ?? ((Number(item?.qty || 0)) * (Number(item?.harga_satuan || item?.hargaSatuan || 0)))
+      );
+      return sum + (isNaN(hargaTotal) ? 0 : hargaTotal);
+    }, 0);
+  }, [bahanFarmasiList]);
 
   // Initialize user session
   useEffect(() => {
@@ -784,9 +794,17 @@ const KalkulasiBiayaCathlab: React.FC = () => {
               )}
             </div>
             
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>Batal</Button>
-              <Button 
+            <DialogFooter className="gap-2 w-full">
+              <div className="w-full flex flex-col items-end gap-3">
+                {/* Ringkasan total biaya bahan - posisikan kanan bawah di atas tombol simpan */}
+                <div className="bg-gray-50 rounded-lg border p-4 text-right w-full sm:w-auto">
+                  <div className="text-sm text-gray-600">Jumlah Biaya Bahan</div>
+                  <div className="text-2xl font-bold text-blue-700">Rp {totalBahanFarmasi.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>Batal</Button>
+                  <Button 
                 onClick={async () => {
                   try {
                     setAutoCalculating(true);
@@ -811,6 +829,8 @@ const KalkulasiBiayaCathlab: React.FC = () => {
               >
                 {autoCalculating ? "Menyimpan..." : "Simpan Semua Bahan"}
               </Button>
+                </div>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>
