@@ -344,35 +344,11 @@ export async function manualRecalculateLaboratorium(
 ): Promise<any> {
   return executeWithRetry(async () => {
     console.log(`🔄 Manual comprehensive recalculation Laboratorium for year ${tahun}`);
-    console.log(`🕐 Start time: ${new Date().toISOString()}`);
-
-    // Prefer Edge Function v2 for faster, timeout-safe execution
-    let data: any, error: any;
-    try {
-      const resp = await supabase.functions.invoke('recalc-lab', {
-        body: { p_tahun: tahun, p_user_id: userId || null }
-      });
-      if (resp.error) {
-        console.warn('Edge Function recalc-lab returned error, falling back to RPC v2:', resp.error?.message || resp.error);
-        const rpc = await supabase.rpc('manual_recalculate_laboratorium_v2', {
-          p_tahun: tahun,
-          p_user_id: userId || null
-        });
-        data = rpc.data; error = rpc.error;
-      } else {
-        data = resp.data; error = resp.error;
-      }
-    } catch (e: any) {
-      console.warn('Edge Function recalc-lab failed, falling back to RPC v2:', e?.message || e);
-      const rpc = await supabase.rpc('manual_recalculate_laboratorium_v2', {
-        p_tahun: tahun,
-        p_user_id: userId || null
-      });
-      data = rpc.data; error = rpc.error;
-    }
-
-    console.log(`🕐 End time: ${new Date().toISOString()}`);
-    console.log(`📊 RPC Response:`, { data, error });
+    
+    const { data, error } = await supabase.rpc('manual_recalculate_laboratorium_v2', {
+      p_tahun: tahun,
+      p_user_id: userId || null
+    });
 
     if (error) {
       console.error(`Manual recalculation Laboratorium error:`, error);
@@ -380,7 +356,6 @@ export async function manualRecalculateLaboratorium(
     }
 
     if (data && !data.success) {
-      console.error(`Manual recalculation Laboratorium failed:`, data);
       throw new Error(data.error || 'Rekalkulasi gagal');
     }
 
@@ -389,7 +364,8 @@ export async function manualRecalculateLaboratorium(
     return data;
   }, {
     maxRetries: 1,
-    timeoutMs: 120000 // 2 minutes - optimized for bulk operations
+    // Panjangkan timeout client agar aman saat fungsi DB menjalankan proses besar
+    timeoutMs: 600000
   });
 }
 
@@ -427,50 +403,26 @@ export async function manualRecalculateOperatif(
   tahun: number,
   userId?: string
 ): Promise<any> {
-  return executeWithRetry(async () => {
-    console.log(`🔄 Manual comprehensive recalculation Operatif for year ${tahun}`);
-    
-    // Prefer Edge Function v2 for faster, timeout-safe execution. Fallback to RPC v2 if EF fails.
-    let data: any, error: any;
-    try {
-      const resp = await supabase.functions.invoke('recalc-operatif', {
-        body: { p_tahun: tahun, p_user_id: userId || null }
-      });
-      if (resp.error) {
-        console.warn('Edge Function recalc-operatif returned error, falling back to RPC v2:', resp.error?.message || resp.error);
-        const rpc = await supabase.rpc('manual_recalculate_operatif_v2', {
-          p_tahun: tahun,
-          p_user_id: userId || null
-        });
-        data = rpc.data; error = rpc.error;
-      } else {
-        data = resp.data; error = resp.error;
-      }
-    } catch (e: any) {
-      console.warn('Edge Function recalc-operatif failed, falling back to RPC v2:', e?.message || e);
-      const rpc = await supabase.rpc('manual_recalculate_operatif_v2', {
-        p_tahun: tahun,
-        p_user_id: userId || null
-      });
-      data = rpc.data; error = rpc.error;
-    }
-
-    if (error) {
-      console.error(`Manual recalculation Operatif error:`, error);
-      throw new Error(`Gagal melakukan rekalkulasi: ${error.message}`);
-    }
-
-    if (data && !data.success) {
-      throw new Error(data.error || 'Rekalkulasi gagal');
-    }
-
-    console.log(`✅ Manual recalculation Operatif completed successfully`);
-    console.log(`📊 Stats: ${data.affected_rows} records updated in ${data.execution_time_seconds}s`);
-    return data;
-  }, {
-    maxRetries: 1,
-    timeoutMs: 120000 // 2 minutes - optimized for bulk operations
-  });
+  if (!userId) {
+    throw new Error('User ID required for batched recalculation');
+  }
+  
+  console.log(`🔄 Starting batched manual recalculation Operatif for year ${tahun}`);
+  
+  // Use batched approach like laboratorium to avoid timeout
+  const result = await recalculateOperatifBatched(tahun, userId);
+  
+  console.log(`✅ Batched recalculation Operatif completed successfully`);
+  console.log(`📊 Stats: ${result.totalOperators} operators, ${result.totalAffected} records, ${result.totalDbSeconds}s`);
+  
+  return {
+    success: true,
+    affected_rows: result.totalAffected,
+    execution_time_seconds: result.totalDbSeconds,
+    batches: result.totalOperators,
+    succeeded: result.succeeded,
+    failed: result.failed
+  };
 }
 
 export async function manualRecalculateCathlab(
@@ -500,6 +452,142 @@ export async function manualRecalculateCathlab(
   }, {
     maxRetries: 1,
     timeoutMs: 120000 // 2 minutes for comprehensive recalculation
+  });
+}
+
+/**
+ * Batched recalculation untuk Laboratorium, menjalankan RPC per unit kerja
+ * Hanya menyentuh kolom computed-by-system di sisi database.
+ */
+export async function recalculateLaboratoriumBatched(
+  tahun: number,
+  userId: string,
+  onProgress?: (info: { current: number; total: number; unit?: string; message?: string }) => void
+): Promise<{ totalUnits: number; succeeded: number; failed: number; failures: { unit: string; error: string }[]; totalAffected: number; totalDbSeconds: number }>{
+  return executeWithRetry(async () => {
+    console.log(`🔄 Batched recalculation Laboratorium for year ${tahun}`);
+
+    // Ambil daftar unit kerja yang relevan
+    const { data: unitsData, error: unitsError } = await supabase
+      .from('kalkulasi_biaya_laboratorium')
+      .select('kode_unit_kerja')
+      .eq('tahun', tahun)
+      .eq('user_id', userId);
+
+    if (unitsError) {
+      throw new Error(`Gagal mengambil daftar unit: ${unitsError.message}`);
+    }
+
+    const unitCodes = Array.from(new Set((unitsData || [])
+      .map((r: any) => r?.kode_unit_kerja)
+      .filter((v: any) => typeof v === 'string' && v.trim().length > 0)));
+
+    const total = unitCodes.length || 0;
+    if (total === 0) {
+      // Jalankan global sebagai fallback bila tidak ada kode unit
+      const data = await executeRPC('manual_recalculate_laboratorium_batch', { p_tahun: tahun, p_user_id: userId, p_kode_unit_kerja: null }, { timeoutMs: 600000 });
+      return { totalUnits: 0, succeeded: 0, failed: 0, failures: [], totalAffected: Number(data?.affected_rows || 0), totalDbSeconds: Number(data?.execution_time_seconds || 0) };
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    const failures: { unit: string; error: string }[] = [];
+    let totalAffected = 0;
+    let totalDbSeconds = 0;
+
+    for (let i = 0; i < unitCodes.length; i++) {
+      const unit = unitCodes[i];
+      onProgress?.({ current: i + 1, total, unit, message: `Memproses unit ${unit} (${i + 1}/${total})...` });
+      try {
+        const data = await executeRPC('manual_recalculate_laboratorium_batch', {
+          p_tahun: tahun,
+          p_user_id: userId,
+          p_kode_unit_kerja: unit
+        }, { timeoutMs: 600000 });
+
+        totalAffected += Number(data?.affected_rows || 0);
+        totalDbSeconds += Number(data?.execution_time_seconds || 0);
+        succeeded += 1;
+      } catch (err: any) {
+        console.error(`Unit ${unit} gagal:`, err);
+        failures.push({ unit, error: err?.message || 'unknown error' });
+        failed += 1;
+      }
+    }
+
+    return { totalUnits: total, succeeded, failed, failures, totalAffected, totalDbSeconds };
+  }, {
+    maxRetries: 1,
+    timeoutMs: 600000
+  });
+}
+
+/**
+ * Batched recalculation untuk Operatif, menjalankan RPC per operator
+ * Mirip dengan recalculateLaboratoriumBatched tapi untuk operatif
+ */
+export async function recalculateOperatifBatched(
+  tahun: number,
+  userId: string,
+  onProgress?: (info: { current: number; total: number; operator?: string; message?: string }) => void
+): Promise<{ totalOperators: number; succeeded: number; failed: number; failures: { operator: string; error: string }[]; totalAffected: number; totalDbSeconds: number }>{
+  return executeWithRetry(async () => {
+    console.log(`🔄 Batched recalculation Operatif for year ${tahun}`);
+
+    // Ambil daftar operator yang relevan
+    const { data: operatorsData, error: operatorsError } = await supabase
+      .from('kalkulasi_biaya_operatif')
+      .select('kode_operator_spesialistik')
+      .eq('tahun', tahun)
+      .eq('user_id', userId)
+      .eq('kode_unit_kerja', 'UK074');
+
+    if (operatorsError) {
+      throw new Error(`Gagal mengambil daftar operator: ${operatorsError.message}`);
+    }
+
+    const operatorCodes = Array.from(new Set((operatorsData || [])
+      .map((r: any) => r?.kode_operator_spesialistik)
+      .filter((v: any) => typeof v === 'string' && v.trim().length > 0)));
+
+    const total = operatorCodes.length || 0;
+    if (total === 0) {
+      // Jalankan global sebagai fallback bila tidak ada kode operator
+      const data = await executeRPC('manual_recalculate_operatif_batch', { p_tahun: tahun, p_user_id: userId, p_kode_unit_kerja: 'UK074', p_kode_operator_spesialistik: null }, { timeoutMs: 600000 });
+      return { totalOperators: 0, succeeded: 0, failed: 0, failures: [], totalAffected: Number(data?.affected_rows || 0), totalDbSeconds: Number(data?.execution_time_seconds || 0) };
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    const failures: { operator: string; error: string }[] = [];
+    let totalAffected = 0;
+    let totalDbSeconds = 0;
+
+    for (let i = 0; i < operatorCodes.length; i++) {
+      const operator = operatorCodes[i];
+      onProgress?.({ current: i + 1, total, operator, message: `Memproses operator ${operator} (${i + 1}/${total})...` });
+      try {
+        const data = await executeRPC('manual_recalculate_operatif_batch', {
+          p_tahun: tahun,
+          p_user_id: userId,
+          p_kode_unit_kerja: 'UK074',
+          p_kode_operator_spesialistik: operator
+        }, { timeoutMs: 600000 });
+
+        totalAffected += Number(data?.affected_rows || 0);
+        totalDbSeconds += Number(data?.execution_time_seconds || 0);
+        succeeded += 1;
+      } catch (err: any) {
+        console.error(`Operator ${operator} gagal:`, err);
+        failures.push({ operator, error: err?.message || 'unknown error' });
+        failed += 1;
+      }
+    }
+
+    return { totalOperators: total, succeeded, failed, failures, totalAffected, totalDbSeconds };
+  }, {
+    maxRetries: 1,
+    timeoutMs: 600000
   });
 }
 

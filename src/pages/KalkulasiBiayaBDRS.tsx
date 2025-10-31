@@ -44,6 +44,16 @@ const KalkulasiBiayaBDRS: React.FC = () => {
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
 
+  // Total biaya bahan (Rp) dari daftar, untuk ringkasan di bagian bawah form
+  const totalBiayaBahan = useMemo(() => {
+    return (bahanFarmasiList || []).reduce((sum: number, item: any) => {
+      const hargaTotal = Number(
+        item?.harga_total ?? item?.hargaTotal ?? ((Number(item?.qty || 0)) * (Number(item?.harga_satuan || item?.hargaSatuan || 0)))
+      );
+      return sum + (isNaN(hargaTotal) ? 0 : hargaTotal);
+    }, 0);
+  }, [bahanFarmasiList]);
+
   // Initialize user session
   useEffect(() => {
     const initializeUser = async () => {
@@ -1396,6 +1406,13 @@ const KalkulasiBiayaBDRS: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+            
+            {/* Ringkasan biaya bahan - ditempatkan di bagian bawah, tepat di atas tombol simpan */}
+            <div className="bg-gray-50 rounded-lg border p-4 mt-4">
+              <div className="text-sm text-gray-600">Jumlah Biaya Bahan</div>
+              <div className="text-2xl font-bold text-blue-700">Rp {totalBiayaBahan.toLocaleString()}</div>
+              <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
             </div>
             
             <DialogFooter className="gap-2">

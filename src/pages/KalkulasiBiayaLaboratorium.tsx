@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { manualRecalculateLaboratorium } from "@/utils/database-operations";
+import { recalculateLaboratoriumBatched } from "@/utils/database-operations";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Calculator, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -38,6 +38,8 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
   const [bahanFarmasiList, setBahanFarmasiList] = useState<any[]>([]);
   const [showManualInput, setShowManualInput] = useState<boolean>(false);
   const [manualInputData, setManualInputData] = useState<any>({});
+  const [tindakanOptions, setTindakanOptions] = useState<{ kode: string; nama: string }[]>([]);
+  const [tindakanQuery, setTindakanQuery] = useState<string>("");
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
   // State untuk manual recalculation
@@ -66,6 +68,14 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       setLoading(true);
       const startTime = performance.now();
       
+      const currentUserId = (await supabase.auth.getUser())?.data?.user?.id;
+      if (!currentUserId) {
+        setRows([]);
+        setLoading(false);
+        toast.error("User tidak ditemukan. Silakan login kembali.");
+        return;
+      }
+
       // Optimized query - only select columns needed for display and calculation
       const { data, error } = await supabase
         .from('kalkulasi_biaya_laboratorium')
@@ -85,6 +95,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
           updated_at
         `)
         .eq('tahun', year)
+        .eq('user_id', currentUserId)
         .order('jenis_pemeriksaan');
 
       const endTime = performance.now();
@@ -118,40 +129,38 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
 
     try {
       setRecalculating(true);
-      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+      setRecalcProgress({step: 0, total: 1, message: 'Menyiapkan batch unit...'});
 
-      console.log("🔄 Starting manual recalculation for laboratorium...");
+      console.log("🔄 Starting batched manual recalculation for laboratorium...");
       const startTime = performance.now();
 
-      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
-      
-      // Pakai helper dengan fallback otomatis (Edge Function → RPC v2)
-      const result = await manualRecalculateLaboratorium(year, userId);
+      const batchResult = await recalculateLaboratoriumBatched(year, userId, ({ current, total, unit, message }) => {
+        setRecalcProgress({ step: current, total: Math.max(total, 1), message: message || `Memproses unit ${unit || ''}...` });
+      });
 
-      setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
-      
-      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
-      
+      setRecalcProgress(prev => ({ ...prev, message: 'Memperbarui tampilan data...' }));
+
       // Refresh data setelah recalculation
       await fetchData();
 
       const endTime = performance.now();
       const totalTime = (endTime - startTime) / 1000;
 
-      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+      setRecalcProgress(prev => ({ ...prev, step: prev.total, message: 'Selesai!' }));
 
-      // Show detailed success message with performance metrics
+      // Ringkasan hasil
       toast.success(
-        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
-        `📊 ${result?.affected_rows || 0} records diperbarui\n` +
-        `⏱️ Waktu total: ${totalTime.toFixed(2)}s\n` +
-        `🚀 Database: ${result?.execution_time_seconds?.toFixed(2)}s`
+        `🎉 Rekalkulasi batch selesai!\n` +
+        `🏥 Unit diproses: ${batchResult.totalUnits}\n` +
+        `✅ Berhasil: ${batchResult.succeeded} | ❌ Gagal: ${batchResult.failed}\n` +
+        `📊 Rows diperbarui: ${batchResult.totalAffected}\n` +
+        `⏱️ Total waktu: ${totalTime.toFixed(2)}s (DB ~${batchResult.totalDbSeconds.toFixed(2)}s)`
       );
 
-      console.log("✅ Manual recalculation completed successfully");
-      console.log("📈 Recalculation stats:", result);
-      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result?.execution_time_seconds?.toFixed(2)}s`);
-      
+      if (batchResult.failed > 0) {
+        console.warn('Batch failures:', batchResult.failures);
+      }
+
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
       
@@ -295,7 +304,13 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
     try {
 
       setAutoCalculating(true);
-      
+      const currentUserId = (await supabase.auth.getUser())?.data?.user?.id;
+      if (!currentUserId) {
+        toast.error("User tidak ditemukan. Silakan login kembali.");
+        setAutoCalculating(false);
+        return;
+      }
+
       // Cari tindakan laboratorium berdasarkan nama
       const { data: tindakan, error: tindakanError } = await supabase
         .from("tindakan_laboratorium")
@@ -309,56 +324,32 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
         return;
       }
 
-      if (data.id) {
-        // Update existing data
-        const { error: updateError } = await supabase
-          .from("kalkulasi_biaya_laboratorium")
-          .update({
-            kode: tindakan.kode,
-            jenis_pemeriksaan: data.jenis_pemeriksaan,
-            jumlah: data.jumlah || 0,
-            waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
-            profesionalisme: data.profesionalisme || 1,
-            tingkat_kesulitan: data.tingkat_kesulitan || 1
-          })
-          .eq("id", data.id);
+      // Upsert cepat via RPC (tanpa perhitungan)
+      const { error: upsertError } = await supabase.rpc('lab_fast_upsert', {
+        p_tahun: year,
+        p_kode: tindakan.kode,
+        p_kode_unit_kerja: 'UK038',
+        p_jenis: data.jenis_pemeriksaan,
+        p_jumlah: data.jumlah || 0,
+        p_waktu: data.waktu_pemeriksaan || 0,
+        p_prof: data.profesionalisme || 1,
+        p_sulit: data.tingkat_kesulitan || 1,
+        p_user: currentUserId
+      });
 
-        if (updateError) {
-          console.error("Update error:", updateError);
-          throw updateError;
-        }
-
-        toast.success("Data berhasil diupdate!");
-      } else {
-        // Insert data baru
-        const { error: insertError } = await supabase
-          .from("kalkulasi_biaya_laboratorium")
-          .insert({
-            tahun: year,
-            kode: tindakan.kode,
-            kode_unit_kerja: 'UK038',
-            jenis_pemeriksaan: data.jenis_pemeriksaan,
-            jumlah: data.jumlah || 0,
-            waktu_pemeriksaan: data.waktu_pemeriksaan || 0,
-            profesionalisme: data.profesionalisme || 1,
-            tingkat_kesulitan: data.tingkat_kesulitan || 1
-          });
-
-        if (insertError) {
-          console.error("Insert error:", insertError);
-          throw insertError;
-        }
-
-        toast.success("Data berhasil ditambahkan!");
+      if (upsertError) {
+        console.error("Upsert error:", upsertError);
+        throw upsertError;
       }
 
+      toast.success("✅ Data berhasil disimpan! Klik 'Rekalkulasi Manual' untuk menghitung semua kolom.");
       setShowManualInput(false);
       setManualInputData({});
-      
+
       // Trigger immediate update after manual input
       setAutoCalculating(false);
       await updateData();
-      
+
     } catch (e: any) {
       console.error("Manual input error:", e);
       toast.error(`Gagal ${data.id ? 'mengupdate' : 'menambah'} data: ${e.message}`);
@@ -377,6 +368,21 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
     });
     setShowManualInput(true);
   };
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      const q = tindakanQuery.trim();
+      if (!q) { setTindakanOptions([]); return; }
+      const { data } = await supabase
+        .from('tindakan_laboratorium')
+        .select('kode, nama')
+        .ilike('nama', `%${q}%`)
+        .limit(20);
+      setTindakanOptions(data || []);
+    };
+    const t = setTimeout(loadOptions, 250);
+    return () => clearTimeout(t);
+  }, [tindakanQuery]);
 
   const handleDeleteRow = async (row: any) => {
     if (!confirm(`Apakah Anda yakin ingin menghapus data "${row.jenis_pemeriksaan}"?`)) {
@@ -710,6 +716,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
               console.log(`Final target jenis: ${targetJenis}`);
               
               // First check if record exists
+              const currentUserId = (await supabase.auth.getUser())?.data?.user?.id;
               const { data: existingRecord, error: checkError } = await supabase
                 .from("kalkulasi_biaya_laboratorium")
                 .select("id, jenis_pemeriksaan")
@@ -738,7 +745,8 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                   jumlah, 
                   waktu_pemeriksaan: waktu, 
                   profesionalisme: prof, 
-                  tingkat_kesulitan: sulit 
+                  tingkat_kesulitan: sulit,
+                  user_id: currentUserId || undefined
                 })
                 .eq("id", existingRecord.id);
               
@@ -1096,6 +1104,21 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
               )}
             </div>
             
+            {/* Total Biaya Bahan */}
+            {bahanFarmasiList.length > 0 && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Total Biaya Bahan Pemeriksaan:</span>
+                  <span className="text-xl font-bold text-blue-600">
+                    Rp {bahanFarmasiList.reduce((total, bahan) => total + (bahan.harga_total || 0), 0).toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="mt-2 text-xs text-gray-600">
+                  Total dari {bahanFarmasiList.length} item bahan
+                </div>
+              </div>
+            )}
+            
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>
                 Batal
@@ -1129,10 +1152,19 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium mb-2">Jenis Pemeriksaan</label>
                 <Input
+                  list="dl-tindakan-lab"
                   value={manualInputData.jenis_pemeriksaan || ''}
-                  onChange={(e) => setManualInputData(prev => ({ ...prev, jenis_pemeriksaan: e.target.value }))}
-                  placeholder="Masukkan jenis pemeriksaan"
+                  onChange={(e) => {
+                    setManualInputData(prev => ({ ...prev, jenis_pemeriksaan: e.target.value }));
+                    setTindakanQuery(e.target.value);
+                  }}
+                  placeholder="Cari/pilih dari master tindakan laboratorium"
                 />
+                <datalist id="dl-tindakan-lab">
+                  {tindakanOptions.map((opt, idx) => (
+                    <option key={idx} value={opt.nama}>{opt.kode}</option>
+                  ))}
+                </datalist>
               </div>
               
               <div className="grid grid-cols-2 gap-4">

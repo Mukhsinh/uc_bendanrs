@@ -58,6 +58,18 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
 
+  // Total biaya bahan di dialog input bahan
+  const totalBahanFarmasi = useMemo(() => {
+    try {
+      return (bahanFarmasiList || []).reduce((sum: number, item: any) => {
+        const harga = Number(item?.harga_total || item?.hargaTotal || 0);
+        return sum + (isNaN(harga) ? 0 : harga);
+      }, 0);
+    } catch {
+      return 0;
+    }
+  }, [bahanFarmasiList]);
+
   // Load master data radiologi untuk autocomplete dengan realtime sync
   useEffect(() => {
     const loadMasterRadiologi = async () => {
@@ -939,8 +951,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
         "Jasa Pelayanan Rp",
         "Obat Rp",
         "BHP Rp",
-        "Makan Karyawan Rp",
-        "Makan Pasien Rp",
         "Rumah Tangga Rp",
         "Cetak Rp",
         "ATK Rp",
@@ -976,8 +986,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
         "Jasa Pelayanan Rp": row.biaya_jasa_pelayanan || 0,
         "Obat Rp": row.biaya_obat || 0,
         "BHP Rp": row.biaya_bhp || 0,
-        "Makan Karyawan Rp": row.biaya_makan_karyawan || 0,
-        "Makan Pasien Rp": row.biaya_makan_pasien || 0,
         "Rumah Tangga Rp": row.biaya_rumah_tangga || 0,
         "Cetak Rp": row.biaya_cetak || 0,
         "ATK Rp": row.biaya_atk || 0,
@@ -1479,6 +1487,13 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                 onSave={handleSaveBahanFarmasi}
                 onCancel={() => setShowBahanFarmasiForm(false)}
               />
+
+              {/* Ringkasan total biaya bahan - diposisikan tepat di atas tombol simpan */}
+              <div className="bg-gray-50 rounded-lg border p-4">
+                <div className="text-sm text-gray-600">Jumlah Biaya Bahan</div>
+                <div className="text-2xl font-bold text-blue-700">Rp {totalBahanFarmasi.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
+              </div>
               
               {/* Daftar bahan yang sudah ditambahkan */}
               {bahanFarmasiList.length > 0 && (
@@ -1490,7 +1505,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                         <div className="flex-1">
                           <div className="font-medium">{bahan.nama}</div>
                           <div className="text-sm text-gray-600">
-                            {bahan.kode_barang} - {bahan.qty} {bahan.qty > 1 ? 'pcs' : 'pcs'} - Rp {bahan.harga_total?.toLocaleString()}
+                            {bahan.kode_barang} - {bahan.qty} {bahan.qty > 1 ? 'pcs' : 'pcs'} - Rp { (Number(bahan.harga_total || bahan.hargaTotal || 0)).toLocaleString() }
                           </div>
                         </div>
                         <Button

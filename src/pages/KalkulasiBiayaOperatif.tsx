@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Download, Calculator, RefreshCw } from "lucide-react";
-import { manualRecalculateOperatif, handleDatabaseError } from "@/utils/database-operations";
+import { manualRecalculateOperatif, recalculateOperatifBatched, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 
 const KalkulasiBiayaOperatif: React.FC = () => {
@@ -195,44 +195,43 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       return;
     }
 
-    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya berdasarkan rumus tabel.")) {
+    if (!confirm("Apakah Anda yakin ingin melakukan rekalkulasi? Proses ini akan memperbarui semua kalkulasi biaya Operatif (IBS/UK074) berdasarkan rumus tabel.")) {
       return;
     }
 
     try {
       setRecalculating(true);
-      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+      setRecalcProgress({step: 0, total: 1, message: 'Menyiapkan batch operator...'});
 
-      console.log("🔄 Starting manual recalculation for operatif...");
+      console.log("🔄 Starting batched manual recalculation for operatif (IBS/UK074)...");
       const startTime = performance.now();
 
-      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
-      
-      const result = await manualRecalculateOperatif(year, userId);
+      const batchResult = await recalculateOperatifBatched(year, userId, ({ current, total, operator, message }) => {
+        setRecalcProgress({ step: current, total: Math.max(total, 1), message: message || `Memproses operator ${operator || ''}...` });
+      });
 
-      setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
-      
-      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
-      
+      setRecalcProgress(prev => ({ ...prev, message: 'Memperbarui tampilan data...' }));
+
       // Refresh data setelah recalculation
       await loadData();
 
       const endTime = performance.now();
       const totalTime = (endTime - startTime) / 1000;
 
-      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+      setRecalcProgress(prev => ({ ...prev, step: prev.total, message: 'Selesai!' }));
 
-      // Show detailed success message with performance metrics
+      // Show detailed success message with batch results
       toast.success(
-        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
-        `📊 ${result.affected_rows || 0} records diperbarui\n` +
-        `⏱️ Waktu total: ${totalTime.toFixed(2)}s\n` +
-        `🚀 Database: ${result.execution_time_seconds?.toFixed(2)}s`
+        `🎉 Rekalkulasi batch Operatif selesai!\n` +
+        `👨‍⚕️ Operator diproses: ${batchResult.totalOperators}\n` +
+        `✅ Berhasil: ${batchResult.succeeded} | ❌ Gagal: ${batchResult.failed}\n` +
+        `📊 Rows diperbarui: ${batchResult.totalAffected}\n` +
+        `⏱️ Total waktu: ${totalTime.toFixed(2)}s (DB ~${batchResult.totalDbSeconds.toFixed(2)}s)`
       );
 
-      console.log("✅ Manual recalculation completed successfully");
-      console.log("📈 Recalculation stats:", result);
-      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result.execution_time_seconds?.toFixed(2)}s`);
+      console.log("✅ Batched manual recalculation completed successfully");
+      console.log("📈 Recalculation stats:", batchResult);
+      console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${batchResult.totalDbSeconds.toFixed(2)}s`);
       
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
@@ -247,10 +246,10 @@ const KalkulasiBiayaOperatif: React.FC = () => {
         errorMessage = "Tidak memiliki izin untuk melakukan rekalkulasi. Hubungi administrator.";
       }
       
-      toast.error(`❌ Gagal melakukan rekalkulasi: ${errorMessage}`);
+      toast.error(`❌ Gagal melakukan rekalkulasi Operatif: ${errorMessage}`);
     } finally {
       setRecalculating(false);
-      setRecalcProgress({step: 0, total: 5, message: ''});
+      setRecalcProgress({step: 0, total: 1, message: ''});
     }
   };
 
