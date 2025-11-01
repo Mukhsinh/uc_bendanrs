@@ -139,241 +139,6 @@ interface UnitKerja {
   kategori: string;
 }
 
-// Debug Panel Component for Admin Users
-interface DebugPanelProps {
-  userId: string;
-  onRetryFetch: () => void;
-  biayaListLength: number;
-}
-
-const DebugPanel: React.FC<DebugPanelProps> = ({ userId, onRetryFetch, biayaListLength }) => {
-  const [isDebugMode, setIsDebugMode] = useState(
-    localStorage.getItem('biaya_debug_mode') === 'true'
-  );
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      try {
-        const { data: userRoles } = await supabase
-          .from('user_roles')
-          .select(`
-            role_akses_aplikasi!inner (
-              role_name
-            )
-          `)
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .in('role_akses_aplikasi.role_name', ['Admin', 'Super Admin'])
-          .eq('role_akses_aplikasi.is_active', true);
-
-        setIsAdmin(userRoles && userRoles.length > 0);
-      } catch (error) {
-        console.error('Error checking admin status:', error);
-      }
-    };
-
-    checkAdminStatus();
-  }, [userId]);
-
-  const toggleDebugMode = () => {
-    const newMode = !isDebugMode;
-    setIsDebugMode(newMode);
-    localStorage.setItem('biaya_debug_mode', newMode.toString());
-    
-    if (newMode) {
-      toast.info('Debug mode activated. Check console for detailed logs.');
-    } else {
-      toast.info('Debug mode deactivated.');
-    }
-  };
-
-  const handleForceRefresh = async () => {
-    toast.info('Force refreshing data...');
-    localStorage.removeItem('biaya_cache');
-    window.location.reload();
-  };
-
-  const testRpcFunction = async () => {
-    try {
-      toast.info('Testing RPC function...');
-      const { data, error } = await supabase.rpc('get_data_biaya_for_user', {
-        input_user_id: userId
-      });
-      
-      if (error) {
-        toast.error(`RPC Test Failed: ${error.message}`);
-        console.error('RPC Test Error:', error);
-      } else {
-        toast.success(`RPC Test Success: ${data?.length || 0} records`);
-        console.log('RPC Test Result:', data);
-      }
-    } catch (error) {
-      toast.error('RPC Test Failed: Network error');
-      console.error('RPC Test Network Error:', error);
-    }
-  };
-
-  const runComprehensiveTest = async () => {
-    try {
-      toast.info('Running comprehensive system test...');
-      console.log('=== COMPREHENSIVE SYSTEM TEST START ===');
-      
-      const testResults = {
-        sessionCheck: false,
-        roleCheck: false,
-        rpcTest: false,
-        tableAccess: false,
-        unitKerjaAccess: false
-      };
-
-      // Test 1: Session validation
-      console.log('[TEST] 1. Testing session...');
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      testResults.sessionCheck = !sessionError && !!session?.user;
-      console.log('[TEST] Session result:', testResults.sessionCheck);
-
-      // Test 2: Role check
-      console.log('[TEST] 2. Testing user roles...');
-      const { data: roles, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role_akses_aplikasi(role_name)')
-        .eq('user_id', userId)
-        .eq('is_active', true);
-      testResults.roleCheck = !roleError && roles && roles.length > 0;
-      console.log('[TEST] Role result:', testResults.roleCheck, roles);
-
-      // Test 3: RPC function test
-      console.log('[TEST] 3. Testing RPC function...');
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_data_biaya_for_user', {
-        input_user_id: userId
-      });
-      testResults.rpcTest = !rpcError;
-      console.log('[TEST] RPC result:', testResults.rpcTest, 'Records:', rpcData?.length || 0);
-
-      // Test 4: Direct table access
-      console.log('[TEST] 4. Testing direct table access...');
-      const { data: tableData, error: tableError } = await supabase
-        .from('data_biaya')
-        .select('id')
-        .limit(1);
-      testResults.tableAccess = !tableError;
-      console.log('[TEST] Table access result:', testResults.tableAccess);
-
-      // Test 5: Unit kerja access
-      console.log('[TEST] 5. Testing unit kerja access...');
-      const { data: unitData, error: unitError } = await supabase
-        .from('unit_kerja')
-        .select('id')
-        .limit(1);
-      testResults.unitKerjaAccess = !unitError;
-      console.log('[TEST] Unit kerja access result:', testResults.unitKerjaAccess);
-
-      // Summary
-      const passedTests = Object.values(testResults).filter(Boolean).length;
-      const totalTests = Object.keys(testResults).length;
-      
-      console.log('=== COMPREHENSIVE TEST RESULTS ===');
-      console.log('Test Results:', testResults);
-      console.log(`Passed: ${passedTests}/${totalTests}`);
-      console.log('=== COMPREHENSIVE SYSTEM TEST END ===');
-
-      if (passedTests === totalTests) {
-        toast.success(`All tests passed! (${passedTests}/${totalTests})`);
-      } else {
-        toast.warning(`Some tests failed: ${passedTests}/${totalTests} passed. Check console for details.`);
-      }
-
-    } catch (error) {
-      console.error('[TEST] Comprehensive test error:', error);
-      toast.error('Comprehensive test failed. Check console for details.');
-    }
-  };
-
-  if (!isAdmin) {
-    return null; // Only show for admin users
-  }
-
-  return (
-    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-yellow-800">🛠️ Admin Debug Tools</span>
-          <span className="text-xs text-yellow-600">
-            Data: {biayaListLength} records | Mode: {isDebugMode ? 'Debug ON' : 'Debug OFF'}
-          </span>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="text-yellow-700 hover:text-yellow-900"
-        >
-          {isExpanded ? '▼' : '▶'} {isExpanded ? 'Hide' : 'Show'}
-        </Button>
-      </div>
-      
-      {isExpanded && (
-        <div className="mt-3 space-y-2">
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={toggleDebugMode}
-              className={isDebugMode ? 'bg-green-100 text-green-700' : ''}
-            >
-              {isDebugMode ? '🟢' : '🔴'} Debug Mode
-            </Button>
-            
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onRetryFetch}
-              className="text-blue-700"
-            >
-              🔄 Retry Fetch
-            </Button>
-            
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={testRpcFunction}
-              className="text-purple-700"
-            >
-              🧪 Test RPC
-            </Button>
-            
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleForceRefresh}
-              className="text-red-700"
-            >
-              🔄 Force Refresh
-            </Button>
-            
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={runComprehensiveTest}
-              className="text-indigo-700"
-            >
-              🧪 Full Test
-            </Button>
-          </div>
-          
-          <div className="text-xs text-yellow-700 bg-yellow-100 p-2 rounded">
-            <strong>Debug Info:</strong> User ID: {userId.slice(0, 8)}... | 
-            Current Records: {biayaListLength} | 
-            Debug Logs: {isDebugMode ? 'Enabled' : 'Disabled'}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 const BiayaFormTable: React.FC = () => {
   const [biayaList, setBiayaList] = useState<Biaya[]>([]);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -381,6 +146,7 @@ const BiayaFormTable: React.FC = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewingItem, setViewingItem] = useState<Biaya | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
   // Filter and sort logic
   const filteredBiayaList = useMemo(() => {
@@ -409,8 +175,6 @@ const BiayaFormTable: React.FC = () => {
   const [unitKerjaList, setUnitKerjaList] = useState<UnitKerja[]>([]);
   const [editingBiaya, setEditingBiaya] = useState<Biaya | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [biayaPreference, setBiayaPreference] = useState<'total_biaya' | 'total_biaya_tanpa_jp'>('total_biaya');
-  const [updatingPreference, setUpdatingPreference] = useState(false);
   
   // Use upload progress hook
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
@@ -483,6 +247,7 @@ const BiayaFormTable: React.FC = () => {
         if (sessionError) {
           console.error('[INIT] Session error:', sessionError);
           toast.error('Error mendapatkan sesi: ' + sessionError.message);
+          setInitializing(false);
           return;
         }
         
@@ -499,8 +264,7 @@ const BiayaFormTable: React.FC = () => {
           // Execute data fetching operations in parallel where possible
           const fetchPromises = [
             fetchBiaya(session.user.id),
-            fetchUnitKerja(),
-            loadBiayaPreference(session.user.id)
+            fetchUnitKerja()
           ];
           
           try {
@@ -508,10 +272,15 @@ const BiayaFormTable: React.FC = () => {
           } catch (error) {
             console.error('[INIT] Error in parallel data fetching:', error);
           }
+          
+          // Set initializing to false after all data is fetched
+          if (mounted) {
+            setInitializing(false);
+          }
         } else {
           console.log('[INIT] No active session found');
           console.log('[INIT] This means user needs to login first');
-          // Don't show error immediately, let the loading state handle it
+          setInitializing(false);
         }
         
         console.log('=== END BIAYA FORM TABLE INITIALIZATION ===');
@@ -519,6 +288,7 @@ const BiayaFormTable: React.FC = () => {
         console.error('[INIT] Error in initialization:', error);
         if (mounted) {
           toast.error('Terjadi kesalahan saat memuat halaman. Silakan refresh halaman.');
+          setInitializing(false);
         }
       }
     };
@@ -528,6 +298,7 @@ const BiayaFormTable: React.FC = () => {
       if (mounted) {
         console.warn('[INIT] Initialization timeout, stopping...');
         toast.warning('Initialization taking too long, please refresh the page.');
+        setInitializing(false);
       }
     }, 15000); // 15 second timeout
 
@@ -799,55 +570,6 @@ const BiayaFormTable: React.FC = () => {
     }
   };
 
-  const loadBiayaPreference = async (currentUserId: string) => {
-    try {
-      const { data, error } = await supabase.rpc('get_biaya_preference', {
-        p_user_id: currentUserId
-      });
-      if (error) {
-        console.error('Error loading biaya preference:', error);
-        return;
-      }
-      if (data && data.success && data.current_preference) {
-        setBiayaPreference(data.current_preference === 'total_biaya_tanpa_jp' ? 'total_biaya_tanpa_jp' : 'total_biaya');
-      }
-    } catch (err) {
-      console.error('Unexpected error loading biaya preference:', err);
-    }
-  };
-
-  const handleSetBiayaPreference = async (type: 'total_biaya' | 'total_biaya_tanpa_jp') => {
-    if (!userId) {
-      showError('User tidak ditemukan. Silakan login kembali.');
-      return;
-    }
-    try {
-      setUpdatingPreference(true);
-      const { data, error } = await supabase.rpc('set_biaya_preference_and_update', {
-        p_user_id: userId,
-        p_biaya_type: type
-      });
-      if (error) throw error;
-      if (data && data.success) {
-        setBiayaPreference(type);
-        // Update eksplisit untuk tahun aktif agar kolom biaya_tahunan di distribusi_biaya_pertama ikut berubah
-        const activeYear = biayaList[0]?.tahun ?? new Date().getFullYear();
-        await supabase.rpc('update_distribusi_biaya_pertama_biaya_tahunan', {
-          biaya_type: type,
-          p_user_id: userId,
-          p_tahun: activeYear
-        });
-        toast.success(`Biaya tahunan berhasil diupdate menggunakan ${type === 'total_biaya' ? 'Total Biaya' : 'Total Biaya Tanpa JP'}`);
-      } else {
-        toast.error(data?.message || 'Gagal memperbarui preferensi biaya.');
-      }
-    } catch (err: any) {
-      console.error('Error updating biaya preference:', err);
-      toast.error('Gagal memperbarui preferensi biaya: ' + (err?.message || 'Unknown error'));
-    } finally {
-      setUpdatingPreference(false);
-    }
-  };
 
   const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedRows);
@@ -1359,8 +1081,8 @@ const BiayaFormTable: React.FC = () => {
     return value.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' });
   };
 
-  // Show loading state if no user session yet
-  if (loading) {
+  // Show loading state while initializing or loading
+  if (initializing || loading) {
     return (
       <div className="container mx-auto p-4">
         <div className="flex items-center justify-center h-64">
@@ -1373,7 +1095,7 @@ const BiayaFormTable: React.FC = () => {
     );
   }
 
-  // Show error state if no user session
+  // Show error state if no user session after initialization
   if (!userId) {
     return (
       <div className="container mx-auto p-4">
@@ -1410,6 +1132,16 @@ const BiayaFormTable: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Info message about biaya preference */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-start gap-2">
+              <span className="text-blue-600 text-xl">ℹ️</span>
+              <p className="text-sm text-blue-700">
+                <strong>Basis distribusi biaya menggunakan total biaya tanpa jasa pelayanan</strong>
+              </p>
+            </div>
+          </div>
+          
           {/* KPI badges */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
             <div className="p-4 rounded-md bg-slate-50 border">
@@ -1483,15 +1215,6 @@ const BiayaFormTable: React.FC = () => {
             </div>
           </div>
           
-          {/* Debug Panel for Admin Users */}
-          {userId && (
-            <DebugPanel 
-              userId={userId} 
-              onRetryFetch={() => fetchBiaya(userId)} 
-              biayaListLength={biayaList.length}
-            />
-          )}
-          
           <div className="flex gap-2 mb-4 flex-wrap items-center">
             <div className="flex items-center gap-2">
               <Label htmlFor="filter-year">Tahun</Label>
@@ -1527,29 +1250,9 @@ const BiayaFormTable: React.FC = () => {
               <Upload className="mr-2 h-4 w-4" /> Impor Data
               <Input id="import-file" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
             </label>
-            <Button onClick={handleDownloadReport} variant="outline">
+            <Button onClick={handleDownloadReport} className="bg-green-600 hover:bg-green-700 text-white border-green-600">
               <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
             </Button>
-
-        {/* Toggle Pilihan Jenis Biaya Tahunan */}
-        <div className="flex items-center gap-1">
-          <Button
-            variant={biayaPreference === 'total_biaya' ? undefined : 'outline'}
-            size="sm"
-            disabled={updatingPreference}
-            onClick={() => handleSetBiayaPreference('total_biaya')}
-          >
-            {updatingPreference && biayaPreference === 'total_biaya' ? 'Memproses...' : 'Total Biaya'}
-          </Button>
-          <Button
-            variant={biayaPreference === 'total_biaya_tanpa_jp' ? undefined : 'outline'}
-            size="sm"
-            disabled={updatingPreference}
-            onClick={() => handleSetBiayaPreference('total_biaya_tanpa_jp')}
-          >
-            {updatingPreference && biayaPreference === 'total_biaya_tanpa_jp' ? 'Memproses...' : 'Total Biaya Tanpa JP'}
-          </Button>
-        </div>
 
         {/* Tombol Tambah Data Biaya */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

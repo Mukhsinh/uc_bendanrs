@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Download, RefreshCw, BarChart3, Database, Zap, CheckCircle, AlertCircle } from "lucide-react";
+import { Download, RefreshCw, BarChart3 } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type RekapRow = {
@@ -63,10 +62,6 @@ export default function DistribusiBiayaRekap() {
   const [rows, setRows] = useState<RekapRow[]>([]);
   const [tahun, setTahun] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState<boolean>(false);
-  const [refreshingAll, setRefreshingAll] = useState<boolean>(false);
-  const [refreshProgress, setRefreshProgress] = useState<number>(0);
-  const [currentRefreshTable, setCurrentRefreshTable] = useState<string>("");
-  const [refreshingSingle, setRefreshingSingle] = useState<string | null>(null);
   const { toast } = useToast();
   const [filterNama, setFilterNama] = useState<string>("");
 
@@ -92,178 +87,42 @@ export default function DistribusiBiayaRekap() {
 
   const fetchRows = async () => {
     try {
+      console.log('🔄 Memulai fetchRows untuk tahun:', tahun);
       setLoading(true);
+      
       const { data, error } = await supabase
         .from("distribusi_biaya_rekap")
         .select("*")
+        .eq("tahun", tahun)
         .order("urutan");
+
+      console.log('📊 Data diterima:', data?.length || 0, 'rows');
+      console.log('❌ Error:', error);
 
       if (error) throw error;
       setRows((data as any[]) as RekapRow[]);
+      
+      toast({ 
+        title: "✅ Data berhasil diperbarui", 
+        description: `${data?.length || 0} baris data dimuat untuk tahun ${tahun}`,
+        duration: 3000
+      });
     } catch (err: any) {
+      console.error('❌ Error fetchRows:', err);
       toast({ title: "Gagal memuat data", description: err.message || String(err), variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshAllCalculations = async () => {
-    try {
-      setRefreshingAll(true);
-      setRefreshProgress(0);
-      setCurrentRefreshTable("Memulai proses...");
-      
-      // Show start notification
-      toast({
-        title: "🚀 Memulai Refresh All Kalkulasi",
-        description: "Proses update tabel kalkulasi sedang berjalan...",
-      });
-      
-      // Simple progress animation
-      setRefreshProgress(30);
-      setCurrentRefreshTable("Mengupdate tabel kalkulasi...");
-      
-      // Call the instant refresh function (anti-timeout)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Request timeout after 15 seconds')), 15000)
-      );
-      
-      const refreshPromise = supabase.rpc('refresh_kalkulasi_minimal');
-      
-      const raceResult = await Promise.race([refreshPromise, timeoutPromise]);
-      const { data, error } = raceResult as { data: any; error: any };
-      
-      if (error) {
-        throw new Error(`Database Error: ${error.message}`);
-      }
-      
-      if (!data) {
-        throw new Error("Tidak ada response dari server");
-      }
-      
-      // Parse the result JSON with safe parsing
-      const refreshData = data as any;
-      
-      // Complete progress
-      setRefreshProgress(100);
-      setCurrentRefreshTable("Selesai!");
-      
-      // Show success notification with safe fallback
-      const successCount = refreshData?.success_count || 0;
-      const totalOps = refreshData?.total_operations || 0;
-      const affectedRows = refreshData?.total_affected_rows || 0;
-      
-      const isMinimalUpdate = refreshData?.note?.includes('sample');
-      
-      toast({
-        title: isMinimalUpdate ? "🎉 Sample Refresh Berhasil!" : "🎉 Refresh All Berhasil!",
-        description: isMinimalUpdate 
-          ? `Sample data berhasil diupdate • Gunakan tombol individual untuk update penuh`
-          : `${successCount}/${totalOps} tabel berhasil • ${affectedRows.toLocaleString()} rows diupdate`,
-        duration: isMinimalUpdate ? 6000 : 5000,
-      });
-      
-      // Log results for debugging
-      console.log("Refresh Results:", refreshData);
-      
-      // Refresh current data after successful operation
-      if (successCount > 0) {
-        setTimeout(async () => {
-          try {
-            setCurrentRefreshTable("Memuat ulang data...");
-            await fetchRows();
-          } catch (fetchError) {
-            console.warn("Warning: Failed to refresh data display", fetchError);
-          }
-        }, 1000);
-      }
-      
-    } catch (err: any) {
-      console.error("Refresh All Error:", err);
-      
-      // Enhanced error notification with better categorization
-      let errorMessage = "Terjadi kesalahan tidak diketahui";
-      let errorTitle = "❌ Gagal Refresh All Kalkulasi";
-      
-      if (err?.message) {
-        if (err.message.includes('timeout') || err.message.includes('Request timeout')) {
-          errorTitle = "⏱️ Timeout Error";
-          errorMessage = "Proses terlalu lama. Coba refresh individual atau hubungi admin.";
-        } else if (err.message.includes('permission')) {
-          errorTitle = "🔒 Permission Error";
-          errorMessage = "Tidak ada izin untuk operasi ini.";
-        } else {
-          errorMessage = err.message;
-        }
-      }
-        
-      toast({ 
-        title: errorTitle, 
-        description: errorMessage,
-        variant: "destructive",
-        duration: 8000,
-      });
-    } finally {
-      // Reset states with delay for better UX - safer cleanup
-      setTimeout(() => {
-        try {
-          setRefreshingAll(false);
-          setRefreshProgress(0);
-          setCurrentRefreshTable("");
-        } catch (cleanupError) {
-          console.warn("Warning: Cleanup error", cleanupError);
-        }
-      }, 2000);
-    }
-  };
-
-  const refreshSingleTable = async (tableName: string) => {
-    try {
-      setRefreshingSingle(tableName);
-      
-      toast({
-        title: "🚀 Refresh Individual",
-        description: `Memproses ${tableName}...`,
-      });
-      
-      const { data, error } = await supabase.rpc('refresh_single_kalkulasi_table', { table_name: tableName });
-      
-      if (error) throw error;
-      
-      const result = data as {
-        status: string;
-        table_name: string;
-        affected_rows: number;
-        duration_ms: number;
-        action: string;
-      };
-      
-      toast({
-        title: `✅ ${tableName} Berhasil!`,
-        description: `${result.affected_rows} rows diupdate dalam ${result.duration_ms.toFixed(0)}ms`,
-        duration: 3000,
-      });
-      
-      // Refresh data setelah sukses
-      await fetchRows();
-      
-    } catch (err: any) {
-      toast({ 
-        title: `❌ Gagal Refresh ${tableName}`, 
-        description: err.message || String(err),
-        variant: "destructive" 
-      });
-    } finally {
-      setRefreshingSingle(null);
-    }
-  };
-
   const exportExcel = async () => {
     try {
       setLoading(true);
+      
       const { data, error } = await supabase
         .from("distribusi_biaya_rekap")
         .select("*")
+        .eq("tahun", tahun)
         .order("urutan");
       if (error) throw error;
       const rowsForDownload: RekapRow[] = (data as any[]) as RekapRow[];
@@ -335,96 +194,24 @@ export default function DistribusiBiayaRekap() {
             </div>
             <div className="space-y-4">
               <div className="flex items-end gap-2 flex-wrap">
-                <Button variant="secondary" disabled={loading || refreshingAll || !!refreshingSingle} onClick={exportExcel}>
+                <Button variant="destructive" disabled={loading} onClick={exportExcel}>
                   <Download className="h-4 w-4 mr-2" />
-                  Unduh Excel
-                </Button>
-                <Button variant="outline" disabled={loading || refreshingAll || !!refreshingSingle} onClick={fetchRows}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh Data
+                  Unduh Laporan
                 </Button>
                 <Button 
                   variant="default" 
-                  disabled={loading || refreshingAll || !!refreshingSingle} 
+                  disabled={loading} 
                   onClick={(e) => {
                     e.preventDefault();
-                    refreshAllCalculations().catch(console.error);
-                  }}
-                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                    console.log('🔘 Tombol Perbarui Data diklik');
+                    fetchRows().catch((err) => console.error('❌ Error saat fetchRows:', err));
+                  }} 
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {refreshingAll ? (
-                    <span className="flex items-center">
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Memproses...
-                    </span>
-                  ) : (
-                  <span className="flex items-center">
-                    <Zap className="h-4 w-4 mr-2" />
-                    Sample Refresh (Anti-Timeout)
-                  </span>
-                  )}
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Perbarui Data
                 </Button>
-                
-                {/* Warning Box */}
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800 mt-2">
-                  <p>
-                    ⚡ <strong>Mode Sample Refresh:</strong> Untuk menghindari timeout, tombol ini hanya mengupdate sample data. 
-                    Gunakan tombol individual di bawah untuk update penuh per modul.
-                  </p>
-                </div>
               </div>
-              
-              {/* Individual Refresh Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-gray-600 font-medium">Refresh Individual:</span>
-                {[
-                  { key: 'gizi', label: 'Gizi (Formula Baru)', icon: '🍽️' },
-                  { key: 'cathlab', label: 'Cathlab', icon: '🏥' },
-                  { key: 'laboratorium', label: 'Lab', icon: '🔬' },
-                  { key: 'daftar_resep', label: 'Daftar & Resep', icon: '📋' }
-                ].map(({ key, label, icon }) => (
-                  <Button
-                    key={key}
-                    size="sm"
-                    variant="outline"
-                    disabled={loading || refreshingAll || refreshingSingle === key}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      refreshSingleTable(key).catch(console.error);
-                    }}
-                    className="text-xs"
-                  >
-                    <span className="flex items-center">
-                      {refreshingSingle === key ? (
-                        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <span className="mr-1">{icon}</span>
-                      )}
-                      {label}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-              
-              {/* Simple Progress Status */}
-              {refreshingAll && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-blue-800">
-                        Refresh All Kalkulasi Sedang Berjalan
-                      </div>
-                      <div className="text-xs text-blue-600 mt-1">
-                        {currentRefreshTable || "Memproses..."}
-                      </div>
-                    </div>
-                    <div className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded">
-                      {refreshProgress.toFixed(0)}%
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </CardContent>

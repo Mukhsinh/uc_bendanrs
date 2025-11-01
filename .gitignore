@@ -1,152 +1,96 @@
-# Dependencies
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+
+# Node.js
 node_modules/
-/.pnp
-.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Production
-/dist
-/build
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Uploads and temporary files
+uploads/
+temp_duplicates/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Environment files
+.env.local
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Dependency directories
-jspm_packages/
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-
-# Nuxt.js build / generate output
-.nuxt
-dist
-
-# Storybook build outputs
-.out
-.storybook-out
-
-# Temporary folders
-tmp/
-temp/
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Supabase
-.supabase/
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Backup files
-*.bak
-*.backup
-
-# Test files (optional)
-test-*.html
-test-*.js
-test-*.mjs
-
-# Temporary PowerShell scripts
-*.ps1
-!install_and_run.ps1
-!complete-setup.ps1
-
-# Temporary batch files  
-*.bat
-!install_and_run.bat
-
-# SQL temp files
-*-temp.sql
-*-test.sql
-fix-*.sql
-create-*.sql
-urgent-*.sql
-
-# Documentation temp files
-LAPORAN_*.md
-PERBAIKAN_*.md
-IMPLEMENTASI_*.md
-DOKUMENTASI_*.md
-ANALISIS_*.md
-HASIL_*.md
-HASIL_*.txt
-RINGKASAN_*.md
-RINGKASAN_*.txt
-SUMMARY_*.txt
-TECHNICAL_*.md
-VISUAL_*.md
-TIMEOUT_*.md
-URGENT_*.md
-CRITICAL_*.sql
-FIX_*.sql
-FIX_*.md
-OPEN-*.html
-
-# Exclude large documentation files that are not essential
-*.md
+# Documentation files (keep README.md and docs/ folder)
+/*.md
 !README.md
-!DEPLOYMENT_GUIDE.md
-!API_DOCUMENTATION.md
-!DATABASE_SCHEMA_DOCUMENTATION.md
+docs/
+
+# SQL migration/fix scripts (keep scripts in scripts/ and database/ folders)
+/*.sql
+!scripts/
+!database/
+!src/
+
+# PowerShell scripts
+*.ps1
+
+# Utility scripts (JS files in root)
+/*.js
+!src/**/*.js
+!eslint.config.js
+!*.config.js
+
+# HTML utility files
+*.html
+!src/**/*.html
+!public/**/*.html
+
+# Text summary files
+*.txt
+!src/**/*.txt
+
+# Python utility files in root
+/app.py
+
+# Database utility scripts
+check-database-status.*
+create-table-*.js
+test-*.js
+fix-db-*.js
+fix-database-*.js

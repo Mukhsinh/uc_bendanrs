@@ -99,6 +99,30 @@ interface DistribusiBiayaData {
   uk077_unit_diklat: number;
 }
 
+const getColumnName = (i: number): string => {
+  const ukCode = `uk${i.toString().padStart(3, '0')}`;
+  const suffixes = [
+    '_direktur', '_komite_ppi', '_komite_pmkp', '_komite_medik', '_akreditasi', '_dewan_pengawas',
+    '_bid_pengembangan_dan_penunjang_pelayanan', '_seksi_penunjang_non_medis_dan_pengembangan_penunjang_pela',
+    '_ipsrs_medis_dan_non_medis', '_seksi_penunjang_pelayanan_medis', '_bid_keperawatan',
+    '_seksi_asuhan_pelayanan_keperawatan', '_seksi_pengembangan_dan_etika_keperawatan', '_bid_pelayanan_medis',
+    '_seksi_pengembangan_pelayanan_medis', '_seksi_pelayanan_medis_dan_rekam_medis', '_tpprj', '_tppri',
+    '_bag_tata_usaha', '_subag_keuangan', '_unit_perbendaharaan', '_unit_pendapatan',
+    '_unit_akuntansi_dan_verifikasi', '_unit_akuntansi_manajemen', '_analis_biaya_dan_kasir',
+    '_subag_umpeg', '_staf_umum_dan_kepegawaian', '_unit_it', '_rumah_tangga', '_cleaning_service',
+    '_security', '_unit_aset', '_instalasi_humas_komplain', '_subag_renval', '_staf_renval',
+    '_rekam_medik', '_ambulance', '_laboratorium_pk_pa', '_radiologi', '_farmasi', '_rehab_medik',
+    '_gizi_dapur', '_laundry_cssd', '_bdrs', '_cathlab', '_terang_bulan_vip_vvip', '_truntum',
+    '_sekarjagat', '_jlamprang', '_nifas', '_perinatologi', '_buketan', '_icu_picu_nicu', '_vk',
+    '_igd_ponek', '_klinik_kebid_kandungan', '_klinik_bedah_mulut', '_klinik_syaraf',
+    '_klinik_bedah_syaraf', '_klinik_bedah_digestif', '_klinik_bedah_umum', '_klinik_anak',
+    '_klinik_penyakit_dalam', '_klinik_mata', '_klinik_kulit_kelamin', '_klinik_tht', '_klinik_gigi',
+    '_klinik_jantung', '_klinik_dot_vct_cst', '_klinik_paru', '_klinik_orthopedi', '_klinik_jiwa',
+    '_klinik_parikesit', '_ibs', '_pemulasaran_jenazah', '_hemodialisis', '_unit_diklat'
+  ];
+  return ukCode + suffixes[i - 1];
+};
+
 const DistribusiBiayaPertama: React.FC = () => {
   const [data, setData] = useState<DistribusiBiayaData[]>([]);
   const [filteredData, setFilteredData] = useState<DistribusiBiayaData[]>([]);
@@ -396,31 +420,11 @@ const DistribusiBiayaPertama: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Distribusi Biaya Pertama</h1>
-          <p className="text-muted-foreground">
-            Perhitungan distribusi biaya berdasarkan rumus yang telah divalidasi
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={calculateDistribusiBiaya}
-            disabled={calculating}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {calculating ? (
-              <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-            ) : (
-              <Calculator className="h-4 w-4 mr-2" />
-            )}
-            Perbarui
-          </Button>
-          <Button onClick={downloadReport} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Distribusi Biaya Pertama</h1>
+        <p className="text-muted-foreground">
+          Perhitungan distribusi biaya berdasarkan rumus yang telah divalidasi
+        </p>
       </div>
 
       {/* Filters */}
@@ -432,7 +436,7 @@ const DistribusiBiayaPertama: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="unit-kerja">Unit Kerja</Label>
               <Select value={selectedUnitKerja} onValueChange={setSelectedUnitKerja}>
@@ -472,15 +476,32 @@ const DistribusiBiayaPertama: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
-            <div className="flex items-end">
-              <Button onClick={applyFilters} className="w-full">
-                Terapkan Filter
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Action Buttons */}
+      <div className="flex gap-2 justify-start">
+        <Button
+          onClick={calculateDistribusiBiaya}
+          disabled={calculating}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          {calculating ? (
+            <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+          ) : (
+            <Calculator className="h-4 w-4 mr-2" />
+          )}
+          Perbarui Data
+        </Button>
+        <Button onClick={downloadReport} className="bg-red-600 hover:bg-red-700 text-white">
+          <Download className="h-4 w-4 mr-2" />
+          Unduh Laporan
+        </Button>
+        <Button onClick={applyFilters}>
+          Terapkan Filter
+        </Button>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -530,22 +551,23 @@ const DistribusiBiayaPertama: React.FC = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Unit Kerja</TableHead>
-                  <TableHead>Dasar Alokasi</TableHead>
-                  <TableHead>Biaya Tahunan</TableHead>
-                  <TableHead>Terdistribusi I</TableHead>
-                  <TableHead>Audit</TableHead>
-                  <TableHead>Direktur</TableHead>
-                  <TableHead>Komite PPI</TableHead>
-                  <TableHead>Komite PMKP</TableHead>
-                  <TableHead>Komite Medik</TableHead>
-                  <TableHead>Akreditasi</TableHead>
+                  <TableHead className="sticky left-0 bg-background min-w-[200px]">Unit Kerja</TableHead>
+                  <TableHead className="min-w-[150px]">Dasar Alokasi</TableHead>
+                  <TableHead className="min-w-[120px]">Biaya Tahunan</TableHead>
+                  <TableHead className="min-w-[120px]">Terdistribusi I</TableHead>
+                  <TableHead className="min-w-[80px]">Audit</TableHead>
+                  {Array.from({ length: 77 }, (_, idx) => {
+                    const ukCode = `UK${(1 + idx).toString().padStart(3, '0')}`;
+                    return (
+                      <TableHead key={ukCode} className="min-w-[110px]">{ukCode}</TableHead>
+                    );
+                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredData.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium sticky left-0 bg-background">
                       {item.unit_kerja_pusat_biaya}
                     </TableCell>
                     <TableCell>
@@ -560,11 +582,13 @@ const DistribusiBiayaPertama: React.FC = () => {
                         {item.audit_check || ''}
                       </Badge>
                     </TableCell>
-                    <TableCell>{formatCurrency(item.uk001_direktur)}</TableCell>
-                    <TableCell>{formatCurrency(item.uk002_komite_ppi)}</TableCell>
-                    <TableCell>{formatCurrency(item.uk003_komite_pmkp)}</TableCell>
-                    <TableCell>{formatCurrency(item.uk004_komite_medik)}</TableCell>
-                    <TableCell>{formatCurrency(item.uk005_akreditasi)}</TableCell>
+                    {Array.from({ length: 77 }, (_, idx) => {
+                      const col = getColumnName(idx + 1);
+                      const val = (item as any)[col] ?? 0;
+                      return (
+                        <TableCell key={col}>{formatCurrency(val)}</TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))}
               </TableBody>

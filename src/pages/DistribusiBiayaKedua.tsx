@@ -61,17 +61,23 @@ export default function DistribusiBiayaKedua() {
 
   console.log('DistribusiBiayaKedua component rendered');
 
+  // Menghitung total alokasi I dari semua baris yang difilter
   const totalAlokasiI = useMemo(() => filteredRows.reduce((s, r) => s + (r.total_alokasi_i ?? 0), 0), [filteredRows]);
+  
+  // Menghitung total untuk setiap kolom UK (UK037-UK077)
+  // Rumus konsisten untuk semua baris: menjumlahkan nilai dari setiap baris untuk kolom yang sama
   const columnTotals = useMemo(() => {
     const totals: Record<string, number> = {};
+    // Inisialisasi semua kolom UK037-UK077 dengan nilai 0
     for (let i = 37; i <= 77; i++) {
       const col = getColumnName(i);
       totals[col] = 0;
     }
+    // Jumlahkan nilai dari setiap baris untuk setiap kolom
     filteredRows.forEach((r) => {
       for (let i = 37; i <= 77; i++) {
         const col = getColumnName(i);
-        const val = (r as any)[col] ?? 0;
+        const val = (r as any)[col] ?? 0; // Handle null/undefined dengan default 0
         totals[col] += val;
       }
     });
@@ -97,6 +103,12 @@ export default function DistribusiBiayaKedua() {
     }
   }, [rows, selectedUnitKerja]);
 
+  /**
+   * Fungsi untuk memperbarui data dari database
+   * Memanggil fungsi ini saat tombol "Perbarui Data" diklik atau tahun berubah
+   * Data yang diambil sudah termasuk semua kolom UK037-UK077 yang sudah dihitung di backend
+   * Rumus untuk setiap kolom UK sudah konsisten dan dihitung di database melalui stored procedure
+   */
   const fetchRows = async () => {
     try {
       setLoading(true);
@@ -119,6 +131,8 @@ export default function DistribusiBiayaKedua() {
         throw new Error(`Database connection error: ${testError.message}`);
       }
       
+      // Fetch semua data untuk tahun yang dipilih
+      // Data sudah termasuk kolom UK037-UK077 dan total_alokasi_biaya_kedua yang sudah dihitung di backend
       const { data, error } = await supabase
         .from("distribusi_biaya_kedua")
         .select("*")
@@ -147,6 +161,7 @@ export default function DistribusiBiayaKedua() {
         return;
       }
       
+      // Set data rows - semua nilai kolom UK sudah konsisten dari database
       setRows(all as DistribusiKeduaRow[]);
 
       // Ambil daftar unit kerja untuk filter
@@ -264,12 +279,6 @@ export default function DistribusiBiayaKedua() {
               <Label htmlFor="tahun">Tahun</Label>
               <Input id="tahun" type="number" value={tahun} min={2020} max={2035} onChange={(e) => setTahun(parseInt(e.target.value))} />
             </div>
-            <div className="flex items-end gap-2">
-              <Button variant="outline" disabled={loading} onClick={fetchRows}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
           </div>
           
           <div className="space-y-4">
@@ -290,9 +299,21 @@ export default function DistribusiBiayaKedua() {
               </select>
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" disabled={loading || filteredRows.length === 0} onClick={exportExcel}>
+              <Button 
+                className="bg-red-600 hover:bg-red-700 text-white"
+                disabled={loading || filteredRows.length === 0} 
+                onClick={exportExcel}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan Excel
+                Unduh Laporan
+              </Button>
+              <Button 
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+                disabled={loading} 
+                onClick={fetchRows}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Perbarui Data
               </Button>
             </div>
           </div>
@@ -366,9 +387,11 @@ export default function DistribusiBiayaKedua() {
                         {r.audit_check || 'Unknown'}
                       </Badge>
                     </TableCell>
+                    {/* Render kolom UK037-UK077 dengan format yang konsisten untuk semua baris */}
                     {Array.from({ length: 77 - 37 + 1 }, (_, idx) => {
                       const col = getColumnName(37 + idx);
-                      const val = (r as any)[col] ?? 0;
+                      const val = (r as any)[col] ?? 0; // Handle null/undefined dengan default 0
+                      // Format konsisten: bulatkan dan format dengan locale Indonesia
                       return (
                         <TableCell key={col} className="text-right">{Math.round(val).toLocaleString("id-ID")}</TableCell>
                       );
@@ -392,9 +415,11 @@ export default function DistribusiBiayaKedua() {
                   <TableCell className="text-right font-semibold">{filteredRows.reduce((sum, r) => sum + (r.biaya_alokasi_i ?? 0), 0).toLocaleString("id-ID")}</TableCell>
                   <TableCell />
                   <TableCell />
+                  {/* Total untuk setiap kolom UK - menggunakan columnTotals yang sudah dihitung */}
                   {Array.from({ length: 77 - 37 + 1 }, (_, idx) => {
                     const col = getColumnName(37 + idx);
-                    const total = columnTotals[col] ?? 0;
+                    const total = columnTotals[col] ?? 0; // Menggunakan total yang sudah dihitung dengan rumus konsisten
+                    // Format konsisten: bulatkan dan format dengan locale Indonesia
                     return (
                       <TableCell key={col} className="text-right font-semibold">{Math.round(total).toLocaleString("id-ID")}</TableCell>
                     );
