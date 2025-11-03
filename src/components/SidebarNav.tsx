@@ -356,7 +356,11 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       if (["/data-operasional/kegiatan","/data-operasional/kegiatan-rs","/data-operasional/pendapatan","/data-operasional/biaya"].some(p => currentPath.startsWith(p))) return "Data Operasional";
       if (["kalkulasi-biaya-gizi","kalkulasi-biaya-laboratorium","kalkulasi-biaya-radiologi","kalkulasi-biaya-bdrs"].some(seg => currentPath.includes(seg))) return "Unit Penunjang";
       if (currentPath.startsWith("/keperawatan/")) return "Unit Keperawatan";
-      if (currentPath.startsWith("/pelayanan/")) return "Unit Pelayanan";
+      // Beberapa item Unit Pelayanan tidak berawalan /pelayanan/, tangani keduanya
+      if (
+        currentPath.startsWith("/pelayanan/") ||
+        ["kalkulasi-biaya-operatif", "kalkulasi-biaya-cathlab"].some(seg => currentPath.includes(seg))
+      ) return "Unit Pelayanan";
       if (currentPath.includes("kalkulasi-biaya-diklat")) return "Unit Diklat";
       if (currentPath.startsWith("/skenario-tarif")) return "Skenario Tarif";
       if (currentPath.startsWith("/distribusi-biaya")) return "Distribusi Biaya";

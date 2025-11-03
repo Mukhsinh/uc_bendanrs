@@ -29,6 +29,9 @@ const KalkulasiBiayaCathlab: React.FC = () => {
   const [tindakanList, setTindakanList] = useState<{kode: string, nama: string}[]>([]);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
+  const [jenisFilterInput, setJenisFilterInput] = useState<string>('');
+  const [selectedJenisFilters, setSelectedJenisFilters] = useState<string[]>([]);
+  const [showFilterSuggestions, setShowFilterSuggestions] = useState<boolean>(false);
 
   // Total biaya bahan (Rp) untuk ringkasan di footer form bahan
   const totalBahanFarmasi = useMemo(() => {
@@ -80,6 +83,27 @@ const KalkulasiBiayaCathlab: React.FC = () => {
       console.error("Error loading tindakan:", err);
     }
   };
+
+  const jenisOptions = useMemo(() => {
+    return Array.from(new Set((rows || []).map((r) => r.jenis_pemeriksaan))).filter(Boolean);
+  }, [rows]);
+
+  const filteredJenisOptions = useMemo(() => {
+    const q = (jenisFilterInput || '').toLowerCase();
+    const base = jenisOptions.filter((j) => j && j.toLowerCase().includes(q));
+    const selectedSet = new Set(selectedJenisFilters);
+    return [...base.filter(j => !selectedSet.has(j)), ...base.filter(j => selectedSet.has(j))].slice(0, 12);
+  }, [jenisOptions, jenisFilterInput, selectedJenisFilters]);
+
+  const filteredRows = useMemo(() => {
+    if (selectedJenisFilters.length > 0) {
+      const setSel = new Set(selectedJenisFilters);
+      return (rows || []).filter((r) => setSel.has(r.jenis_pemeriksaan));
+    }
+    if (!jenisFilterInput) return rows;
+    const q = jenisFilterInput.toLowerCase();
+    return (rows || []).filter((r) => (r.jenis_pemeriksaan || '').toLowerCase().includes(q));
+  }, [rows, jenisFilterInput, selectedJenisFilters]);
 
   const generateInitialData = async (currentUserId: string) => {
     try {
@@ -567,6 +591,74 @@ const KalkulasiBiayaCathlab: React.FC = () => {
               className="w-[120px]" 
               placeholder="Tahun"
             />
+            <div className="flex flex-col gap-2">
+              <div className="relative w-[280px]">
+                <Input
+                  value={jenisFilterInput}
+                  onChange={(e) => { setJenisFilterInput(e.target.value); setShowFilterSuggestions(true); }}
+                  onFocus={() => setShowFilterSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowFilterSuggestions(false), 150)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const v = (jenisFilterInput || '').trim();
+                      if (!v) return;
+                      if (selectedJenisFilters.includes(v)) { setJenisFilterInput(''); return; }
+                      setSelectedJenisFilters((prev) => [...prev, v]);
+                      setJenisFilterInput('');
+                    } else if (e.key === 'Backspace' && !jenisFilterInput) {
+                      setSelectedJenisFilters((prev) => prev.slice(0, -1));
+                    }
+                  }}
+                  placeholder={selectedJenisFilters.length ? "Tambah jenis tindakan..." : "Filter jenis tindakan..."}
+                  className="pr-8"
+                />
+                {showFilterSuggestions && filteredJenisOptions.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md max-h-60 overflow-auto">
+                    {filteredJenisOptions.map((opt) => {
+                      const isSelected = selectedJenisFilters.includes(opt);
+                      return (
+                        <div
+                          key={opt}
+                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-gray-50' : ''}`}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedJenisFilters(prev => prev.filter(v => v !== opt));
+                            } else {
+                              setSelectedJenisFilters(prev => [...prev, opt]);
+                            }
+                            setJenisFilterInput('');
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">{opt}</span>
+                            {isSelected && <span className="text-xs text-gray-500">✓</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {selectedJenisFilters.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedJenisFilters.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-gray-100 rounded border">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJenisFilters((prev) => prev.filter((t) => t !== tag))}
+                        className="text-gray-500 hover:text-gray-700"
+                        aria-label={`Hapus ${tag}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <Button variant="outline" onClick={handleDownloadTemplate}>
               Unduh Template Import
             </Button>
@@ -676,13 +768,13 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : rows.length === 0 ? (
+                ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={11} className="h-24 text-center">
                       <div className="text-gray-500">Tidak ada data untuk ditampilkan</div>
                     </TableCell>
                   </TableRow>
-                ) : rows.map((r) => {
+                ) : filteredRows.map((r) => {
                   const hasBahan = r.bahan_pemeriksaan && Array.isArray(r.bahan_pemeriksaan) && r.bahan_pemeriksaan.length > 0;
                   
                   return (
@@ -737,7 +829,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
           </div>
           
           <div className="mt-4 text-sm text-muted-foreground">
-            Total tindakan ditampilkan: {rows.length}
+            Total tindakan ditampilkan: {filteredRows.length}
           </div>
         </CardContent>
       </Card>

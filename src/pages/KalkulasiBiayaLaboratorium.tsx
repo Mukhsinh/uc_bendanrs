@@ -42,6 +42,9 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
   const [tindakanQuery, setTindakanQuery] = useState<string>("");
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
+  const [jenisFilterInput, setJenisFilterInput] = useState<string>("");
+  const [selectedJenisFilters, setSelectedJenisFilters] = useState<string[]>([]);
+  const [showFilterSuggestions, setShowFilterSuggestions] = useState<boolean>(false);
   // State untuk manual recalculation
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
@@ -95,7 +98,6 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
           updated_at
         `)
         .eq('tahun', year)
-        .eq('user_id', currentUserId)
         .order('jenis_pemeriksaan');
 
       const endTime = performance.now();
@@ -115,6 +117,28 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
   const updateData = async () => {
     await fetchData();
   };
+
+  const jenisOptions = useMemo(() => {
+    return Array.from(new Set((rows || []).map((r) => r.jenis_pemeriksaan))).filter(Boolean);
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (selectedJenisFilters.length > 0) {
+      const setSel = new Set(selectedJenisFilters);
+      return (rows || []).filter((r) => setSel.has(r.jenis_pemeriksaan));
+    }
+    if (!jenisFilterInput) return rows;
+    const q = jenisFilterInput.toLowerCase();
+    return (rows || []).filter((r) => (r.jenis_pemeriksaan || '').toLowerCase().includes(q));
+  }, [rows, jenisFilterInput, selectedJenisFilters]);
+
+  const filteredJenisOptions = useMemo(() => {
+    const q = (jenisFilterInput || '').toLowerCase();
+    const base = jenisOptions.filter((j) => j && j.toLowerCase().includes(q));
+    // Prioritaskan yang belum dipilih
+    const selectedSet = new Set(selectedJenisFilters);
+    return [...base.filter(j => !selectedSet.has(j)), ...base.filter(j => selectedSet.has(j))].slice(0, 12);
+  }, [jenisOptions, jenisFilterInput, selectedJenisFilters]);
 
   const handleManualRecalculation = async () => {
     const userId = (await supabase.auth.getUser())?.data?.user?.id;
@@ -827,6 +851,74 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
         <CardContent>
           <div className="flex flex-wrap gap-2 mb-4 items-center">
             <Input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)} className="w-[120px]" />
+            <div className="flex flex-col gap-2">
+              <div className="relative w-[280px]">
+                <Input
+                  value={jenisFilterInput}
+                  onChange={(e) => { setJenisFilterInput(e.target.value); setShowFilterSuggestions(true); }}
+                  onFocus={() => setShowFilterSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowFilterSuggestions(false), 150)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const v = (jenisFilterInput || '').trim();
+                      if (!v) return;
+                      if (selectedJenisFilters.includes(v)) { setJenisFilterInput(''); return; }
+                      setSelectedJenisFilters((prev) => [...prev, v]);
+                      setJenisFilterInput('');
+                    } else if (e.key === 'Backspace' && !jenisFilterInput) {
+                      setSelectedJenisFilters((prev) => prev.slice(0, -1));
+                    }
+                  }}
+                  placeholder={selectedJenisFilters.length ? "Tambah jenis pemeriksaan..." : "Filter jenis pemeriksaan..."}
+                  className="pr-8"
+                />
+                {showFilterSuggestions && filteredJenisOptions.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md max-h-60 overflow-auto">
+                    {filteredJenisOptions.map((opt) => {
+                      const isSelected = selectedJenisFilters.includes(opt);
+                      return (
+                        <div
+                          key={opt}
+                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-gray-50' : ''}`}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedJenisFilters(prev => prev.filter(v => v !== opt));
+                            } else {
+                              setSelectedJenisFilters(prev => [...prev, opt]);
+                            }
+                            setJenisFilterInput('');
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">{opt}</span>
+                            {isSelected && <span className="text-xs text-gray-500">✓</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {selectedJenisFilters.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedJenisFilters.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-gray-100 rounded border">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJenisFilters((prev) => prev.filter((t) => t !== tag))}
+                        className="text-gray-500 hover:text-gray-700"
+                        aria-label={`Hapus ${tag}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <Button variant="outline" onClick={handleDownloadTemplate}>Unduh Template Import</Button>
             <Button variant="outline" onClick={() => setShowReportFilter(true)} disabled={loading || importing || autoCalculating || rows.length === 0}>
               Unduh Laporan
@@ -996,7 +1088,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : rows.length === 0 ? (
+                ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -1007,7 +1099,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : rows.map((r) => (
+                ) : filteredRows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium max-w-[200px] truncate" title={r.jenis_pemeriksaan}>{r.jenis_pemeriksaan}</TableCell>
                     <TableCell>{r.jumlah}</TableCell>

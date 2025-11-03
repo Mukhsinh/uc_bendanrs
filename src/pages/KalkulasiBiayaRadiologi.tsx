@@ -52,6 +52,9 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
   const [refreshingFormula, setRefreshingFormula] = useState<boolean>(false);
+  const [jenisFilterInput, setJenisFilterInput] = useState<string>('');
+  const [selectedJenisFilters, setSelectedJenisFilters] = useState<string[]>([]);
+  const [showFilterSuggestions, setShowFilterSuggestions] = useState<boolean>(false);
   
   // State untuk master data radiologi dan autocomplete
   const [masterRadiologi, setMasterRadiologi] = useState<{kode_tindakan: string, nama_tindakan: string}[]>([]);
@@ -250,11 +253,10 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
 
   const generateInitialData = async (currentUserId: string) => {
     try {
-      console.log("Checking existing data for user:", currentUserId, "year:", year);
+      console.log("Checking existing data for year (shared data, not per user):", year);
       const { data: existingData, error: checkError } = await supabase
         .from("kalkulasi_biaya_radiologi")
         .select("id")
-        .eq("user_id", currentUserId)
         .eq("tahun", year)
         .limit(1);
         
@@ -266,7 +268,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       }
         
       if (!existingData || existingData.length === 0) {
-        console.log("No existing data found, generating initial data for user:", currentUserId);
+        console.log("No existing data found for year, generating initial data (one-time) by user:", currentUserId);
         
         // Buat data awal dengan fungsi sederhana
         const { data: createResult, error: createError } = await supabase.rpc('create_kalkulasi_biaya_radiologi_data', {
@@ -328,36 +330,13 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
   };
 
   const loadData = async (currentUserId?: string) => {
-    const userIdToUse = currentUserId || userId;
     console.log("=== LOAD DATA START ===");
-    console.log("User ID:", userIdToUse);
     console.log("Year:", year);
     
     setLoading(true);
     try {
-      // Pastikan user_id ada sebelum query
-      if (!userIdToUse) {
-        console.log("No user ID, skipping load");
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
     const { data, error } = await supabase
-      .from("kalkulasi_biaya_radiologi")
-        .select(`
-        id, kode, kode_unit_kerja, jenis_pemeriksaan, jumlah, waktu_pemeriksaan, profesionalisme, tingkat_kesulitan, 
-        hasil_kali_waktu, dasar_alokasi_waktu, hasil_kali, dasar_alokasi_hasil_kali, 
-        biaya_bahan_pemeriksaan_numeric, unit_cost_per_pemeriksaan, bahan_pemeriksaan,
-        biaya_gaji_tunjangan, biaya_rumah_tangga, biaya_cetak, biaya_atk, biaya_listrik, 
-        biaya_air, biaya_telp, biaya_pemeliharaan_bangunan, biaya_pemeliharaan_alat_medis,
-        biaya_pemeliharaan_alat_non_medis, biaya_operasional_lainnya, biaya_penyusutan_gedung,
-        biaya_penyusutan_jaringan, biaya_penyusutan_alat_medis, biaya_penyusutan_alat_non_medis,
-        biaya_pendidikan_pelatihan, biaya_laundry, biaya_sterilisasi, biaya_tidak_langsung_terdistribusi
-      `)
-      .eq("tahun", year)
-      .eq("user_id", userIdToUse)
-      .order("jenis_pemeriksaan", { ascending: true });
+      .rpc('get_kalkulasi_biaya_radiologi_by_tahun', { p_tahun: year });
         
       console.log("Load query result:", { data, error });
       console.log("Data length:", data?.length);
@@ -379,7 +358,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
         
         // Store in localStorage for persistence
         try {
-          localStorage.setItem(`kalkulasi_radiologi_${userIdToUse}_${year}`, JSON.stringify(processedData));
+          localStorage.setItem(`kalkulasi_radiologi_${year}`, JSON.stringify(processedData));
           console.log("Data saved to localStorage");
         } catch (storageError) {
           console.warn("Could not save to localStorage:", storageError);
@@ -394,6 +373,27 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       console.log("=== LOAD DATA END ===");
     }
   };
+
+  const jenisOptions = useMemo(() => {
+    return Array.from(new Set((rows || []).map((r) => r.jenis_pemeriksaan))).filter(Boolean);
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (selectedJenisFilters.length > 0) {
+      const setSel = new Set(selectedJenisFilters);
+      return (rows || []).filter((r) => setSel.has(r.jenis_pemeriksaan));
+    }
+    if (!jenisFilterInput) return rows;
+    const q = jenisFilterInput.toLowerCase();
+    return (rows || []).filter((r) => (r.jenis_pemeriksaan || '').toLowerCase().includes(q));
+  }, [rows, jenisFilterInput, selectedJenisFilters]);
+
+  const filteredJenisOptions = useMemo(() => {
+    const q = (jenisFilterInput || '').toLowerCase();
+    const base = jenisOptions.filter((j) => j && j.toLowerCase().includes(q));
+    const selectedSet = new Set(selectedJenisFilters);
+    return [...base.filter(j => !selectedSet.has(j)), ...base.filter(j => selectedSet.has(j))].slice(0, 12);
+  }, [jenisOptions, jenisFilterInput, selectedJenisFilters]);
 
   const refreshWithCorrectFormula = async () => {
     try {
@@ -1239,6 +1239,74 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
         <CardContent>
           <div className="flex flex-wrap gap-2 mb-4 items-center">
             <Input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)} className="w-[120px]" />
+            <div className="flex flex-col gap-2">
+              <div className="relative w-[280px]">
+                <Input
+                  value={jenisFilterInput}
+                  onChange={(e) => { setJenisFilterInput(e.target.value); setShowFilterSuggestions(true); }}
+                  onFocus={() => setShowFilterSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowFilterSuggestions(false), 150)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const v = (jenisFilterInput || '').trim();
+                      if (!v) return;
+                      if (selectedJenisFilters.includes(v)) { setJenisFilterInput(''); return; }
+                      setSelectedJenisFilters((prev) => [...prev, v]);
+                      setJenisFilterInput('');
+                    } else if (e.key === 'Backspace' && !jenisFilterInput) {
+                      setSelectedJenisFilters((prev) => prev.slice(0, -1));
+                    }
+                  }}
+                  placeholder={selectedJenisFilters.length ? "Tambah jenis pemeriksaan..." : "Filter jenis pemeriksaan..."}
+                  className="pr-8"
+                />
+                {showFilterSuggestions && filteredJenisOptions.length > 0 && (
+                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md max-h-60 overflow-auto">
+                    {filteredJenisOptions.map((opt) => {
+                      const isSelected = selectedJenisFilters.includes(opt);
+                      return (
+                        <div
+                          key={opt}
+                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-gray-50' : ''}`}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedJenisFilters(prev => prev.filter(v => v !== opt));
+                            } else {
+                              setSelectedJenisFilters(prev => [...prev, opt]);
+                            }
+                            setJenisFilterInput('');
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="truncate">{opt}</span>
+                            {isSelected && <span className="text-xs text-gray-500">✓</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {selectedJenisFilters.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedJenisFilters.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-gray-100 rounded border">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJenisFilters((prev) => prev.filter((t) => t !== tag))}
+                        className="text-gray-500 hover:text-gray-700"
+                        aria-label={`Hapus ${tag}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <Button variant="outline" onClick={handleDownloadTemplate}>Unduh Template Import</Button>
             <Button variant="outline" onClick={() => setShowReportFilter(true)} disabled={loading || importing || autoCalculating || rows.length === 0}>
               Unduh Laporan
@@ -1409,7 +1477,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : rows.length === 0 ? (
+                ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
@@ -1420,7 +1488,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ) : rows.map((r) => (
+                ) : filteredRows.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.jenis_pemeriksaan}</TableCell>
                     <TableCell>{r.jumlah}</TableCell>
