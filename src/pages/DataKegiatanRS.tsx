@@ -53,6 +53,7 @@ import * as XLSX from "xlsx";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
 import { DataKegiatanAddForm } from "@/components/DataKegiatanAddForm";
+import Papa from "papaparse";
 
 interface StatsCard {
   title: string;
@@ -159,6 +160,7 @@ export default function DataKegiatanRS() {
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError, hideProgress } = useUploadProgress();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Partial<DataKegiatan>>({});
+  const [isRefreshingTranspose, setIsRefreshingTranspose] = useState(false);
 
   // Stats calculations
   const stats: StatsCard[] = [
@@ -398,53 +400,418 @@ export default function DataKegiatanRS() {
     }
   };
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {  
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      // Tampilkan loading awal tanpa progress bar (sampai kita tahu total data yang akan diupdate)
+      const text = await file.text();
 
-          if (jsonData.length === 0) {
-            showUploadError("File tidak berisi data");
-            return;
+      let rawRows: any[] = [];
+      (Papa as any).parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h: string) => (h || "").trim(),
+        complete: async (results: any) => {
+          try {
+            rawRows = Array.isArray(results.data) ? results.data : [];
+            if (rawRows.length === 0) {
+              showUploadError("File tidak berisi data");
+              return;
+            }
+
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError || !user) throw new Error("User tidak ditemukan. Silakan login kembali.");
+
+            const numericKeys = [
+              "SDM_dokter","SDM_Perawat","SDM_Non","Jml_jam_Praktek_Harian",
+              "Diklat_Jumlah_Siswa","Diklat_Lama_Hari","Listrik_kwh","Air_m3",
+              "Telepon_Freq_pakai_per_titik","Komputer_simrs_user","Tempat_Tidur_SVIP",
+              "Tempat_Tidur_VIP","Tempat_Tidur_I","Tempat_Tidur_II","Tempat_Tidur_III",
+              "Tempat_Tidur_Khusus","kamar_luas_svip","kamar_luas_vip","kamar_luas_i",
+              "kamar_luas_ii","kamar_luas_iii","Kunjungan_Pasien_Lama","Kunjungan_Pasien_Baru",
+              "Jumlah_Tindakan","Resep_Lembar_Resep","Hari_Rawat_SVIP","Hari_Rawat_VIP",
+              "Hari_Rawat_I","Hari_Rawat_II","Hari_Rawat_III","Cucian_kg_Cucian",
+              "Instrumen_Besar","Instrumen_Sedang","Instrumen_Kecil","Set_Pack_Besar",
+              "Set_Pack_Sedang","Set_Pack_Kecil","Makanan_Karyawan_jml_Porsi",
+              "Makanan_Pasien_jml_Porsi","jumlah_porsi_svip","jumlah_porsi_vip",
+              "jumlah_porsi_i","jumlah_porsi_ii","jumlah_porsi_iii"
+            ];
+            const computedKeys = ["Jumlah_SDM","Total_Diklat","Total_Kunjungan_Pasien","Jumlah_Hari_Rawat"];
+
+            const normalized: any[] = [];
+            const seen = new Set<string>();
+            let missingKeyRows = 0;
+
+            console.log(`[Import] Memulai validasi ${rawRows.length} baris data...`);
+
+            for (const r of rawRows) {
+              const row = { ...r } as any;
+              const kodeRaw = row["Kode_UK"] ?? row["kode"] ?? row["Kode"] ?? row["kode_uk"];
+              const tahunRaw = row["tahun"] ?? row["Tahun"];
+
+              const kode = (kodeRaw !== undefined && kodeRaw !== null) ? String(kodeRaw).trim().toUpperCase() : "";
+              const tahunNum = Number(String(tahunRaw ?? selectedYear).toString().trim());
+
+              if (!kode || !Number.isFinite(tahunNum)) { missingKeyRows++; continue; }
+
+              const key = `${kode}-${tahunNum}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+
+              const payload: any = { user_id: user.id, Kode_UK: kode, tahun: tahunNum };
+
+              for (const k of numericKeys) {
+                if (k in row) {
+                  const raw = row[k];
+                  const num = typeof raw === 'number' ? raw : Number(String(raw).replace(/[^0-9.-]/g, ''));
+                  payload[k] = Number.isFinite(num) ? num : 0;
+                }
+              }
+              if (row["Nama_Unit_Kerja"]) payload["Nama_Unit_Kerja"] = String(row["Nama_Unit_Kerja"]).trim();
+              for (const ck of computedKeys) delete payload[ck];
+
+              normalized.push(payload);
+            }
+
+            if (normalized.length === 0) {
+              const msg = missingKeyRows > 0 ? "Semua baris tidak valid (kolom kode/tahun hilang)." : "Tidak ada baris valid untuk diimpor.";
+              console.error(`[Import] ${msg}, missingKeyRows: ${missingKeyRows}`);
+              showUploadError(msg);
+              return;
+            }
+
+            console.log(`[Import] Validasi selesai: ${normalized.length} baris valid dari ${rawRows.length} baris total`);
+
+            updateProgress(Math.floor(rawRows.length * 0.35), 0, 0, "Mengecek data yang sudah ada...");
+
+            const kodeList = [...new Set(normalized.map(x => x.Kode_UK))];
+            const tahunList = [...new Set(normalized.map(x => x.tahun))];
+
+            console.log(`[Import] Mengecek existing data untuk ${kodeList.length} kode unik dan ${tahunList.length} tahun:`, { kodeList, tahunList });
+
+            let updateCount = 0;
+            let insertCount = 0;
+
+            // Query existing data - get all data for the years (not just user_id) to handle cases where
+            // data might have different user_id or null user_id, but still need to be matched
+            // This approach handles case-insensitive matching better
+            const { data: existing, error: checkErr } = await supabase
+              .from("data_kegiatan")
+              .select("id, Kode_UK, tahun, user_id")
+              .in("tahun", tahunList);
+
+            const existingMap = new Map<string, number>();
+            if (!checkErr && Array.isArray(existing)) {
+              console.log(`[Import] Query berhasil: ${existing.length} records ditemukan dari database`);
+              // Normalize Kode_UK to uppercase when creating map key for case-insensitive matching
+              for (const it of existing) {
+                if (it.Kode_UK) {
+                  const normalizedKode = String(it.Kode_UK).trim().toUpperCase();
+                  const key = `${normalizedKode}-${it.tahun}`;
+                  // Handle duplicate keys - log warning if duplicate found
+                  if (existingMap.has(key)) {
+                    console.warn(`[Import] Duplicate key ditemukan: ${key}, id lama: ${existingMap.get(key)}, id baru: ${it.id}`);
+                  }
+                  existingMap.set(key, it.id as number);
+                } else {
+                  console.warn(`[Import] Record dengan id ${it.id} tidak memiliki Kode_UK`);
+                }
+              }
+              console.log(`[Import] Existing map dibuat: ${existingMap.size} entries`);
+              console.log(`[Import] Sample keys:`, Array.from(existingMap.keys()).slice(0, 5));
+            } else if (checkErr) {
+              console.error("[Import] Error checking existing data:", checkErr);
+            }
+
+            const rowsToUpdate: any[] = [];
+            let rowsToInsert: any[] = [];
+
+            for (const item of normalized) {
+              // Normalize Kode_UK to uppercase for consistent key matching
+              const normalizedKode = String(item.Kode_UK || '').trim().toUpperCase();
+              const key2 = `${normalizedKode}-${item.tahun}`;
+              const existingId = existingMap.get(key2);
+              
+              if (existingId) {
+                console.log(`[Import] Data existing ditemukan: ${key2} -> id: ${existingId}`);
+                const { user_id, tahun, Kode_UK, ...payload } = item;
+                // Update-only: simpan matcher tahun+Kode_UK (normalized uppercase), bukan id
+                rowsToUpdate.push({ tahun: item.tahun, Kode_UK: normalizedKode, payload });
+              } else {
+                // Update-only mode: jangan insert data baru
+                console.log(`[Import] Mode update-only: baris ${key2} akan dilewati karena tidak ditemukan`);
+              }
+            }
+            
+            console.log(`[Import] Akan update ${rowsToUpdate.length} data (update-only mode)`);
+            if (rowsToUpdate.length > 0) {
+              console.log(`[Import] Sample update matches:`, rowsToUpdate.slice(0, 3).map(r => ({ tahun: r.tahun, Kode_UK: r.Kode_UK })));
+            }
+
+            updateCount = rowsToUpdate.length;
+            insertCount = 0; // Update-only mode: tidak ada insert
+
+            // Start upload dengan total yang benar setelah rowsToUpdate ditentukan
+            if (updateCount === 0) {
+              showUploadError("Tidak ada data yang akan diupdate. Pastikan data dengan tahun dan Kode_UK yang sama sudah ada di database.");
+              return;
+            }
+
+            // Inisialisasi progress modal dengan total yang benar
+            startUpload(updateCount, "Memulai proses update data...");
+            updateProgress(0, 0, 0, `Siap memperbarui ${updateCount} data...`);
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            // Disable trigger otomatis sebelum update
+            console.log(`[Import] Menonaktifkan trigger otomatis...`);
+            let triggersDisabled = false;
+            try {
+              const { error: disableError } = await supabase.rpc('disable_data_kegiatan_triggers');
+              if (disableError) {
+                console.warn(`[Import] Warning: Gagal menonaktifkan trigger (mungkin tidak ada):`, disableError);
+                // Continue anyway - mungkin trigger tidak ada atau sudah dinonaktifkan
+              } else {
+                triggersDisabled = true;
+                console.log(`[Import] Trigger otomatis berhasil dinonaktifkan`);
+              }
+            } catch (err: any) {
+              console.warn(`[Import] Warning: Error saat menonaktifkan trigger:`, err);
+              // Continue anyway
+            }
+
+            if (rowsToUpdate.length > 0) {
+              console.log(`[Import] Memulai update ${rowsToUpdate.length} data...`);
+              for (let i = 0; i < rowsToUpdate.length; i++) {
+                const { tahun, Kode_UK, payload } = rowsToUpdate[i];
+                // Kode_UK sudah dinormalisasi saat menyimpan ke rowsToUpdate
+                console.log(`[Import] Updating row ${i + 1}/${rowsToUpdate.length}: match={tahun:${tahun}, Kode_UK:${Kode_UK}}, payload keys:`, Object.keys(payload));
+
+                // Update progress sebelum update
+                const progressPercentage = Math.floor(((i + 1) / rowsToUpdate.length) * 100);
+                updateProgress(
+                  i + 1, 
+                  successCount, 
+                  errorCount, 
+                  `Memperbarui data ${i + 1} dari ${rowsToUpdate.length} (${progressPercentage}%)`
+                );
+
+                const { error } = await supabase
+                  .from("data_kegiatan")
+                  .update(payload)
+                  .match({ tahun, Kode_UK });
+
+                if (error) {
+                  console.error(`[Import] Error updating row ${i + 1} (match tahun=${tahun}, Kode_UK=${Kode_UK}):`, {
+                    message: (error as any).message,
+                    details: (error as any).details,
+                    hint: (error as any).hint,
+                    code: (error as any).code,
+                  });
+                  errorCount++;
+                } else {
+                  console.log(`[Import] Successfully updated row ${i + 1} (tahun=${tahun}, Kode_UK=${Kode_UK})`);
+                  successCount++;
+                }
+                
+                // Update progress setelah update dengan hasil
+                updateProgress(
+                  i + 1, 
+                  successCount, 
+                  errorCount, 
+                  `Memperbarui data ${i + 1} dari ${rowsToUpdate.length} - ${successCount} berhasil, ${errorCount} gagal`
+                );
+              }
+              console.log(`[Import] Update selesai: ${successCount} berhasil, ${errorCount} gagal`);
+            }
+
+            // Re-enable trigger otomatis setelah update selesai
+            if (triggersDisabled) {
+              console.log(`[Import] Mengaktifkan kembali trigger otomatis...`);
+              try {
+                const { error: enableError } = await supabase.rpc('reenable_data_kegiatan_triggers');
+                if (enableError) {
+                  console.error(`[Import] Error: Gagal mengaktifkan kembali trigger:`, enableError);
+                  toast.error(`Import selesai, tapi gagal mengaktifkan kembali trigger otomatis. Silakan aktifkan manual.`);
+                } else {
+                  console.log(`[Import] Trigger otomatis berhasil diaktifkan kembali`);
+                }
+              } catch (err: any) {
+                console.error(`[Import] Error saat mengaktifkan kembali trigger:`, err);
+                toast.error(`Import selesai, tapi gagal mengaktifkan kembali trigger otomatis. Silakan aktifkan manual.`);
+              }
+            }
+
+            // Update-only mode: pastikan tidak ada proses insert
+            rowsToInsert = [];
+
+            const finalMessage = updateCount > 0 && insertCount > 0
+              ? `Berhasil memperbarui ${updateCount} dan menambahkan ${insertCount} data!`
+              : updateCount > 0
+              ? `Berhasil memperbarui ${updateCount} data!`
+              : `Berhasil menambahkan ${insertCount} data!`;
+
+            console.log(`[Import] Proses selesai - Success: ${successCount}, Failed: ${errorCount}, Total: ${rawRows.length}`);
+            console.log(`[Import] Update: ${updateCount}, Insert: ${insertCount}`);
+
+            // Update progress dengan hasil final
+            updateProgress(updateCount, successCount, errorCount, finalMessage);
+            
+            // Complete upload untuk menampilkan hasil di modal
+            completeUpload(successCount, errorCount, 0);
+            
+            // Tampilkan notifikasi setelah progress modal selesai ditampilkan
+            setTimeout(() => {
+              if (errorCount === 0) {
+                toast.success(finalMessage, {
+                  duration: 5000,
+                  description: `Semua ${successCount} data berhasil diupdate.`
+                });
+                console.log(`[Import] Import berhasil: ${finalMessage}`);
+              } else if (successCount > 0) {
+                toast.warning(`${finalMessage} (dengan ${errorCount} gagal)`, {
+                  duration: 6000,
+                  description: `${successCount} data berhasil, ${errorCount} data gagal diupdate.`
+                });
+                console.warn(`[Import] Import selesai dengan error: ${finalMessage} (${errorCount} gagal)`);
+              } else {
+                toast.error(`Import gagal seluruhnya.`, {
+                  duration: 8000,
+                  description: `Semua ${errorCount} data gagal diupdate. Silakan periksa file CSV dan coba lagi.`
+                });
+                console.error(`[Import] Import gagal seluruhnya - ${errorCount} error`);
+              }
+              
+              // Reload data setelah notifikasi
+              loadData();
+            }, 1500);
+          } catch (err: any) {
+            console.error("Error importing CSV:", err);
+            const msg = err?.message || "Gagal mengimpor data";
+            updateProgress(rawRows.length || 1, 0, rawRows.length || 1, msg);
+            setTimeout(() => { showUploadError(msg); toast.error(msg, { duration: 6000 }); }, 300);
+          } finally {
+            if (fileInputRef.current) fileInputRef.current.value = "";
           }
-
-          // Start upload with total count
-          startUpload(jsonData.length, "Mengimpor data...");
-
-          // Update progress during import
-          updateProgress(Math.floor(jsonData.length / 2), 0, 0, "Memvalidasi data...");
-
-          const { error } = await supabase.from("data_kegiatan").insert(jsonData as any[]);
-
-          if (error) throw error;
-
-          // Complete upload
-          completeUpload(jsonData.length, 0, 0);
-          toast.success(`Berhasil mengimpor ${jsonData.length} data`);
-          loadData();
-        } catch (error: any) {
-          console.error("Error importing data:", error);
-          showUploadError(error.message || "Gagal mengimpor data");
-        }
-      };
-      reader.readAsArrayBuffer(file);
+        },
+        error: (e: any) => {
+          const msg = `Gagal membaca CSV: ${e.message}`;
+          showUploadError(msg);
+          toast.error(msg);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+        },
+      });
     } catch (error: any) {
-      console.error("Error reading file:", error);
-      showUploadError(error.message || "Gagal membaca file");
+      const msg = error?.message || "Gagal membaca file";
+      showUploadError(msg);
+      toast.error(msg);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
 
-    // Reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  const handlePerbaruiData = async () => {
+    setIsRefreshingTranspose(true);
+    try {
+      console.log("🔄 Memulai proses perbarui data transpose...");
+      
+      // Coba gunakan fungsi dengan status terlebih dahulu, jika tidak ada gunakan yang void
+      const { data, error } = await supabase.rpc('refresh_transpose_data_with_status', {});
+
+      if (error) {
+        console.warn("⚠️ Fungsi dengan status tidak tersedia atau error, mencoba fungsi void:", error);
+        
+        // Jika fungsi dengan status tidak ada, coba fungsi void
+        const { error: voidError } = await supabase.rpc('refresh_transpose_data', {});
+        
+        if (voidError) {
+          console.error("❌ Error dari fungsi void:", voidError);
+          
+          // Extract error message dengan lebih detail
+          let errorMessage = "Gagal memperbarui data transpose";
+          
+          if (voidError.message) {
+            errorMessage = voidError.message;
+            console.error("Error message:", voidError.message);
+          }
+          if (voidError.details) {
+            console.error("Error details:", voidError.details);
+            errorMessage += ` - ${voidError.details}`;
+          }
+          if (voidError.hint) {
+            console.error("Error hint:", voidError.hint);
+            errorMessage += ` (${voidError.hint})`;
+          }
+          
+          // Deteksi error spesifik
+          if (errorMessage.toLowerCase().includes('timeout') || errorMessage.toLowerCase().includes('cancel')) {
+            errorMessage = "Proses membutuhkan waktu lebih lama dan terhenti. Silakan tunggu beberapa saat dan coba lagi.";
+          } else if (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('denied')) {
+            errorMessage = "Tidak memiliki izin untuk melakukan operasi ini. Silakan hubungi administrator.";
+          }
+          
+          toast.error(errorMessage);
+          return;
+        }
+        
+        // Jika void berhasil
+        console.log("✅ Data berhasil diperbarui menggunakan fungsi void");
+        toast.success("Data kegiatan transpose berhasil diperbarui");
+        await loadData();
+        return;
+      }
+
+      // Jika fungsi dengan status berhasil
+      console.log("📊 Response dari fungsi dengan status:", data);
+      
+      if (data && typeof data === 'object') {
+        if (data.success === false) {
+          const errorMsg = data.message || data.error || "Gagal memperbarui data transpose";
+          console.error("❌ Error dari fungsi:", errorMsg);
+          throw new Error(errorMsg);
+        }
+        
+        const duration = data.duration_seconds ? ` (${Math.round(data.duration_seconds)}s)` : '';
+        console.log(`✅ Data berhasil diperbarui${duration}`);
+        toast.success(`Data kegiatan transpose berhasil diperbarui${duration}`);
+      } else {
+        console.log("✅ Data berhasil diperbarui (tidak ada detail)");
+        toast.success("Data kegiatan transpose berhasil diperbarui");
+      }
+      
+      // Reload data untuk memastikan UI ter-update
+      await loadData();
+    } catch (error: any) {
+      console.error("❌ Error refreshing transpose data:", error);
+      
+      let errorMessage = "Gagal memperbarui data transpose. Silakan coba lagi.";
+      
+      if (error?.message) {
+        errorMessage = error.message;
+        console.error("Error message:", error.message);
+      } else if (error?.error_description) {
+        errorMessage = error.error_description;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      // Log semua detail error untuk debugging
+      if (error) {
+        console.error("Full error object:", JSON.stringify(error, null, 2));
+      }
+      
+      // Deteksi error spesifik
+      if (errorMessage.toLowerCase().includes('timeout') || errorMessage.toLowerCase().includes('cancel')) {
+        errorMessage = "Proses membutuhkan waktu lebih lama dan terhenti. Silakan tunggu beberapa saat dan coba lagi.";
+      } else if (errorMessage.toLowerCase().includes('permission') || errorMessage.toLowerCase().includes('denied')) {
+        errorMessage = "Tidak memiliki izin untuk melakukan operasi ini. Silakan hubungi administrator.";
+      }
+      
+      toast.error(errorMessage);
+    } finally {
+      setIsRefreshingTranspose(false);
     }
   };
 
@@ -542,10 +909,6 @@ export default function DataKegiatanRS() {
 
       {/* Filters and Actions */}
       <Card>
-        <CardHeader>
-          <CardTitle>Filter & Aksi</CardTitle>
-          <CardDescription>Filter data berdasarkan tahun dan unit kerja</CardDescription>
-        </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4 items-end">
             {/* Year Filter */}
@@ -585,25 +948,46 @@ export default function DataKegiatanRS() {
 
             {/* Action Buttons */}
             <div className="flex gap-2 flex-wrap">
-              <Button onClick={loadData} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Button onClick={handleDownloadTemplate} variant="outline" size="sm">
+              <Button
+                onClick={handleDownloadTemplate}
+                size="sm"
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Template
+                Unduh Template Impor
               </Button>
-              <Button onClick={() => fileInputRef.current?.click()} variant="outline" size="sm">
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
                 <Upload className="h-4 w-4 mr-2" />
-                Import
+                Impor Data
               </Button>
-              <Button onClick={handleDownloadReport} variant="outline" size="sm">
+              <Button
+                onClick={() => setIsAddDialogOpen(true)}
+                size="sm"
+                className="bg-red-500 hover:bg-red-600 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Tambah Data
+              </Button>
+              <Button
+                onClick={handleDownloadReport}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
                 <FileText className="h-4 w-4 mr-2" />
                 Unduh Laporan
               </Button>
-              <Button onClick={() => setIsAddDialogOpen(true)} size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Tambah Data
+              <Button
+                onClick={handlePerbaruiData}
+                size="icon"
+                disabled={isRefreshingTranspose}
+                className="bg-slate-200 hover:bg-slate-300 text-teal-700 disabled:opacity-70"
+                title="Perbarui Data"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshingTranspose ? "animate-spin" : ""}`} />
               </Button>
             </div>
           </div>
@@ -613,8 +997,7 @@ export default function DataKegiatanRS() {
       {/* Data Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Data Kegiatan ({data.length} data)</CardTitle>
-          <CardDescription>Klik tombol expand untuk melihat detail data yang dikelompokkan</CardDescription>
+          <CardTitle>Data Kegiatan</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -630,14 +1013,14 @@ export default function DataKegiatanRS() {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>Unit Kerja</TableHead>
-                    <TableHead className="text-right">Total SDM</TableHead>
-                    <TableHead className="text-right">Total Kunjungan</TableHead>
-                    <TableHead className="text-right">Total Diklat</TableHead>
-                    <TableHead className="text-right">Total Hari Rawat</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
+                  <TableRow className="bg-teal-700">
+                    <TableHead className="w-12 text-white"></TableHead>
+                    <TableHead className="text-white">Unit Kerja</TableHead>
+                    <TableHead className="text-right text-white">Total SDM</TableHead>
+                    <TableHead className="text-right text-white">Total Kunjungan</TableHead>
+                    <TableHead className="text-right text-white">Total Diklat</TableHead>
+                    <TableHead className="text-right text-white">Total Hari Rawat</TableHead>
+                    <TableHead className="text-center text-white">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -684,11 +1067,10 @@ export default function DataKegiatanRS() {
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
                               onClick={() => handleDelete(item.id!, item.Nama_Unit_Kerja!)}
                               title="Hapus Data"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -807,7 +1189,7 @@ export default function DataKegiatanRS() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xlsx,.xls"
+        accept=".csv"
         onChange={handleImport}
         className="hidden"
       />

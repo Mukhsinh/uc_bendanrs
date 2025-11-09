@@ -53,22 +53,26 @@ export const useUploadProgress = () => {
       missingCount
     }));
 
-    // Auto-hide after 3 seconds
+    // Auto-hide after 5 seconds (lebih lama agar user bisa melihat hasil)
     setTimeout(() => {
       setUploadProgress(prev => ({ ...prev, isVisible: false }));
-    }, 3000);
+    }, 5000);
   }, []);
 
   const showError = useCallback((message: string = 'Gagal memproses file') => {
     setUploadProgress(prev => ({
       ...prev,
+      isVisible: true, // Pastikan modal tetap visible
       status: 'error',
-      message
+      message,
+      current: prev.total || 0, // Set current ke total jika ada
+      errorCount: prev.total || 1 // Set error count
     }));
 
+    // Auto-hide setelah 5 detik (lebih lama dari sebelumnya)
     setTimeout(() => {
       setUploadProgress(prev => ({ ...prev, isVisible: false }));
-    }, 3000);
+    }, 5000);
   }, []);
 
   const hideProgress = useCallback(() => {

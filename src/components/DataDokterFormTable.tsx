@@ -628,30 +628,32 @@ const DataDokterFormTable: React.FC = () => {
             Kelola data dokter dengan kode otomatis DK.xxx
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
-            variant="outline"
+            variant="template"
+            className="shadow-sm"
             onClick={handleTemplateDownload}
             disabled={isDownloading}
           >
             {isDownloading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Download className="h-4 w-4" />
+              <Download className="h-4 w-4 mr-2" />
             )}
-            Unduh Template
+            {isDownloading ? "Mengunduh..." : "Unduh Template"}
           </Button>
           <Button
-            variant="outline"
+            variant="report"
+            className="shadow-sm"
             onClick={handleReportDownload}
             disabled={isDownloading}
           >
             {isDownloading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <FileText className="h-4 w-4" />
+              <FileText className="h-4 w-4 mr-2" />
             )}
-            Unduh Laporan
+            {isDownloading ? "Menyiapkan..." : "Unduh Laporan"}
           </Button>
           <div className="relative">
             <input
@@ -661,16 +663,16 @@ const DataDokterFormTable: React.FC = () => {
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               disabled={isUploading}
             />
-            <Button variant="outline" disabled={isUploading}>
+            <Button variant="import" className="shadow-sm" disabled={isUploading}>
               {isUploading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Upload className="h-4 w-4" />
+                <Upload className="h-4 w-4 mr-2" />
               )}
-              Import Data
+              {isUploading ? "Mengunggah..." : "Impor Data"}
             </Button>
           </div>
-          <Button onClick={handleAddNew}>
+          <Button onClick={handleAddNew} className="shadow-sm">
             <Plus className="h-4 w-4 mr-2" />
             Tambah Data
           </Button>
@@ -681,12 +683,12 @@ const DataDokterFormTable: React.FC = () => {
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode Dokter</TableHead>
-              <TableHead>Nama Dokter</TableHead>
-              <TableHead>Spesialistik</TableHead>
-              <TableHead>Jenis Spesialistik</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="font-bold text-white">Kode Dokter</TableHead>
+              <TableHead className="font-bold text-white">Nama Dokter</TableHead>
+              <TableHead className="font-bold text-white">Spesialistik</TableHead>
+              <TableHead className="font-bold text-white">Jenis Spesialistik</TableHead>
+              <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -700,18 +702,10 @@ const DataDokterFormTable: React.FC = () => {
                 <TableCell>{dataDokter.jenis_spesialistik}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEdit(dataDokter)}
-                    >
+                    <Button variant="edit" size="sm" onClick={() => handleEdit(dataDokter)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(dataDokter.id)}
-                    >
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(dataDokter.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

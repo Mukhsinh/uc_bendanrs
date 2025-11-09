@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -8,11 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Download, RefreshCw, Settings2, Filter, FileText } from "lucide-react";
+import { Download, RefreshCw, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type DistribusiKeduaRow = {
   id: string;
+  user_id?: string | null;
   tahun?: number | null;
   unit_kerja_pusat_biaya?: string | null;
   biaya_alokasi_i?: number | null;
@@ -22,6 +23,7 @@ type DistribusiKeduaRow = {
   audit_check?: string | null;
   total_alokasi_biaya_kedua?: number | null;
   updated_at?: string | null;
+  selisih_pembulatan?: number | null;
   [key: string]: any;
 };
 
@@ -57,7 +59,285 @@ export default function DistribusiBiayaKedua() {
   const [unitKerjaOptions, setUnitKerjaOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
+  const [showFilters, setShowFilters] = useState<boolean>(true);
   const { toast } = useToast();
+
+  // Peta basis dari data_kegiatan_transpose dan unit_kerja (untuk Luas_Ruangan)
+  const [basisByUnit, setBasisByUnit] = useState<Record<string, any>>({});
+  const [luasByUnit, setLuasByUnit] = useState<Record<string, number>>({});
+
+  // Fetch basis dari data_kegiatan_transpose dan luas dari unit_kerja untuk tahun aktif
+  // Sesuai instruksi: menggunakan data_kegiatan_transpose dengan kombinasi dasar_alokasi dan sub_kategori
+  const fetchBasisData = async (tahunFetch: number) => {
+    try {
+      // data_kegiatan_transpose: ambil data untuk Total_SDM, Total_Kunjungan_Pasien, dan Komputer_SIMRS
+      // Total_SDM: dasar_alokasi='SDM' dan sub_kategori='Total'
+      // Total_Kunjungan_Pasien: dasar_alokasi='Kunjungan' dan sub_kategori='Total'
+      // Komputer_SIMRS: dasar_alokasi='Komputer' dan sub_kategori='jml. User'
+      
+      const mapBasis: Record<string, any> = {};
+      
+      // Ambil data untuk Total_SDM
+      const { data: sdmData, error: sdmErr } = await supabase
+        .from("data_kegiatan_transpose")
+        .select("*")
+        .eq("tahun", tahunFetch)
+        .eq("dasar_alokasi", "SDM")
+        .eq("sub_kategori", "Total")
+        .single();
+      if (sdmErr && sdmErr.code !== 'PGRST116') {
+        console.warn("Gagal mengambil data SDM:", sdmErr);
+      } else if (sdmData) {
+        // Map kolom unit kerja pusat pendapatan (UK037-UK077) dari data_kegiatan_transpose
+        const ukColumns = [
+          'ambulance', 'laboratorium_pk_pa', 'radiologi', 'farmasi', 'rehab_medik',
+          'gizi_dapur', 'laundry_cssd', 'bdrs', 'cathlab', 'terang_bulan_vip_vvip',
+          'truntum', 'sekarjagat', 'jlamprang', 'nifas', 'perinatologi', 'buketan',
+          'icu_picu_nicu', 'vk', 'igd_ponek', 'klinik_kebid_kandungan', 'klinik_bedah_mulut',
+          'klinik_syaraf', 'klinik_bedah_syaraf', 'klinik_bedah_digestif', 'klinik_bedah_umum',
+          'klinik_anak', 'klinik_penyakit_dalam', 'klinik_mata', 'klinik_kulit_kelamin',
+          'klinik_tht', 'klinik_gigi', 'klinik_jantung', 'klinik_dot_vct_cst', 'klinik_paru',
+          'klinik_orthopedi', 'klinik_jiwa', 'klinik_parikesit', 'ibs', 'pemulasaran_jenazah',
+          'hemodialisis', 'unit_diklat'
+        ];
+        const ukCodes = Array.from({ length: 41 }, (_, i) => `UK${(37 + i).toString().padStart(3, '0')}`);
+        
+        ukCodes.forEach((code, idx) => {
+          if (!mapBasis[code]) {
+            mapBasis[code] = {};
+          }
+          const colName = ukColumns[idx];
+          mapBasis[code].Total_SDM = Number(sdmData[colName] || 0);
+        });
+        mapBasis['_total_SDM'] = Number(sdmData.total_dasar_alokasi_pusat_pendapatan || 0);
+      }
+      
+      // Ambil data untuk Total_Kunjungan_Pasien
+      const { data: kunjunganData, error: kunjErr } = await supabase
+        .from("data_kegiatan_transpose")
+        .select("*")
+        .eq("tahun", tahunFetch)
+        .eq("dasar_alokasi", "Kunjungan")
+        .eq("sub_kategori", "Total")
+        .single();
+      if (kunjErr && kunjErr.code !== 'PGRST116') {
+        console.warn("Gagal mengambil data Kunjungan:", kunjErr);
+      } else if (kunjunganData) {
+        const ukColumns = [
+          'ambulance', 'laboratorium_pk_pa', 'radiologi', 'farmasi', 'rehab_medik',
+          'gizi_dapur', 'laundry_cssd', 'bdrs', 'cathlab', 'terang_bulan_vip_vvip',
+          'truntum', 'sekarjagat', 'jlamprang', 'nifas', 'perinatologi', 'buketan',
+          'icu_picu_nicu', 'vk', 'igd_ponek', 'klinik_kebid_kandungan', 'klinik_bedah_mulut',
+          'klinik_syaraf', 'klinik_bedah_syaraf', 'klinik_bedah_digestif', 'klinik_bedah_umum',
+          'klinik_anak', 'klinik_penyakit_dalam', 'klinik_mata', 'klinik_kulit_kelamin',
+          'klinik_tht', 'klinik_gigi', 'klinik_jantung', 'klinik_dot_vct_cst', 'klinik_paru',
+          'klinik_orthopedi', 'klinik_jiwa', 'klinik_parikesit', 'ibs', 'pemulasaran_jenazah',
+          'hemodialisis', 'unit_diklat'
+        ];
+        const ukCodes = Array.from({ length: 41 }, (_, i) => `UK${(37 + i).toString().padStart(3, '0')}`);
+        
+        ukCodes.forEach((code, idx) => {
+          if (!mapBasis[code]) {
+            mapBasis[code] = {};
+          }
+          const colName = ukColumns[idx];
+          mapBasis[code].Total_Kunjungan_Pasien = Number(kunjunganData[colName] || 0);
+        });
+        mapBasis['_total_Kunjungan_Pasien'] = Number(kunjunganData.total_dasar_alokasi_pusat_pendapatan || 0);
+      }
+      
+      // Ambil data untuk Komputer_SIMRS
+      const { data: komputerData, error: kompErr } = await supabase
+        .from("data_kegiatan_transpose")
+        .select("*")
+        .eq("tahun", tahunFetch)
+        .eq("dasar_alokasi", "Komputer")
+        .eq("sub_kategori", "jml. User")
+        .single();
+      if (kompErr && kompErr.code !== 'PGRST116') {
+        console.warn("Gagal mengambil data Komputer:", kompErr);
+      } else if (komputerData) {
+        const ukColumns = [
+          'ambulance', 'laboratorium_pk_pa', 'radiologi', 'farmasi', 'rehab_medik',
+          'gizi_dapur', 'laundry_cssd', 'bdrs', 'cathlab', 'terang_bulan_vip_vvip',
+          'truntum', 'sekarjagat', 'jlamprang', 'nifas', 'perinatologi', 'buketan',
+          'icu_picu_nicu', 'vk', 'igd_ponek', 'klinik_kebid_kandungan', 'klinik_bedah_mulut',
+          'klinik_syaraf', 'klinik_bedah_syaraf', 'klinik_bedah_digestif', 'klinik_bedah_umum',
+          'klinik_anak', 'klinik_penyakit_dalam', 'klinik_mata', 'klinik_kulit_kelamin',
+          'klinik_tht', 'klinik_gigi', 'klinik_jantung', 'klinik_dot_vct_cst', 'klinik_paru',
+          'klinik_orthopedi', 'klinik_jiwa', 'klinik_parikesit', 'ibs', 'pemulasaran_jenazah',
+          'hemodialisis', 'unit_diklat'
+        ];
+        const ukCodes = Array.from({ length: 41 }, (_, i) => `UK${(37 + i).toString().padStart(3, '0')}`);
+        
+        ukCodes.forEach((code, idx) => {
+          if (!mapBasis[code]) {
+            mapBasis[code] = {};
+          }
+          const colName = ukColumns[idx];
+          mapBasis[code].Komputer_SIMRS = Number(komputerData[colName] || 0);
+        });
+        mapBasis['_total_Komputer_SIMRS'] = Number(komputerData.total_dasar_alokasi_pusat_pendapatan || 0);
+      }
+
+      // unit_kerja: ambil luas_ruangan untuk unit kerja pusat pendapatan
+      const { data: unitKerja, error: ukErr } = await supabase
+        .from("unit_kerja")
+        .select("kode, luas_ruangan")
+        .in("kategori", ["Pusat Pendapatan"]);
+      if (ukErr) throw ukErr;
+
+      const mapLuas: Record<string, number> = {};
+      let totalLuasRuangan = 0;
+      (unitKerja || []).forEach((u: any) => {
+        const kode = String(u.kode || "").toUpperCase();
+        if (!kode) return;
+        const luas = Number(u.luas_ruangan || 0);
+        mapLuas[kode] = luas;
+        // Hitung total luas ruangan untuk unit kerja pusat pendapatan (UK037-UK077)
+        if (kode.match(/^UK(0[3-7][7-9]|[4-7][0-7])$/)) {
+          totalLuasRuangan += luas;
+        }
+      });
+      mapBasis['_total_Luas_Ruangan'] = totalLuasRuangan;
+      setLuasByUnit(mapLuas);
+      setBasisByUnit(mapBasis);
+    } catch (e: any) {
+      console.error("Gagal fetch basis data:", e);
+      toast({ title: "Gagal memuat basis alokasi", description: e.message || String(e), variant: "destructive" });
+    }
+  };
+
+  // Helper: ambil nilai dasar alokasi untuk sebuah unit dan jenis dasar
+  // Menggunakan data dari data_kegiatan_transpose yang sudah di-fetch di fetchBasisData()
+  // Untuk Luas_Ruangan, menggunakan data dari unit_kerja.luas_ruangan
+  const getBasisValue = (unitKode: string, dasar: string | null | undefined): number => {
+    const kode = String(unitKode || "").toUpperCase();
+    const key = String(dasar || "");
+    if (!kode || !key) return 0;
+    
+    // Luas_Ruangan: ambil dari unit_kerja.luas_ruangan
+    if (key === 'Luas_Ruangan' || key === 'Luas_ruangan') {
+      return Number(luasByUnit[kode] || 0);
+    }
+    
+    // Ambil nilai basis dari map yang sudah dibuat dari data_kegiatan_transpose
+    const entry = basisByUnit[kode];
+    if (!entry) return 0;
+    
+    // Mapping dasar alokasi sesuai dengan data yang di-fetch
+    switch (key) {
+      case 'Total_SDM':
+      case 'Total SDM':
+      case 'SDM':
+        return Number(entry.Total_SDM || 0);
+      case 'Total_Kunjungan_Pasien':
+      case 'Total_Kunjungan':
+      case 'Kunjungan Pasien':
+      case 'Kunjungan':
+        return Number(entry.Total_Kunjungan_Pasien || 0);
+      case 'Komputer_SIMRS':
+      case 'Komputer_simrs_user':
+      case 'Komputer':
+        return Number(entry.Komputer_SIMRS || 0);
+      // Fallback untuk nama lama (jika masih digunakan)
+      case 'Jumlah_SDM':
+        return Number(entry.Total_SDM || 0);
+      default:
+        return 0;
+    }
+  };
+
+  // Daftar kode target penerima (UK037–UK077)
+  const targetUnitCodes = useMemo(() => {
+    const arr: string[] = [];
+    for (let i = 37; i <= 77; i++) {
+      arr.push(`UK${i.toString().padStart(3, '0')}`);
+    }
+    return arr;
+  }, []);
+
+  // Hitung nilai alokasi sesuai rumus untuk satu baris, sebelum pembulatan
+  // Menggunakan total_dasar_alokasi_pusat_pendapatan dari data_kegiatan_transpose
+  const computeRawAllocationsForRow = (r: DistribusiKeduaRow): { colToValue: Record<string, number>; sumBasis: number } => {
+    const dasar = r.dasar_alokasi || '';
+    const biaya = Number(r.biaya_alokasi_i || 0);
+    const colToValue: Record<string, number> = {};
+    
+    // Ambil total dasar alokasi pusat pendapatan dari basisByUnit (yang diambil dari data_kegiatan_transpose)
+    let totalBasis = 0;
+    const basisKey = dasar === 'Luas_Ruangan' || dasar === 'Luas_ruangan' 
+      ? '_total_Luas_Ruangan' 
+      : dasar === 'Total_SDM' || dasar === 'Total SDM' || dasar === 'SDM'
+      ? '_total_SDM'
+      : dasar === 'Total_Kunjungan_Pasien' || dasar === 'Total_Kunjungan' || dasar === 'Kunjungan Pasien' || dasar === 'Kunjungan'
+      ? '_total_Kunjungan_Pasien'
+      : dasar === 'Komputer_SIMRS' || dasar === 'Komputer_simrs_user' || dasar === 'Komputer'
+      ? '_total_Komputer_SIMRS'
+      : null;
+    
+    if (basisKey && basisByUnit[basisKey] !== undefined) {
+      totalBasis = Number(basisByUnit[basisKey] || 0);
+    } else {
+      // Fallback: hitung sum basis pada target penerima (jika total tidak tersedia)
+      for (let i = 37; i <= 77; i++) {
+        const code = `UK${i.toString().padStart(3, '0')}`;
+        const b = getBasisValue(code, dasar);
+        totalBasis += Number(b || 0);
+      }
+    }
+
+    if (totalBasis <= 0 || biaya === 0) {
+      // Tidak ada basis atau biaya, semua 0
+      for (let i = 37; i <= 77; i++) {
+        const col = getColumnName(i);
+        colToValue[col] = 0;
+      }
+      return { colToValue, sumBasis: totalBasis };
+    }
+
+    // Alokasi proporsional sebelum pembulatan
+    // Rumus: (nilai basis unit kerja / total dasar alokasi pusat pendapatan) * biaya_alokasi_i
+    for (let i = 37; i <= 77; i++) {
+      const code = `UK${i.toString().padStart(3, '0')}`;
+      const col = getColumnName(i);
+      const b = getBasisValue(code, dasar);
+      const val = (Number(b || 0) / totalBasis) * biaya;
+      colToValue[col] = val;
+    }
+    return { colToValue, sumBasis: totalBasis };
+  };
+
+  // Terapkan Hamilton rounding agar jumlah persis sama dengan biaya_alokasi_i
+  const computeHamiltonRoundedForRow = (r: DistribusiKeduaRow): Record<string, number> => {
+    const biaya = Number(r.biaya_alokasi_i || 0);
+    const { colToValue } = computeRawAllocationsForRow(r);
+    // Floor
+    const floors: Record<string, number> = {};
+    const fracs: { col: string; frac: number }[] = [];
+    let sumFloors = 0;
+    for (let i = 37; i <= 77; i++) {
+      const col = getColumnName(i);
+      const v = Number(colToValue[col] || 0);
+      const f = Math.floor(v);
+      floors[col] = f;
+      sumFloors += f;
+      fracs.push({ col, frac: v - f });
+    }
+    let remainder = Math.max(0, Math.round(biaya - sumFloors));
+    // Bagi sisa ke fraksional terbesar
+    fracs.sort((a, b) => b.frac - a.frac);
+    for (let k = 0; k < fracs.length && remainder > 0; k++) {
+      floors[fracs[k].col] += 1;
+      remainder -= 1;
+    }
+    return floors;
+  };
+
+  // Fetch basis data saat tahun berubah atau saat mount, sebelum fetchRows agar konsisten
+  useEffect(() => {
+    void fetchBasisData(tahun);
+  }, [tahun]);
 
   console.log('DistribusiBiayaKedua component rendered');
 
@@ -84,6 +364,106 @@ export default function DistribusiBiayaKedua() {
     return totals;
   }, [filteredRows]);
 
+  // Helper: identifikasi apakah kolom adalah target distribusi tahap II (UK037–UK077)
+  const isTargetColumn = (col: string): boolean => {
+    const match = col.match(/^uk(\d{3})_/i);
+    if (!match) return false;
+    const num = parseInt(match[1], 10);
+    return num >= 37 && num <= 77;
+  };
+
+  // Hitung total alokasi biaya kedua per baris (sum UK037-UK077)
+  const getRowTotalAlokasiKedua = (r: DistribusiKeduaRow): number => {
+    let sum = 0;
+    for (let i = 37; i <= 77; i++) {
+      const col = getColumnName(i);
+      sum += Number(((r as any)[col] ?? 0)) || 0;
+    }
+    return sum;
+  };
+
+  // Hitung grand total alokasi kedua (menjumlahkan semua columnTotals UK037-UK077)
+  // Total selisih dari DB (bila tersedia), fallback ke selisih hitung tampilan
+  const totalSelisihFromDB = useMemo(() => {
+    return filteredRows.reduce((sum, r) => sum + Number(r.selisih_pembulatan ?? 0), 0);
+  }, [filteredRows]);
+
+  // Tambahan: hitung total biaya_alokasi_i (untuk perbandingan footer)
+  const totalBiayaAlokasiI = useMemo(() => {
+    return filteredRows.reduce((sum, r) => sum + (r.biaya_alokasi_i ?? 0), 0);
+  }, [filteredRows]);
+
+  // Tambahan: fungsi untuk menghitung selisih per baris (biaya_alokasi_i - sum UK037-UK077)
+  const getRowSelisih = (r: DistribusiKeduaRow): number => {
+    const totalKedua = getRowTotalAlokasiKedua(r);
+    const alokasiI = Number(r.biaya_alokasi_i ?? 0);
+    return alokasiI - totalKedua;
+  };
+
+  // Pilih kolom target penyesuaian per baris (deterministik: ambil kolom target dengan nilai terbesar)
+  const getAdjustmentTargetColumn = (r: DistribusiKeduaRow): string | null => {
+    let targetCol: string | null = null;
+    let maxVal = Number.NEGATIVE_INFINITY;
+    for (let i = 37; i <= 77; i++) {
+      const col = getColumnName(i);
+      const val = Number(((r as any)[col] ?? 0)) || 0;
+      if (val > maxVal) {
+        maxVal = val;
+        targetCol = col;
+      }
+    }
+    return targetCol;
+  };
+
+  // Nilai sel untuk tampilan: gunakan nilai dari database lalu bulatkan (sinkron dengan DB)
+  const getRoundedCellValue = (r: DistribusiKeduaRow, col: string): number => {
+    if (!isTargetColumn(col)) return 0;
+    const raw = Number(((r as any)[col] ?? 0)) || 0;
+    return Math.round(raw);
+  };
+
+  // Hitung total per baris (jumlah UK037–UK077 yang sudah dibulatkan kolom-per-kolom)
+  const getRowTotalAlokasiKeduaAdjusted = (r: DistribusiKeduaRow): number => {
+    let sum = 0;
+    for (let i = 37; i <= 77; i++) {
+      const col = getColumnName(i);
+      sum += getRoundedCellValue(r, col);
+    }
+    return sum;
+  };
+
+  // Total per kolom UK setelah pembulatan per kolom (untuk footer)
+  const columnTotalsAdjusted = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (let i = 37; i <= 77; i++) {
+      const col = getColumnName(i);
+      totals[col] = 0;
+    }
+    filteredRows.forEach((r) => {
+      for (let i = 37; i <= 77; i++) {
+        const col = getColumnName(i);
+        totals[col] += getRoundedCellValue(r, col);
+      }
+    });
+    return totals;
+  }, [filteredRows]);
+
+  // Grand total setelah pembulatan per kolom (bisa berbeda sedikit dari totalBiayaAlokasiI)
+  const grandTotalAlokasiKeduaAdjusted = useMemo(() => {
+    let total = 0;
+    for (let i = 37; i <= 77; i++) {
+      const col = getColumnName(i);
+      total += columnTotalsAdjusted[col] ?? 0;
+    }
+    return total;
+  }, [columnTotalsAdjusted]);
+
+  // Selisih total (menunjukkan dampak pembulatan kolom-per-kolom)
+  const totalSelisih = useMemo(() => {
+    return Math.round(totalBiayaAlokasiI - grandTotalAlokasiKeduaAdjusted);
+  }, [totalBiayaAlokasiI, grandTotalAlokasiKeduaAdjusted]);
+
+
   useEffect(() => {
     console.log('useEffect triggered, tahun:', tahun);
     void fetchRows();
@@ -106,8 +486,10 @@ export default function DistribusiBiayaKedua() {
   /**
    * Fungsi untuk memperbarui data dari database
    * Memanggil fungsi ini saat tombol "Perbarui Data" diklik atau tahun berubah
-   * Data yang diambil sudah termasuk semua kolom UK037-UK077 yang sudah dihitung di backend
-   * Rumus untuk setiap kolom UK sudah konsisten dan dihitung di database melalui stored procedure
+   * 1. Memanggil fungsi SQL untuk recalculate distribusi biaya kedua
+   * 2. Mengambil data dari database yang sudah dihitung
+   * 3. Memfilter hanya unit kerja dengan kategori "Pusat Biaya"
+   * 4. Menghindari duplikasi dengan mengambil 1 record per unit_kerja_pusat_biaya + tahun
    */
   const fetchRows = async () => {
     try {
@@ -115,29 +497,65 @@ export default function DistribusiBiayaKedua() {
       setError("");
       console.log('Fetching distribusi_biaya_kedua for tahun:', tahun);
       
-      // Check current user session
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      console.log('Current user:', user, 'User error:', userError);
+      // Step 1: Panggil fungsi SQL untuk recalculate distribusi biaya kedua
+      // Menggunakan recalc_distribusi_biaya_kedua_safe yang melakukan kalkulasi aman + perbaikan vertical sum dan rescale
+      console.log('Memanggil fungsi recalc_distribusi_biaya_kedua_safe untuk tahun:', tahun);
+      const { data: recalcResult, error: recalcError } = await supabase.rpc(
+        'recalc_distribusi_biaya_kedua_safe',
+        { p_tahun: tahun }
+      );
       
-      // Test Supabase connection first
-      const { data: testData, error: testError } = await supabase
-        .from("distribusi_biaya_kedua")
-        .select("count", { count: 'exact', head: true });
-      
-      console.log('Supabase connection test:', { testData, testError });
-      
-      if (testError) {
-        console.error('Supabase connection error:', testError);
-        throw new Error(`Database connection error: ${testError.message}`);
+      if (recalcError) {
+        console.error('Error: Recalculate distribusi biaya kedua gagal:', recalcError);
+        const errorMessage = recalcError.message || 'Gagal menghitung distribusi biaya kedua';
+        toast({
+          title: "Peringatan",
+          description: `${errorMessage}. Mencoba menggunakan data yang sudah ada di database.`,
+          variant: "default",
+        });
+        // Lanjutkan meskipun recalculate gagal, mungkin data sudah ada
+      } else {
+        const result = recalcResult as any;
+        const updatedCount = result?.result?.updated_count ?? 0;
+        console.log('Recalculate berhasil:', { updatedCount, tahun: result?.result?.tahun });
+        if (updatedCount > 0) {
+          toast({
+            title: "Berhasil",
+            description: `Berhasil menghitung ${updatedCount} data distribusi biaya kedua untuk tahun ${tahun}`,
+          });
+        }
       }
       
-      // Fetch semua data untuk tahun yang dipilih
-      // Data sudah termasuk kolom UK037-UK077 dan total_alokasi_biaya_kedua yang sudah dihitung di backend
+      // Step 2: Ambil daftar unit kerja pusat biaya untuk filtering
+      const { data: unitKerjaPusatBiaya, error: ukError } = await supabase
+        .from("unit_kerja")
+        .select("kode, nama")
+        .eq("kategori", "Pusat Biaya")
+        .order("kode", { ascending: true });
+      
+      if (ukError) {
+        console.warn('Warning: Gagal mengambil unit kerja pusat biaya:', ukError);
+      }
+      
+      const pusatBiayaKodes = new Set<string>();
+      if (unitKerjaPusatBiaya) {
+        unitKerjaPusatBiaya.forEach((uk: any) => {
+          const kode = String(uk.kode || "").toUpperCase();
+          if (kode) {
+            pusatBiayaKodes.add(kode);
+            // Juga tambahkan variasi nama seperti "UK001 - Direktur"
+            pusatBiayaKodes.add(`${kode} - ${uk.nama || ''}`);
+          }
+        });
+      }
+      
+      // Step 3: Fetch data untuk tahun yang dipilih
       const { data, error } = await supabase
         .from("distribusi_biaya_kedua")
         .select("*")
         .eq("tahun", tahun)
-        .order("unit_kerja_pusat_biaya");
+        .order("unit_kerja_pusat_biaya", { ascending: true })
+        .order("updated_at", { ascending: false });
 
       console.log('Supabase response:', { data, error });
 
@@ -148,37 +566,129 @@ export default function DistribusiBiayaKedua() {
       
       const all = (data as any[]) || [];
       console.log('Data received:', all.length, 'records');
-      console.log('Sample data:', all[0]);
       
       if (all.length === 0) {
-        console.log('No data found for tahun:', tahun);
+        console.warn('Tidak ada data ditemukan untuk tahun:', tahun);
         setRows([]);
         setUnitKerjaOptions([]);
         toast({
           title: "Info",
-          description: `Tidak ada data untuk tahun ${tahun}. Silakan coba tahun lain.`,
+          description: `Tidak ada data untuk tahun ${tahun}. Pastikan data distribusi biaya pertama sudah dihitung terlebih dahulu. Silakan klik tombol "Perbarui Data" untuk menghitung ulang.`,
+          variant: "default",
         });
         return;
       }
       
-      // Set data rows - semua nilai kolom UK sudah konsisten dari database
-      setRows(all as DistribusiKeduaRow[]);
+      // Step 4: Filter hanya unit kerja pusat biaya dengan validasi dari tabel unit_kerja
+      // Ambil semua kode unit kerja pusat biaya untuk validasi
+      const { data: validPusatBiaya, error: validError } = await supabase
+        .from("unit_kerja")
+        .select("kode")
+        .eq("kategori", "Pusat Biaya");
+      
+      if (validError) {
+        console.warn('Warning: Gagal mengambil validasi unit kerja pusat biaya:', validError);
+      }
+      
+      const validKodes = new Set<string>();
+      if (validPusatBiaya) {
+        validPusatBiaya.forEach((uk: any) => {
+          const kode = String(uk.kode || "").toUpperCase().trim();
+          if (kode) {
+            validKodes.add(kode);
+          }
+        });
+      }
+      
+      // Filter dengan validasi menggunakan set kode yang valid
+      const filteredByKategori = all.filter((row) => {
+        const unitKerja = String(row.unit_kerja_pusat_biaya || '').trim();
+        if (!unitKerja) return false;
+        
+        // Extract kode UK (5 karakter pertama: UK001, UK002, dll)
+        const kodeMatch = unitKerja.match(/^(UK\d{3})/i);
+        if (!kodeMatch) return false;
+        
+        const kode = kodeMatch[1].toUpperCase();
+        
+        // Validasi: kode harus ada di daftar unit kerja pusat biaya
+        return validKodes.has(kode);
+      });
+      
+      console.log('Filtered by kategori (Pusat Biaya only):', filteredByKategori.length, 'records');
+      
+      if (filteredByKategori.length === 0) {
+        console.warn('Tidak ada data untuk unit kerja pusat biaya pada tahun:', tahun);
+        setRows([]);
+        setUnitKerjaOptions([]);
+        toast({
+          title: "Info",
+          description: `Tidak ada data untuk unit kerja pusat biaya pada tahun ${tahun}. Pastikan data distribusi biaya pertama sudah dihitung untuk unit kerja pusat biaya.`,
+          variant: "default",
+        });
+        return;
+      }
+      
+      // Step 5: Urutkan dan deduplikasi berdasarkan KODE UK saja (bukan nama lengkap)
+      // Extract kode UK untuk deduplikasi
+      const rowsWithKode = filteredByKategori.map(row => {
+        const unitKerja = String(row.unit_kerja_pusat_biaya || '').trim();
+        const kodeMatch = unitKerja.match(/^(UK\d{3})/i);
+        const kode = kodeMatch ? kodeMatch[1].toUpperCase() : '';
+        return { ...row, _kode_uk: kode };
+      }).filter(r => r._kode_uk); // Hanya ambil yang punya kode valid
+      
+      const sorted = [...rowsWithKode].sort((a, b) => {
+        // Urutkan berdasarkan kode UK
+        const kodeCompare = (a._kode_uk || '').localeCompare(b._kode_uk || '');
+        if (kodeCompare !== 0) return kodeCompare;
+        
+        // Jika kode sama, prioritas updated_at terbaru
+        const ta = new Date(a.updated_at || a.created_at || 0).getTime();
+        const tb = new Date(b.updated_at || b.created_at || 0).getTime();
+        if (tb !== ta) return tb - ta;
+        
+        // Jika timestamp sama, prioritaskan yang memiliki dasar_alokasi
+        const da = a.dasar_alokasi ? 1 : 0;
+        const db = b.dasar_alokasi ? 1 : 0;
+        if (db !== da) return db - da;
+        return 0;
+      });
+      
+      // Deduplikasi berdasarkan kode UK saja (bukan nama lengkap)
+      const seen = new Map<string, DistribusiKeduaRow>();
+      for (const row of sorted) {
+        const kode = row._kode_uk || '';
+        if (!seen.has(kode)) {
+          // Ambil yang paling BARU per kode UK (sudah diprioritaskan oleh sort di atas)
+          // Hapus field _kode_uk sebelum menyimpan
+          const { _kode_uk, ...cleanRow } = row;
+          seen.set(kode, cleanRow as DistribusiKeduaRow);
+        }
+      }
+      
+      const deduplicated = Array.from(seen.values());
+      console.log('Deduplicated data (latest per unit):', deduplicated.length, 'records');
+      
+      // Set data rows - hanya unit kerja pusat biaya
+      setRows(deduplicated as DistribusiKeduaRow[]);
 
-      // Ambil daftar unit kerja untuk filter
-      const unitKerjaList = [...new Set(all.map(item => item.unit_kerja_pusat_biaya).filter(Boolean))] as string[];
-      console.log('Unit kerja options:', unitKerjaList);
+      // Ambil daftar unit kerja untuk filter (hanya pusat biaya)
+      const unitKerjaList = [...new Set(deduplicated.map(item => item.unit_kerja_pusat_biaya).filter(Boolean))] as string[];
+      console.log('Unit kerja options (Pusat Biaya only):', unitKerjaList);
       setUnitKerjaOptions(unitKerjaList);
       
       toast({
         title: "Berhasil",
-        description: `Data berhasil dimuat: ${all.length} record`,
+        description: `Data terbaru berhasil dimuat: ${deduplicated.length} unit kerja pusat biaya untuk tahun ${tahun}`,
       });
     } catch (err: any) {
       console.error('Error in fetchRows:', err);
-      setError(err.message || String(err));
+      const errorMessage = err.message || String(err) || 'Terjadi kesalahan saat memuat data';
+      setError(errorMessage);
       toast({ 
         title: "Gagal memuat data", 
-        description: err.message || String(err), 
+        description: `${errorMessage}. Silakan coba lagi atau hubungi administrator jika masalah berlanjut.`, 
         variant: "destructive" 
       });
     } finally {
@@ -209,7 +719,8 @@ export default function DistribusiBiayaKedua() {
           "Total Alokasi I": Math.round(r.total_alokasi_i ?? 0),
           "Audit Check": r.audit_check || "",
           ...Object.fromEntries(ukColumns),
-          "Total Alokasi Biaya Kedua": Math.round(r.total_alokasi_biaya_kedua ?? 0),
+          // Gunakan jumlah UK037-UK077 sebagai total alokasi biaya kedua agar konsisten dengan rumus
+          "Total Alokasi Biaya Kedua": Math.round(getRowTotalAlokasiKedua(r)),
           "Tahun": r.tahun ?? tahun,
           "Updated At": r.updated_at || "",
         };
@@ -233,145 +744,110 @@ export default function DistribusiBiayaKedua() {
     }
   };
 
+
   // Loading state
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings2 className="h-5 w-5" />
-              Distribusi Biaya Kedua
-            </CardTitle>
-            <CardDescription>
-              Pratinjau hasil distribusi biaya tahap kedua (step-down) berdasarkan data tabel `distribusi_biaya_kedua`.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-                <p className="text-muted-foreground">Memuat data...</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center justify-center gap-3 py-12">
+        <RefreshCw className="h-8 w-8 animate-spin text-blue-600" />
+        <p className="text-muted-foreground">Memuat data distribusi biaya kedua...</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings2 className="h-5 w-5" />
-            Distribusi Biaya Kedua
-          </CardTitle>
-          <CardDescription>
-            Pratinjau hasil distribusi biaya tahap kedua (step-down) berdasarkan data tabel `distribusi_biaya_kedua`.
-            <br />
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="tahun">Tahun</Label>
-              <Input id="tahun" type="number" value={tahun} min={2020} max={2035} onChange={(e) => setTahun(parseInt(e.target.value))} />
-            </div>
-          </div>
+      <div>
+        <h1 className="text-3xl font-bold">Distribusi Biaya Kedua</h1>
+      </div>
           
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="unit-kerja">Filter Unit Kerja</Label>
-              <select 
-                id="unit-kerja"
-                value={selectedUnitKerja} 
-                onChange={(e) => setSelectedUnitKerja(e.target.value)}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-              >
-                <option value="">Semua Unit Kerja</option>
-                {unitKerjaOptions.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                className="bg-red-600 hover:bg-red-700 text-white"
-                disabled={loading || filteredRows.length === 0} 
-                onClick={exportExcel}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan
-              </Button>
-              <Button 
-                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
-                disabled={loading} 
-                onClick={fetchRows}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Perbarui Data
-              </Button>
-            </div>
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
           </div>
-          <div className="text-sm text-muted-foreground space-y-1">
-            {filteredRows.length !== rows.length && (
-              <div>Menampilkan {filteredRows.length} dari {rows.length} data berdasarkan filter</div>
-            )}
-            <div>Total data tersedia: {rows.length} | Data difilter: {filteredRows.length}</div>
-            {rows.length === 0 && !loading && (
-              <div className="text-orange-600 bg-orange-50 p-3 rounded-md">
-                ⚠️ Tidak ada data di database untuk tahun {tahun}. 
-                <br />
-                Data tersedia untuk tahun 2025. 
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setTahun(2025)}
-                  className="ml-2"
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 mt-2">
+        <Button
+          variant="outline"
+          onClick={() => setShowFilters((prev) => !prev)}
+          className="min-w-[110px] border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        >
+          Filter
+        </Button>
+        <Button
+          className="bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300 disabled:text-white/70"
+          disabled={filteredRows.length === 0}
+          onClick={exportExcel}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Unduh Laporan
+        </Button>
+        <Button
+          className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"
+          onClick={fetchRows}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Perbarui Data
+        </Button>
+      </div>
+
+      {showFilters && (
+        <Card>
+          <CardContent>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-2 w-[120px]">
+                <Label htmlFor="tahun">Tahun</Label>
+                <Input
+                  id="tahun"
+                  type="number"
+                  value={tahun}
+                  min={2020}
+                  max={2035}
+                  onChange={(e) => setTahun(parseInt(e.target.value) || tahun)}
+                />
+              </div>
+              <div className="flex flex-col gap-2 min-w-[220px]">
+                <Label htmlFor="unit-kerja">Unit Kerja Pusat Biaya</Label>
+                <select
+                  id="unit-kerja"
+                  value={selectedUnitKerja}
+                  onChange={(e) => setSelectedUnitKerja(e.target.value)}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
-                  Reset ke 2025
-                </Button>
+                  <option value="">Semua Unit Kerja</option>
+                  {unitKerjaOptions.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unit}
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
-            {rows.length > 0 && (
-              <div className="text-green-600 bg-green-50 p-3 rounded-md">
-                ✅ Berhasil memuat {rows.length} data dari database untuk tahun {tahun}
-              </div>
-            )}
-            {error && (
-              <div className="text-red-600 bg-red-50 p-2 rounded">
-                ❌ Error: {error}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Tabel Distribusi Biaya Kedua</CardTitle>
-          <CardDescription>Data dari tabel `distribusi_biaya_kedua`</CardDescription>
-        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[200px]">Unit Kerja (Pusat Biaya)</TableHead>
-                  <TableHead className="min-w-[140px] text-right">Biaya Alokasi I</TableHead>
-                  <TableHead className="min-w-[120px]">Dasar Alokasi</TableHead>
-                  <TableHead className="min-w-[120px]">Status</TableHead>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                  <TableHead className="min-w-[200px] text-white">Unit Kerja (Pusat Biaya)</TableHead>
+                  <TableHead className="min-w-[140px] text-right text-white">Biaya Alokasi I</TableHead>
+                  <TableHead className="min-w-[120px] text-white">Dasar Alokasi</TableHead>
+                  <TableHead className="min-w-[120px] text-white">Status</TableHead>
                   {Array.from({ length: 77 - 37 + 1 }, (_, idx) => {
                     const ukCode = `UK${(37 + idx).toString().padStart(3, '0')}`;
                     return (
-                      <TableHead key={ukCode} className="text-right min-w-[110px]">{ukCode}</TableHead>
+                      <TableHead key={ukCode} className="min-w-[110px] text-right text-white">
+                        {ukCode}
+                      </TableHead>
                     );
                   })}
-                  <TableHead className="min-w-[140px] text-right">Total Alokasi Biaya Kedua</TableHead>
+                  <TableHead className="min-w-[140px] text-right text-white">Total Alokasi Biaya Kedua</TableHead>
+                  <TableHead className="min-w-[120px] text-right text-white">Selisih</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -381,22 +857,35 @@ export default function DistribusiBiayaKedua() {
                     <TableCell className="text-right">{(r.biaya_alokasi_i ?? 0).toLocaleString("id-ID")}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{r.dasar_alokasi || '-'}</Badge>
+                      {r.updated_at && (
+                        <div className="text-[10px] text-muted-foreground">upd: {new Date(r.updated_at).toLocaleString("id-ID")}</div>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={r.audit_check === 'OK' ? 'default' : 'destructive'}>
+                      <Badge
+                        className={
+                          r.audit_check === 'OK'
+                            ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            : 'bg-red-100 text-red-700 border-red-200'
+                        }
+                      >
                         {r.audit_check || 'Unknown'}
                       </Badge>
                     </TableCell>
                     {/* Render kolom UK037-UK077 dengan format yang konsisten untuk semua baris */}
                     {Array.from({ length: 77 - 37 + 1 }, (_, idx) => {
                       const col = getColumnName(37 + idx);
-                      const val = (r as any)[col] ?? 0; // Handle null/undefined dengan default 0
-                      // Format konsisten: bulatkan dan format dengan locale Indonesia
+                      const val = getRoundedCellValue(r, col);
                       return (
                         <TableCell key={col} className="text-right">{Math.round(val).toLocaleString("id-ID")}</TableCell>
                       );
                     })}
-                    <TableCell className="text-right font-medium">{(r.total_alokasi_biaya_kedua ?? 0).toLocaleString("id-ID")}</TableCell>
+                    {/* Tampilkan total sebagai penjumlahan UK037-UK077 (pembulatan per kolom) */}
+                    <TableCell className="text-right font-medium">{Math.round(getRowTotalAlokasiKeduaAdjusted(r)).toLocaleString("id-ID")}</TableCell>
+                    {/* Tampilkan selisih dari DB bila ada */}
+                    <TableCell className="text-right font-medium">
+                      {Math.round(Number(r.selisih_pembulatan ?? ((r.biaya_alokasi_i ?? 0) - getRowTotalAlokasiKeduaAdjusted(r)))).toLocaleString("id-ID")}
+                    </TableCell>
                   </TableRow>
                 ))}
                 {filteredRows.length === 0 && !loading && (
@@ -415,16 +904,18 @@ export default function DistribusiBiayaKedua() {
                   <TableCell className="text-right font-semibold">{filteredRows.reduce((sum, r) => sum + (r.biaya_alokasi_i ?? 0), 0).toLocaleString("id-ID")}</TableCell>
                   <TableCell />
                   <TableCell />
-                  {/* Total untuk setiap kolom UK - menggunakan columnTotals yang sudah dihitung */}
+                  {/* Total untuk setiap kolom UK - menggunakan total yang SUDAH disesuaikan */}
                   {Array.from({ length: 77 - 37 + 1 }, (_, idx) => {
                     const col = getColumnName(37 + idx);
-                    const total = columnTotals[col] ?? 0; // Menggunakan total yang sudah dihitung dengan rumus konsisten
-                    // Format konsisten: bulatkan dan format dengan locale Indonesia
+                    const total = columnTotalsAdjusted[col] ?? 0;
                     return (
                       <TableCell key={col} className="text-right font-semibold">{Math.round(total).toLocaleString("id-ID")}</TableCell>
                     );
                   })}
-                  <TableCell className="text-right font-semibold">{filteredRows.reduce((sum, r) => sum + (r.total_alokasi_biaya_kedua ?? 0), 0).toLocaleString("id-ID")}</TableCell>
+                  {/* Grand total (setelah pembulatan per kolom) */}
+                  <TableCell className="text-right font-semibold">{Math.round(grandTotalAlokasiKeduaAdjusted).toLocaleString("id-ID")}</TableCell>
+                  {/* Total selisih dari DB jika tersedia */}
+                  <TableCell className="text-right font-semibold">{Math.round(totalSelisihFromDB).toLocaleString("id-ID")}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>

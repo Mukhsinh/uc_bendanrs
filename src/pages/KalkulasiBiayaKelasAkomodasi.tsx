@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Filter, Calculator, Bed } from "lucide-react";
+import { Download, RefreshCcw, ClipboardList, Scale, Building } from "lucide-react";
 import * as XLSX from 'xlsx';
 
 interface KalkulasiBiayaKelasAkomodasiData {
@@ -247,40 +246,6 @@ const KalkulasiBiayaKelasAkomodasi = () => {
     return stats;
   };
 
-  const getKelasBadgeVariant = (kelas: string) => {
-    switch (kelas) {
-      case 'VVIP':
-        return 'destructive';
-      case 'VIP':
-        return 'default';
-      case 'I':
-        return 'secondary';
-      case 'II':
-        return 'outline';
-      case 'III':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
-
-  const getKelasBadgeStyle = (kelas: string) => {
-    switch (kelas) {
-      case 'VVIP':
-        return 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-500';
-      case 'VIP':
-        return 'bg-gradient-to-r from-purple-500 to-purple-600 text-white border-purple-500';
-      case 'I':
-        return 'bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-500';
-      case 'II':
-        return 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-500';
-      case 'III':
-        return 'bg-gradient-to-r from-orange-500 to-orange-600 text-white border-orange-500';
-      default:
-        return 'bg-gradient-to-r from-gray-500 to-gray-600 text-white border-gray-500';
-    }
-  };
-
   console.log('Rendering component. Loading:', loading, 'Error:', error, 'Data length:', data.length);
 
   if (loading) {
@@ -308,133 +273,112 @@ const KalkulasiBiayaKelasAkomodasi = () => {
 
   const kelasStats = getKelasStats();
   const kelasAverageStats = getKelasAverageUnitCost();
+  const totalData = filteredData.length;
+  const uniqueUnitCount = new Set(filteredData.map((item) => item.kode_unit_kerja)).size;
+  const averageUnitCost = filteredData.length > 0 ? getTotalUnitCost() / filteredData.length : 0;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Kalkulasi Biaya Kelas Akomodasi</h1>
-          <p className="text-muted-foreground">
-            Analisis biaya akomodasi per kelas perawatan rawat inap
-          </p>
+      <div className="space-y-3">
+        <h1 className="text-3xl font-bold">Kalkulasi Biaya Kelas Akomodasi</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            value={filters.tahun}
+            onChange={(e) => handleFilterChange('tahun', e.target.value)}
+            placeholder="Tahun"
+            className="w-24"
+          />
+          <Input
+            value={filters.nama_unit_kerja}
+            onChange={(e) => handleFilterChange('nama_unit_kerja', e.target.value)}
+            placeholder="Filter unit kerja"
+            className="w-48"
+          />
+          <Input
+            value={filters.kelas}
+            onChange={(e) => handleFilterChange('kelas', e.target.value)}
+            placeholder="Filter kelas"
+            className="flex-1 min-w-[160px]"
+          />
+          <Input
+            value={filters.search}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            placeholder="Cari unit kerja atau kelas..."
+            className="flex-1 min-w-[200px]"
+          />
+          <Button
+            onClick={exportToExcel}
+            disabled={loading || filteredData.length === 0}
+            variant="report"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Unduh Laporan
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={fetchData}
+            disabled={loading}
+            aria-label="Refresh data"
+          >
+            <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
-      {/* Filter Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filter Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="tahun">Tahun</Label>
-              <Input
-                id="tahun"
-                type="number"
-                value={filters.tahun}
-                onChange={(e) => handleFilterChange('tahun', e.target.value)}
-                placeholder="Tahun"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit-kerja">Nama Unit Kerja</Label>
-              <Input
-                id="unit-kerja"
-                value={filters.nama_unit_kerja}
-                onChange={(e) => handleFilterChange('nama_unit_kerja', e.target.value)}
-                placeholder="Nama Unit Kerja"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="kelas">Kelas</Label>
-              <Input
-                id="kelas"
-                value={filters.kelas}
-                onChange={(e) => handleFilterChange('kelas', e.target.value)}
-                placeholder="Kelas (VVIP, VIP, I, II, III)"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="search">Pencarian</Label>
-              <Input
-                id="search"
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-                placeholder="Cari unit kerja, kelas..."
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Data</p>
-                <p className="text-2xl font-bold">{filteredData.length}</p>
-              </div>
-              <Calculator className="h-8 w-8 text-muted-foreground" />
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Card className="border border-sky-100 bg-sky-50">
+          <CardContent className="p-6 space-y-1">
+            <p className="text-sm font-medium text-sky-700">Total Data</p>
+            <p className="text-2xl font-bold text-sky-900">{totalData}</p>
+            <p className="text-xs text-sky-600">Jumlah baris sesuai filter aktif</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Rata-rata Unit Cost</p>
-                <p className="text-2xl font-bold">
-                  {filteredData.length > 0 ? formatCurrency(getTotalUnitCost() / filteredData.length) : formatCurrency(0)}
-                </p>
-              </div>
-              <Calculator className="h-8 w-8 text-muted-foreground" />
-            </div>
+        <Card className="border border-emerald-100 bg-emerald-50">
+          <CardContent className="p-6 space-y-1">
+            <p className="text-sm font-medium text-emerald-700">Rata-rata Unit Cost</p>
+            <p className="text-2xl font-bold text-emerald-900">
+              {formatCurrency(averageUnitCost)}
+            </p>
+            <p className="text-xs text-emerald-600">Rata-rata biaya per kelas akomodasi</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Unit Kerja</p>
-                <p className="text-2xl font-bold">
-                  {new Set(filteredData.map(item => item.kode_unit_kerja)).size}
-                </p>
-              </div>
-              <Button onClick={exportToExcel} size="sm" className="ml-4">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan
-              </Button>
-            </div>
+        <Card className="border border-indigo-100 bg-indigo-50">
+          <CardContent className="p-6 space-y-1">
+            <p className="text-sm font-medium text-indigo-700">Unit Kerja</p>
+            <p className="text-2xl font-bold text-indigo-900">
+              {uniqueUnitCount.toLocaleString('id-ID')}
+            </p>
+            <p className="text-xs text-indigo-600">Total unit kerja unik dalam data</p>
+          </CardContent>
+        </Card>
+        <Card className="border border-amber-100 bg-amber-50">
+          <CardContent className="p-6 space-y-1">
+            <p className="text-sm font-medium text-amber-700">Total Biaya Gizi</p>
+            <p className="text-2xl font-bold text-amber-900">
+              {formatCurrency(filteredData.reduce((sum, item) => sum + item.alokasi_biaya_gizi, 0))}
+            </p>
+            <p className="text-xs text-amber-600">Akumulasi alokasi biaya gizi</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Kelas Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {Object.entries(kelasStats).map(([kelas, count]) => (
-          <Card key={kelas}>
+          <Card key={kelas} className="border border-slate-200 bg-slate-50">
             <CardContent className="p-6">
-              <div className="flex flex-col items-center text-center space-y-4">
-                <Badge className={`${getKelasBadgeStyle(kelas)} text-lg px-4 py-2`}>
+              <div className="flex flex-col items-center text-center space-y-3">
+                <Badge variant="outline" className="px-4 py-1 text-sm font-semibold">
                   {kelas}
                 </Badge>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Kelas {kelas}</p>
-                  <p className="text-2xl font-bold">
-                    {kelasAverageStats[kelas as keyof typeof kelasAverageStats].average > 0 
-                      ? formatCurrency(kelasAverageStats[kelas as keyof typeof kelasAverageStats].average)
-                      : formatCurrency(0)
-                    }
+                  <p className="text-sm font-medium text-slate-600">Kelas {kelas}</p>
+                  <p className="text-xl font-bold text-slate-900">
+                    {formatCurrency(
+                      kelasAverageStats[kelas as keyof typeof kelasAverageStats].average || 0,
+                    )}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {count} data
-                  </p>
+                  <p className="text-xs text-slate-500">{count} data</p>
                 </div>
               </div>
             </CardContent>
@@ -442,25 +386,20 @@ const KalkulasiBiayaKelasAkomodasi = () => {
         ))}
       </div>
 
-      {/* Data Table */}
       <Card>
         <CardHeader>
           <CardTitle>Data Kalkulasi Biaya Kelas Akomodasi</CardTitle>
-          <CardDescription>
-            Menampilkan {filteredData.length} dari {data.length} data
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-teal-700">
                 <TableRow>
-                  <TableHead>Tahun</TableHead>
-                  <TableHead>Unit Kerja</TableHead>
-                  <TableHead>Kelas</TableHead>
-                  <TableHead>Alokasi Biaya Gizi</TableHead>
-                  <TableHead>Unit Cost Per Kelas</TableHead>
-                  {/* Hidden column: Rata-rata UC */}
+                  <TableHead className="text-white font-semibold">Tahun</TableHead>
+                  <TableHead className="text-white font-semibold">Unit Kerja</TableHead>
+                  <TableHead className="text-white font-semibold">Kelas</TableHead>
+                  <TableHead className="text-white font-semibold">Alokasi Biaya Gizi</TableHead>
+                  <TableHead className="text-white font-semibold">Unit Cost Per Kelas</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -468,15 +407,11 @@ const KalkulasiBiayaKelasAkomodasi = () => {
                   <TableRow key={item.id}>
                     <TableCell>{item.tahun}</TableCell>
                     <TableCell>
-                      <div>
-                        <Badge variant="outline" className="mb-1">
-                          {item.kode_unit_kerja}
-                        </Badge>
-                        <div className="text-sm">{item.nama_unit_kerja}</div>
-                      </div>
+                      <div className="font-medium">{item.nama_unit_kerja}</div>
+                      <div className="text-sm text-muted-foreground">{item.kode_unit_kerja}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getKelasBadgeStyle(item.kelas)}>
+                      <Badge className="bg-teal-100 text-teal-700 border-teal-200">
                         {item.kelas}
                       </Badge>
                     </TableCell>
@@ -484,7 +419,6 @@ const KalkulasiBiayaKelasAkomodasi = () => {
                     <TableCell className="font-medium">
                       {formatCurrency(item.unit_cost_per_kelas)}
                     </TableCell>
-                    {/* Hidden column: Rata-rata UC */}
                   </TableRow>
                 ))}
               </TableBody>

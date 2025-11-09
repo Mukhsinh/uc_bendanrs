@@ -106,7 +106,6 @@ const KalkulasiBiayaGizi: React.FC = () => {
   const [isBahanPorsiDialogOpen, setIsBahanPorsiDialogOpen] = useState(false);
   const [selectedMenuForBahan, setSelectedMenuForBahan] = useState<MenuGizi | null>(null);
   const [menusWithBahan, setMenusWithBahan] = useState<Set<string>>(new Set());
-  const [bahanPorsiTotals, setBahanPorsiTotals] = useState<Map<string, number>>(new Map());
   const [searchJenisMakanan, setSearchJenisMakanan] = useState<string>('');
   const [isUpdateWaktuDialogOpen, setIsUpdateWaktuDialogOpen] = useState(false);
   const [selectedItemForWaktu, setSelectedItemForWaktu] = useState<KalkulasiBiayaGiziData | null>(null);
@@ -545,13 +544,6 @@ const KalkulasiBiayaGizi: React.FC = () => {
       const menusWithBahanSet = new Set(bahanData?.map(item => item.jenis_makanan) || []);
       setMenusWithBahan(menusWithBahanSet);
       
-      // Calculate total biaya bahan porsi per jenis makanan
-      const totals = new Map<string, number>();
-      bahanData?.forEach(item => {
-        const currentTotal = totals.get(item.jenis_makanan) || 0;
-        totals.set(item.jenis_makanan, currentTotal + (item.biaya_bahan_porsi || 0));
-      });
-      setBahanPorsiTotals(totals);
     } catch (error) {
       console.error('Error fetching bahan porsi:', error);
     }
@@ -1061,122 +1053,24 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Summary AUC per kelas + download */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ringkasan Average Unit Cost per Kelas - {currentYear}</CardTitle>
-          <CardDescription>
-            Nilai rata-rata dihitung dari total biaya (jumlah × unit cost) per kelas dibagi total porsi per kelas, tersinkron otomatis dengan database.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="p-3 rounded-md border">
-              <div className="text-xs text-muted-foreground">SVIP/VVIP</div>
-              <div className="text-lg font-semibold">Rp {aucSummary.svip.toLocaleString('id-ID')}</div>
-            </div>
-            <div className="p-3 rounded-md border">
-              <div className="text-xs text-muted-foreground">VIP</div>
-              <div className="text-lg font-semibold">Rp {aucSummary.vip.toLocaleString('id-ID')}</div>
-            </div>
-            <div className="p-3 rounded-md border">
-              <div className="text-xs text-muted-foreground">Kelas I</div>
-              <div className="text-lg font-semibold">Rp {aucSummary.i.toLocaleString('id-ID')}</div>
-            </div>
-            <div className="p-3 rounded-md border">
-              <div className="text-xs text-muted-foreground">Kelas II</div>
-              <div className="text-lg font-semibold">Rp {aucSummary.ii.toLocaleString('id-ID')}</div>
-            </div>
-            <div className="p-3 rounded-md border">
-              <div className="text-xs text-muted-foreground">Kelas III</div>
-              <div className="text-lg font-semibold">Rp {aucSummary.iii.toLocaleString('id-ID')}</div>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mt-4">
-            <Button onClick={handleDownloadSummary}>
-              <Download className="h-4 w-4 mr-2" /> Unduh Ringkasan AUC
-            </Button>
-            <Button variant="outline" onClick={handleDownloadDetail}>
-              <Download className="h-4 w-4 mr-2" /> Unduh Data Detail
-            </Button>
-            <Button variant="outline" onClick={handleDownloadDetailBiaya}>
-              <Download className="h-4 w-4 mr-2" /> Unduh Laporan Detail Biaya
-            </Button>
-            
-            <Button 
-              variant="default" 
-              disabled={loading || recalculating} 
-              onClick={handleManualRecalculation}
-              className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
-            >
-              {recalculating ? (
-                <span className="flex items-center">
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  {recalcProgress.message || 'Rekalkulasi...'}
-                </span>
-              ) : (
-                <span className="flex items-center">
-                  <Calculator className="h-4 w-4 mr-2" />
-                  Rekalkulasi Semua
-                </span>
-              )}
-            </Button>
-            
-            {recalculating && (
-              <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
-                <div className="flex items-center space-x-2">
-                  <div className="w-full bg-green-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-600 h-2 rounded-full transition-all duration-300" 
-                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium">
-                    {recalcProgress.step}/{recalcProgress.total}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs">
-                  {recalcProgress.message}
-                </div>
-              </div>
-            )}
-            
-            {data && data.length > 0 && !recalculating && (
-              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
-                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
-              </div>
-            )}
-            
-            <div className="ml-auto flex items-center gap-2">
-              <Label htmlFor="filter-jenis" className="text-sm">Filter Jenis Makanan</Label>
-              <Input
-                id="filter-jenis"
-                placeholder="cth: Kelas I / VIP / VVIP / nasi"
-                value={exportJenisFilter}
-                onChange={(e) => setExportJenisFilter(e.target.value)}
-                className="w-64"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Kalkulasi Biaya Gizi</h1>
-          <p className="text-muted-foreground">
-            Hitung biaya gizi untuk pasien rawat inap
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={downloadTemplate} variant="outline">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Kalkulasi Biaya Gizi</h1>
+        <p className="text-muted-foreground">
+          Hitung biaya gizi untuk pasien rawat inap
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={downloadTemplate} variant="template">
             <Download className="h-4 w-4 mr-2" />
-            Download Template
+            Unduh Template Impor
           </Button>
           <label htmlFor="file-upload">
-            <Button asChild variant="outline">
+            <Button asChild variant="import">
               <span>
                 <Upload className="h-4 w-4 mr-2" />
-                Import Data
+                Impor Data
               </span>
             </Button>
           </label>
@@ -1189,9 +1083,15 @@ const KalkulasiBiayaGizi: React.FC = () => {
           />
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setEditingItem(null); resetForm(); }}>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setEditingItem(null);
+                  resetForm();
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Tambah Data
+                Tambah Data Unit Kerja
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1362,12 +1262,146 @@ const KalkulasiBiayaGizi: React.FC = () => {
               </form>
             </DialogContent>
           </Dialog>
+          <Button variant="report" onClick={handleDownloadDetail}>
+            <Download className="h-4 w-4 mr-2" />
+            Unduh Laporan
+          </Button>
+          <Button
+            disabled={loading || recalculating}
+            onClick={handleManualRecalculation}
+            className="bg-purple-600 text-white hover:bg-purple-700"
+          >
+            {recalculating ? (
+              <span className="flex items-center">
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                {recalcProgress.message || 'Rekalkulasi...'}
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <Calculator className="mr-2 h-4 w-4" />
+                Rekalkulasi Semua
+              </span>
+            )}
+          </Button>
+        </div>
+
+        {recalculating && (
+          <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-700">
+            <div className="flex items-center space-x-2">
+              <div className="h-2 w-full rounded-full bg-purple-200">
+                <div
+                  className="h-2 rounded-full bg-purple-600 transition-all duration-300"
+                  style={{ width: `${(recalcProgress.step / recalcProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <span className="text-xs font-medium">
+                {recalcProgress.step}/{recalcProgress.total}
+              </span>
+            </div>
+            <div className="mt-1 text-xs">
+              {recalcProgress.message}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            id="filter-jenis"
+            placeholder="cth: Kelas I / VIP / VVIP / nasi"
+            value={exportJenisFilter}
+            onChange={(e) => setExportJenisFilter(e.target.value)}
+            className="w-64"
+          />
         </div>
       </div>
 
+      <Card className="bg-[#F8FBFF] border border-sky-100 shadow-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-semibold text-slate-800">
+            Ringkasan Average Unit Cost per Kelas - {currentYear}
+          </CardTitle>
+          <CardDescription className="text-slate-600">
+            Nilai rata-rata dihitung dari total biaya (jumlah × unit cost) per kelas dibagi total porsi per kelas, tersinkron otomatis dengan database.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+            <div className="rounded-xl border border-sky-100 bg-gradient-to-br from-sky-50 to-sky-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-sky-700">SVIP/VVIP</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/15 text-sky-600">
+                  <span className="font-semibold">SV</span>
+                </div>
+              </div>
+              <div className="mt-3 text-2xl font-bold text-sky-900">
+                Rp {aucSummary.svip.toLocaleString('id-ID')}
+              </div>
+            </div>
+            <div className="rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-indigo-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-indigo-700">VIP</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/15 text-indigo-600">
+                  <span className="font-semibold">VIP</span>
+                </div>
+              </div>
+              <div className="mt-3 text-2xl font-bold text-indigo-900">
+                Rp {aucSummary.vip.toLocaleString('id-ID')}
+              </div>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-emerald-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-emerald-700">Kelas I</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600">
+                  <span className="font-semibold">I</span>
+                </div>
+              </div>
+              <div className="mt-3 text-2xl font-bold text-emerald-900">
+                Rp {aucSummary.i.toLocaleString('id-ID')}
+              </div>
+            </div>
+            <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-amber-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-amber-700">Kelas II</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-600">
+                  <span className="font-semibold">II</span>
+                </div>
+              </div>
+              <div className="mt-3 text-2xl font-bold text-amber-900">
+                Rp {aucSummary.ii.toLocaleString('id-ID')}
+              </div>
+            </div>
+            <div className="rounded-xl border border-rose-100 bg-gradient-to-br from-rose-50 to-rose-100 p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-rose-700">Kelas III</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-500/15 text-rose-600">
+                  <span className="font-semibold">III</span>
+                </div>
+              </div>
+              <div className="mt-3 text-2xl font-bold text-rose-900">
+                Rp {aucSummary.iii.toLocaleString('id-ID')}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="report" onClick={handleDownloadSummary}>
+              <Download className="h-4 w-4" />
+              Unduh Ringkasan AUC
+            </Button>
+            <Button variant="report" onClick={handleDownloadDetail}>
+              <Download className="h-4 w-4" />
+              Unduh Data Detail
+            </Button>
+            <Button variant="report" onClick={handleDownloadDetailBiaya}>
+              <Download className="h-4 w-4" />
+              Unduh Laporan Detail Biaya
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Import Progress */}
       {importProgress > 0 && (
-        <Card>
+        <Card className="border border-slate-200 bg-slate-50 shadow-sm">
           <CardContent className="pt-6">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -1385,10 +1419,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Data Kalkulasi Biaya Gizi - Tahun {currentYear}</CardTitle>
-          <CardDescription>
+      <Card className="border border-emerald-100 bg-[#F7FBF9] shadow-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-semibold text-slate-800">Data Kalkulasi Biaya Gizi - Tahun {currentYear}</CardTitle>
+          <CardDescription className="text-slate-600">
             Daftar kalkulasi biaya gizi dengan perhitungan otomatis unit cost per porsi
           </CardDescription>
         </CardHeader>
@@ -1400,20 +1434,19 @@ const KalkulasiBiayaGizi: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-teal-700">
                   <TableRow>
-                    <TableHead>Jenis Makanan</TableHead>
-                    <TableHead>Total Porsi</TableHead>
-                    <TableHead>Waktu (Meracik/Memasak/Menata)</TableHead>
-                    <TableHead>Bahan Porsi</TableHead>
-                    <TableHead>Biaya Bahan Porsi</TableHead>
-                    <TableHead>Unit Cost/Porsi</TableHead>
-                    <TableHead>Aksi</TableHead>
+                    <TableHead className="text-white font-semibold">Jenis Makanan</TableHead>
+                    <TableHead className="text-white font-semibold">Total Porsi</TableHead>
+                    <TableHead className="text-white font-semibold">Waktu (Meracik/Memasak/Menata)</TableHead>
+                    <TableHead className="text-white font-semibold">Bahan Porsi</TableHead>
+                    <TableHead className="text-white font-semibold">Biaya Bahan Porsi</TableHead>
+                    <TableHead className="text-white font-semibold">Unit Cost/Porsi</TableHead>
+                    <TableHead className="text-white font-semibold">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.map((item) => {
-                    const totalBiayaBahanPorsi = bahanPorsiTotals.get(item.jenis_makanan) || 0;
                     const hasBahanPorsi = menusWithBahan.has(item.jenis_makanan);
                     
                     // Debug logging
@@ -1514,18 +1547,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(item)}
-                            >
+                            <Button size="sm" variant="edit" onClick={() => handleEdit(item)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDelete(item.id)}
-                            >
+                            <Button size="sm" variant="destructive" onClick={() => handleDelete(item.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1546,10 +1571,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
       </Card>
 
       {/* Bahan Porsi Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manajemen Bahan Porsi</CardTitle>
-          <CardDescription>
+      <Card className="border border-amber-100 bg-[#FFF8F1] shadow-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-semibold text-slate-800">Manajemen Bahan Porsi</CardTitle>
+          <CardDescription className="text-slate-600">
             Daftar bahan porsi dengan perhitungan otomatis biaya bahan porsi (integer)
           </CardDescription>
         </CardHeader>
@@ -1661,18 +1686,18 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-teal-700">
                 <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Jenis Makanan</TableHead>
-                  <TableHead>Nama Barang</TableHead>
-                  <TableHead>Satuan</TableHead>
-                  <TableHead>Konsumsi</TableHead>
-                  <TableHead>Harga</TableHead>
-                  <TableHead>Harga Bahan</TableHead>
-                  <TableHead>Biaya Produksi</TableHead>
-                  <TableHead>Biaya Bahan Porsi</TableHead>
-                  <TableHead>Sumber Data</TableHead>
+                  <TableHead className="text-white font-semibold">Kode</TableHead>
+                  <TableHead className="text-white font-semibold">Jenis Makanan</TableHead>
+                  <TableHead className="text-white font-semibold">Nama Barang</TableHead>
+                  <TableHead className="text-white font-semibold">Satuan</TableHead>
+                  <TableHead className="text-white font-semibold">Konsumsi</TableHead>
+                  <TableHead className="text-white font-semibold">Harga</TableHead>
+                  <TableHead className="text-white font-semibold">Harga Bahan</TableHead>
+                  <TableHead className="text-white font-semibold">Biaya Produksi</TableHead>
+                  <TableHead className="text-white font-semibold">Biaya Bahan Porsi</TableHead>
+                  <TableHead className="text-white font-semibold">Sumber Data</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

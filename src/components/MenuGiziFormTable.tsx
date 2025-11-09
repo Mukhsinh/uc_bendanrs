@@ -228,59 +228,69 @@ const MenuGiziFormTable: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6">
         <h2 className="text-2xl font-bold">Manajemen Menu Gizi</h2>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchAll()} variant="outline" size="icon"><RefreshCw className="h-4 w-4" /></Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditing(null)}>Tambah Menu Gizi</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Edit Menu Gizi" : "Tambah Menu Gizi"}</DialogTitle>
-                <DialogDescription>{editing ? "Perbarui detail menu gizi." : "Tambahkan menu gizi baru."}</DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="nama_makanan"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nama Makanan</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: Nasi Putih" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <DialogFooter><Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button></DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <Button onClick={handleDownloadTemplate} variant="outline"><Download className="mr-2 h-4 w-4" /> Unduh Template Impor</Button>
-        <label htmlFor="import-file-menu-gizi" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          <Upload className="mr-2 h-4 w-4" /> Impor Data
-          <Input id="import-file-menu-gizi" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
-        </label>
-        <Button onClick={handleDownloadReport} variant="outline"><FileText className="mr-2 h-4 w-4" /> Unduh Laporan</Button>
+        <Button onClick={handleDownloadTemplate} variant="template" className="shadow-sm">
+          <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
+        </Button>
+        <Button variant="import" className="shadow-sm" asChild>
+          <label className="flex cursor-pointer items-center gap-2">
+            <Upload className="h-4 w-4" /> Impor Data
+            <Input type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+          </label>
+        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setEditing(null)} className="shadow-sm">
+              Tambah Menu Gizi
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Menu Gizi" : "Tambah Menu Gizi"}</DialogTitle>
+              <DialogDescription>{editing ? "Perbarui detail menu gizi." : "Tambahkan menu gizi baru."}</DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                <FormField
+                  control={form.control}
+                  name="nama_makanan"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nama Makanan</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Contoh: Nasi Putih" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <DialogFooter>
+                  <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+          <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+        </Button>
+        <Button onClick={() => fetchAll()} variant="outline" size="icon">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode Makanan</TableHead>
-              <TableHead>Nama Makanan</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="font-bold text-white">Kode Makanan</TableHead>
+              <TableHead className="font-bold text-white">Nama Makanan</TableHead>
+              <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -292,8 +302,21 @@ const MenuGiziFormTable: React.FC = () => {
                   <TableCell className="font-medium">{item.kode_makanan}</TableCell>
                   <TableCell>{item.nama_makanan}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditing(item); setIsDialogOpen(true); }} className="mr-2"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="edit"
+                        size="icon"
+                        onClick={() => {
+                          setEditing(item);
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

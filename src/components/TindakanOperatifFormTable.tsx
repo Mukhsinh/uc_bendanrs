@@ -27,10 +27,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Search, X } from "lucide-react";
+import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Search, X, Stethoscope, Activity } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { ImportProgressModal, UploadProgress } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
 
@@ -113,6 +115,8 @@ const TindakanOperatifFormTable: React.FC = () => {
 
   // Get unique operators for filter dropdown
   const uniqueOperators = Array.from(new Set(list.map(item => item.nama_operator_spesialistik))).sort();
+  const operatorCount = React.useMemo(() => uniqueOperators.length, [uniqueOperators.length]);
+  const tindakanCount = React.useMemo(() => list.length, [list.length]);
 
   useEffect(() => {
     if (editing) form.reset({
@@ -343,23 +347,77 @@ const TindakanOperatifFormTable: React.FC = () => {
       {/* Upload Progress Modal */}
       <ImportProgressModal progress={uploadProgress} />
 
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Manajemen Tindakan Operatif</h2>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchAll()} variant="outline" size="icon"><RefreshCw className="h-4 w-4" /></Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditing(null)}>Tambah Tindakan</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Edit Tindakan" : "Tambah Tindakan"}</DialogTitle>
-                <DialogDescription>
-                  {editing ? "Perbarui detail tindakan operatif." : "Tambahkan tindakan operatif baru."}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+      <div className="mb-4">
+        <div className="flex flex-wrap items-start gap-4">
+          <div className="flex-1 min-w-[220px]">
+            <h2 className="text-2xl font-bold mb-1">Manajemen Tindakan Operatif</h2>
+            <p className="text-sm text-muted-foreground">
+              Kelola data prosedur operatif beserta operator spesialistik
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Card className={cn("border-none shadow-sm bg-violet-50 w-[160px]")}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-semibold text-violet-600 uppercase tracking-wide">
+                  Dokter Operator
+                </CardTitle>
+                <div className="rounded-full bg-violet-100 text-violet-600 p-2 shadow-inner">
+                  <Stethoscope className="h-6 w-6" />
+                </div>
+              </CardHeader>
+              <CardContent className="py-2">
+                <div className="text-xl font-semibold text-violet-700">{operatorCount}</div>
+                <p className="text-xs text-violet-500 font-medium">
+                  Operator unik
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className={cn("border-none shadow-sm bg-rose-50 w-[160px]")}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-semibold text-rose-600 uppercase tracking-wide">
+                  Tindakan Operatif
+                </CardTitle>
+                <div className="rounded-full bg-rose-100 text-rose-600 p-2 shadow-inner">
+                  <Activity className="h-6 w-6" />
+                </div>
+              </CardHeader>
+              <CardContent className="py-2">
+                <div className="text-xl font-semibold text-rose-700">{tindakanCount}</div>
+                <p className="text-xs text-rose-500 font-medium">
+                  Prosedur tercatat
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Button onClick={handleDownloadTemplate} variant="template" className="shadow-sm">
+          <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
+        </Button>
+        <Button variant="import" className="shadow-sm" asChild>
+          <label className="flex cursor-pointer items-center gap-2">
+            <Upload className="h-4 w-4" /> Impor Data
+            <Input id="import-file-tindakan-operatif" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+          </label>
+        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setEditing(null)} className="shadow-sm">
+              Tambah Tindakan
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Tindakan" : "Tambah Tindakan"}</DialogTitle>
+              <DialogDescription>
+                {editing ? "Perbarui detail tindakan operatif." : "Tambahkan tindakan operatif baru."}
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
                   <FormField
                     control={form.control}
                     name="kode_jenis"
@@ -425,14 +483,19 @@ const TindakanOperatifFormTable: React.FC = () => {
                       </FormItem>
                     )}
                   />
-                  <DialogFooter>
-                    <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                <DialogFooter>
+                  <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+          <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+        </Button>
+        <Button onClick={() => fetchAll()} variant="outline" size="icon">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Filter Section */}
@@ -484,30 +547,19 @@ const TindakanOperatifFormTable: React.FC = () => {
           )}
         </div>
         
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span>Menampilkan {filteredList.length} dari {list.length} data</span>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <Button onClick={handleDownloadTemplate} variant="outline"><Download className="mr-2 h-4 w-4" /> Unduh Template Impor</Button>
-        <label htmlFor="import-file-tindakan-operatif" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          <Upload className="mr-2 h-4 w-4" /> Impor Data
-          <Input id="import-file-tindakan-operatif" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
-        </label>
-        <Button onClick={handleDownloadReport} variant="outline"><FileText className="mr-2 h-4 w-4" /> Unduh Laporan</Button>
+        <div className="flex-1" />
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode Jenis</TableHead>
-              <TableHead>Kode Operator</TableHead>
-              <TableHead>Nama Operator</TableHead>
-              <TableHead>Kode Tindakan</TableHead>
-              <TableHead>Nama Tindakan</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="font-bold text-white">Kode Jenis</TableHead>
+              <TableHead className="font-bold text-white">Kode Operator</TableHead>
+              <TableHead className="font-bold text-white">Nama Operator</TableHead>
+              <TableHead className="font-bold text-white">Kode Tindakan</TableHead>
+              <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
+              <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -524,8 +576,21 @@ const TindakanOperatifFormTable: React.FC = () => {
                   <TableCell>{item.kode_tindakan_operatif}</TableCell>
                   <TableCell>{item.nama_tindakan_operatif}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditing(item); setIsDialogOpen(true); }} className="mr-2"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="edit"
+                        size="icon"
+                        onClick={() => {
+                          setEditing(item);
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

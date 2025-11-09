@@ -49,7 +49,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Eye } from "lucide-react";
+import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Eye, Building2, Package, Users2, Stethoscope, Zap, Wrench, Factory, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Accordion,
@@ -1132,84 +1132,82 @@ const BiayaFormTable: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Info message about biaya preference */}
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <div className="flex items-start gap-2">
-              <span className="text-blue-600 text-xl">ℹ️</span>
-              <p className="text-sm text-blue-700">
-                <strong>Basis distribusi biaya menggunakan total biaya tanpa jasa pelayanan</strong>
-              </p>
-            </div>
-          </div>
-          
           {/* KPI badges */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
-            <div className="p-4 rounded-md bg-slate-50 border">
-              <div className="text-sm text-slate-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">🏢</span> Total Unit Kerja
+            <div className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 font-medium">Total Unit Kerja</span>
+                <Building2 className="h-8 w-8 text-slate-500" />
               </div>
-              <div className="text-xl font-bold">{new Set(filteredBiayaList.map(b => b.unit_kerja?.nama)).size}</div>
+              <div className="text-xl font-bold text-slate-900 mt-3">{new Set(filteredBiayaList.map(b => b.unit_kerja?.nama)).size}</div>
             </div>
-            <div className="p-4 rounded-md bg-sky-50 border">
-              <div className="text-sm text-sky-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">💊</span> Total Biaya Bahan
+            <div className="p-4 rounded-lg border border-sky-200 bg-sky-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-sky-700 font-medium">Total Biaya Bahan</span>
+                <Package className="h-8 w-8 text-sky-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_bahan || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-sky-500 font-bold">
+              <div className="text-xl font-bold text-sky-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_bahan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-sky-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_bahan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-md bg-blue-50 border">
-              <div className="text-sm text-blue-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">👥</span> Total Biaya Pegawai
+            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-blue-700 font-medium">Total Biaya Pegawai</span>
+                <Users2 className="h-8 w-8 text-blue-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_gaji_tunjangan || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-blue-500 font-bold">
+              <div className="text-xl font-bold text-blue-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_gaji_tunjangan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-blue-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_gaji_tunjangan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-md bg-indigo-50 border">
-              <div className="text-sm text-indigo-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">🏥</span> Jasa Pelayanan
+            <div className="p-4 rounded-lg border border-indigo-200 bg-indigo-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-indigo-700 font-medium">Jasa Pelayanan</span>
+                <Stethoscope className="h-8 w-8 text-indigo-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_jasa_pelayanan || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-indigo-500 font-bold">
+              <div className="text-xl font-bold text-indigo-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_jasa_pelayanan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-indigo-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_jasa_pelayanan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-md bg-emerald-50 border">
-              <div className="text-sm text-emerald-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">⚡</span> Total Biaya Daya
+            <div className="p-4 rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-emerald-700 font-medium">Total Biaya Daya</span>
+                <Zap className="h-8 w-8 text-emerald-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_daya || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-emerald-500 font-bold">
+              <div className="text-xl font-bold text-emerald-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_daya || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-emerald-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_daya || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-md bg-teal-50 border">
-              <div className="text-sm text-teal-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">🔧</span> Total Biaya Pemeliharaan
+            <div className="p-4 rounded-lg border border-teal-200 bg-teal-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-teal-700 font-medium">Total Biaya Pemeliharaan</span>
+                <Wrench className="h-8 w-8 text-teal-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_pemeliharaan || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-teal-500 font-bold">
+              <div className="text-xl font-bold text-teal-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_pemeliharaan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-teal-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_pemeliharaan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-md bg-rose-50 border">
-              <div className="text-sm text-rose-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">📉</span> Total Biaya Penyusutan
+            <div className="p-4 rounded-lg border border-rose-200 bg-rose-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-rose-700 font-medium">Total Biaya Penyusutan</span>
+                <Factory className="h-8 w-8 text-rose-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_penyusutan || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-rose-500 font-bold">
+              <div className="text-xl font-bold text-rose-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_penyusutan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-rose-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_penyusutan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-md bg-purple-50 border">
-              <div className="text-sm text-purple-600 flex items-center gap-2 font-medium">
-                <span className="text-2xl">📋</span> Biaya Operasional Lainnya
+            <div className="p-4 rounded-lg border border-purple-200 bg-purple-50 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-purple-700 font-medium">Biaya Operasional Lainnya</span>
+                <ClipboardList className="h-8 w-8 text-purple-500" />
               </div>
-              <div className="text-xl font-bold">{filteredBiayaList.reduce((s, b) => s + (b.biaya_operasional_lainnya || 0), 0).toLocaleString()}</div>
-              <div className="text-base text-purple-500 font-bold">
+              <div className="text-xl font-bold text-purple-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_operasional_lainnya || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-purple-600 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_operasional_lainnya || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
@@ -1240,25 +1238,28 @@ const BiayaFormTable: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="ghost" onClick={() => { setSelectedUnitId("all"); setSelectedYear(new Date().getFullYear()); }}>
-              Reset
-            </Button>
-            <Button onClick={handleDownloadTemplate} variant="outline">
+            <Button
+              onClick={handleDownloadTemplate}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
               <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
             </Button>
-            <label htmlFor="import-file" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
+            <label
+              htmlFor="import-file"
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-green-600 hover:bg-green-700 text-white ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 cursor-pointer"
+            >
               <Upload className="mr-2 h-4 w-4" /> Impor Data
               <Input id="import-file" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
             </label>
-            <Button onClick={handleDownloadReport} className="bg-green-600 hover:bg-green-700 text-white border-green-600">
-              <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
-            </Button>
-
-        {/* Tombol Tambah Data Biaya */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditingBiaya(null)}>Tambah Data Biaya</Button>
-          </DialogTrigger>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  onClick={() => setEditingBiaya(null)}
+                  className="bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Tambah Data Biaya
+                </Button>
+              </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingBiaya ? "Edit Data Biaya" : "Tambah Data Biaya"}</DialogTitle>
@@ -1659,6 +1660,20 @@ const BiayaFormTable: React.FC = () => {
               </Form>
             </DialogContent>
           </Dialog>
+            <Button
+              onClick={handleDownloadReport}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+            </Button>
+            <Button
+              onClick={() => userId && fetchBiaya(userId)}
+              size="icon"
+              className="bg-slate-200 hover:bg-slate-300 text-teal-700"
+              title="Perbarui Data"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
         </div>
 
         {/* View Dialog */}
@@ -1759,12 +1774,12 @@ const BiayaFormTable: React.FC = () => {
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead className="w-20">Tahun</TableHead>
-              <TableHead className="w-40">Unit Kerja</TableHead>
-              <TableHead className="w-32">Total Biaya</TableHead>
-              <TableHead className="w-32">Total Biaya Tanpa JP</TableHead>
-              <TableHead className="w-20 text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="w-20 text-white">Tahun</TableHead>
+              <TableHead className="w-40 text-white">Unit Kerja</TableHead>
+              <TableHead className="w-32 text-white">Total Biaya</TableHead>
+              <TableHead className="w-32 text-white">Total Biaya Tanpa JP</TableHead>
+              <TableHead className="w-20 text-right text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1775,14 +1790,18 @@ const BiayaFormTable: React.FC = () => {
                   <TableCell className="font-medium w-20">{biaya.tahun}</TableCell>
                   <TableCell className="w-40">
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <button
                         onClick={() => toggleExpand(biaya.id)}
-                        className="h-5 w-5 p-0 flex-shrink-0"
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition hover:border-teal-500 hover:text-teal-600"
+                        aria-label={expandedRows.has(biaya.id) ? "Sembunyikan detail" : "Tampilkan detail"}
+                        type="button"
                       >
-                        {expandedRows.has(biaya.id) ? '▼' : '▶'}
-                      </Button>
+                        {expandedRows.has(biaya.id) ? (
+                          <span className="text-sm font-semibold">−</span>
+                        ) : (
+                          <span className="text-sm font-semibold">+</span>
+                        )}
+                      </button>
                       {biaya.unit_kerja ? (
                         <div className="font-medium min-w-0 flex-1">
                           <div className="truncate text-sm">
@@ -1816,7 +1835,7 @@ const BiayaFormTable: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className="text-right w-20">
-                    <div className="flex gap-1">
+                    <div className="flex justify-end gap-2">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1826,7 +1845,7 @@ const BiayaFormTable: React.FC = () => {
                         <Eye className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="edit"
                         size="icon"
                         onClick={() => handleEdit(biaya)}
                         className="h-8 w-8"
@@ -1834,7 +1853,7 @@ const BiayaFormTable: React.FC = () => {
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="icon"
                         onClick={() => handleDelete(biaya.id)}
                         className="h-8 w-8"

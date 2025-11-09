@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface RoleProtectedRouteProps {
   children: JSX.Element;
@@ -18,23 +19,28 @@ export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const { user, initializing } = useAuth();
 
   useEffect(() => {
-    checkUserRole();
-  }, []);
+    if (initializing) {
+      setIsLoading(true);
+      return;
+    }
 
-  const checkUserRole = async () => {
+    if (!user) {
+      setHasAccess(false);
+      setUserRole(null);
+      setIsLoading(false);
+      return;
+    }
+
+    checkUserRole(user.id);
+  }, [user, initializing]);
+
+  const checkUserRole = async (userId: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setHasAccess(false);
-        setIsLoading(false);
-        return;
-      }
-
       // Cek jika superadmin
-      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: user.id });
+      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: userId });
       
       if (isSuperadmin) {
         setUserRole("Super Admin");
@@ -49,7 +55,7 @@ export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
         .select(`
           role_akses_aplikasi!inner(role_name)
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('is_active', true)
         .single();
 

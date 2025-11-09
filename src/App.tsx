@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy } from "react";
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -68,83 +68,54 @@ const PengelompokanData = lazy(() => import("./pages/PengelompokanData"));
 const Login = lazy(() => import("./pages/Login"));
 const Health = lazy(() => import("./pages/Health"));
 const TestSupabase = lazy(() => import("./pages/TestSupabase"));
-const TestPage = lazy(() => import("./pages/TestPage"));
 const SimpleTest = lazy(() => import("./pages/SimpleTest"));
 const ModulTeknisTest = lazy(() => import("./pages/ModulTeknisTest"));
 const ModulTeknisSimple = lazy(() => import("./pages/ModulTeknisSimple"));
 const VercelDebug = lazy(() => import("./pages/VercelDebug"));
 const SupabaseDebug = lazy(() => import("./pages/SupabaseDebug"));
-import { supabase } from "@/integrations/supabase/client";
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
-const App = () => {
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkSession = async () => {
-      try {
-        console.log('Checking Supabase session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Supabase session error:', error);
-          setLoading(false);
-          return;
-        }
-        
-        console.log('Session result:', session);
-        setSession(session);
-        setLoading(false);
-        
-        supabase.auth.onAuthStateChange((_event, session) => {
-          console.log('Auth state change:', _event, session);
-          setSession(session);
-        });
-      } catch (error) {
-        console.error('Error checking session:', error);
-        setLoading(false);
-      }
-    };
-    
-    checkSession();
-  }, []);
-
-  if (loading) {
-    console.log('App.tsx - Showing loading screen');
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-cyan-50">
-        <div className="text-center max-w-md mx-auto p-6">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-teal-700 font-medium">Memuat Aplikasi...</p>
-          <p className="text-sm text-gray-500 mt-2">Jika loading terlalu lama, coba akses halaman test di bawah:</p>
-          <div className="mt-4 space-y-2">
-            <a href="/test" className="block px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors">
-              Halaman Test
-            </a>
-            <a href="/health" className="block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              Health Check
-            </a>
-            <a href="/test-supabase" className="block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-              Test Supabase
-            </a>
-            <a href="/debug" className="block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
-              Vercel Debug
-            </a>
-          </div>
-          <div className="mt-4 text-xs text-gray-400">
-            <p>Environment: {import.meta.env.MODE}</p>
-            <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Not Set'}</p>
-            <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not Set'}</p>
-          </div>
-        </div>
+const LoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-cyan-50">
+    <div className="text-center max-w-md mx-auto p-6">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
+      <p className="text-teal-700 font-medium">Memuat Aplikasi...</p>
+      <p className="text-sm text-gray-500 mt-2">Jika loading terlalu lama, coba akses halaman test di bawah:</p>
+      <div className="mt-4 space-y-2">
+        <a href="/login" className="block px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors">
+          Halaman Login
+        </a>
+        <a href="/health" className="block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          Health Check
+        </a>
+        <a href="/test-supabase" className="block px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+          Test Supabase
+        </a>
+        <a href="/debug" className="block px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+          Vercel Debug
+        </a>
       </div>
-    );
+      <div className="mt-4 text-xs text-gray-400">
+        <p>Environment: {import.meta.env.MODE}</p>
+        <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL ? 'Set' : 'Not Set'}</p>
+        <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not Set'}</p>
+      </div>
+    </div>
+  </div>
+);
+
+const AppContent = () => {
+  const { session, initializing } = useAuth();
+
+  if (initializing) {
+    console.log('App.tsx - Showing loading screen');
+    return <LoadingScreen />;
   }
 
-  const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
+  const SessionGuard = ({ children }: { children: JSX.Element }) => {
     if (!session) {
       return <Navigate to="/login" replace />;
     }
@@ -152,340 +123,342 @@ const App = () => {
   };
 
   return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/debug" element={<VercelDebug />} />
+        <Route path="/supabase-debug" element={<SupabaseDebug />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/health" element={<Health />} />
+        <Route path="/simple" element={<SimpleTest />} />
+        <Route path="/modul-teknis-test" element={<ModulTeknisTest />} />
+        <Route path="/modul-teknis-simple" element={<ModulTeknisSimple />} />
+        <Route path="/test-supabase" element={<TestSupabase />} />
+        <Route path="/" element={session ? <Layout /> : <Navigate to="/login" replace />}>
+          <Route index element={<Index />} />
+          <Route path="/data-master/unit-kerja" element={
+            <SessionGuard>
+              <DataUnitKerja />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/barang" element={
+            <SessionGuard>
+              <DataBarang />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/barang-gizi" element={
+            <SessionGuard>
+              <DataBarangGizi />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/kamar" element={
+            <SessionGuard>
+              <DataKamar />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/klinik" element={
+            <SessionGuard>
+              <DataKlinik />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/data-dokter" element={
+            <SessionGuard>
+              <DataDokter />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/kegiatan" element={
+            <SessionGuard>
+              <DataKegiatan />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/daftar-tindakan" element={
+            <SessionGuard>
+              <DataTindakan />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/tindakan-lab" element={
+            <SessionGuard>
+              <DataTindakanLaboratorium />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/tindakan-radiologi" element={
+            <SessionGuard>
+              <DataTindakanRadiologi />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/tindakan-operatif" element={
+            <SessionGuard>
+              <DataTindakanOperatif />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/tindakan-bdrs" element={
+            <SessionGuard>
+              <DataTindakanBDRS />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/tindakan-cathlab" element={
+            <SessionGuard>
+              <DataTindakanCathlab />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/pendapatan" element={
+            <SessionGuard>
+              <DataPendapatan />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/biaya" element={
+            <SessionGuard>
+              <DataBiaya />
+            </SessionGuard>
+          } />
+          <Route path="/data-operasional/kegiatan" element={
+            <SessionGuard>
+              <DataKegiatan />
+            </SessionGuard>
+          } />
+          <Route path="/data-operasional/kegiatan-rs" element={
+            <SessionGuard>
+              <DataKegiatanRS />
+            </SessionGuard>
+          } />
+          <Route path="/data-operasional/pendapatan" element={
+            <SessionGuard>
+              <DataPendapatan />
+            </SessionGuard>
+          } />
+          <Route path="/data-operasional/biaya" element={
+            <SessionGuard>
+              <DataBiaya />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/menu-gizi" element={
+            <SessionGuard>
+              <MenuGizi />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/diklat" element={
+            <SessionGuard>
+              <DataDiklat />
+            </SessionGuard>
+          } />
+          <Route path="/unit-penunjang" element={
+            <SessionGuard>
+              <UnitPenunjang />
+            </SessionGuard>
+          } />
+          <Route path="/unit-keperawatan" element={
+            <SessionGuard>
+              <UnitKeperawatan />
+            </SessionGuard>
+          } />
+          <Route path="/unit-pelayanan" element={
+            <SessionGuard>
+              <UnitPelayanan />
+            </SessionGuard>
+          } />
+          <Route path="/unit-diklat" element={
+            <SessionGuard>
+              <UnitDiklat />
+            </SessionGuard>
+          } />
+          <Route path="/kalkulasi-biaya-gizi" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Penunjang"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Penunjang yang dapat mengakses halaman Kalkulasi Biaya Gizi.">
+              <KalkulasiBiayaGizi />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/keperawatan/manajemen-tindakan-inap" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Manajemen Tindakan Inap.">
+              <ManajemenTindakanInap />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/keperawatan/kalkulasi-tindakan-inap" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Kalkulasi Tindakan Inap.">
+              <KalkulasiTindakanInap />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/keperawatan/kalkulasi-biaya-kelas-akomodasi" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Kalkulasi Biaya Kelas Akomodasi.">
+              <KalkulasiBiayaKelasAkomodasi />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/keperawatan/data-akomodasi-inap" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Data Akomodasi Inap.">
+              <AlokasiBiayaGizi />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/kalkulasi-biaya-operatif" element={
+            <SessionGuard>
+              <KalkulasiBiayaOperatif />
+            </SessionGuard>
+          } />
+          <Route path="/kalkulasi-biaya-laboratorium" element={
+            <SessionGuard>
+              <KalkulasiBiayaLaboratorium />
+            </SessionGuard>
+          } />
+          <Route path="/kalkulasi-biaya-radiologi" element={
+            <SessionGuard>
+              <KalkulasiBiayaRadiologi />
+            </SessionGuard>
+          } />
+          <Route path="/kalkulasi-biaya-cathlab" element={
+            <SessionGuard>
+              <KalkulasiBiayaCathlab />
+            </SessionGuard>
+          } />
+          <Route path="/pelayanan/kalkulasi-pendaftaran-resep" element={
+            <SessionGuard>
+              <KalkulasiPendaftaranDanPeresepan />
+            </SessionGuard>
+          } />
+          <Route path="/pelayanan/manajemen-tindakan-rawat-jalan" element={
+            <SessionGuard>
+              <ManajemenTindakanRawatJalan />
+            </SessionGuard>
+          } />
+          <Route path="/pelayanan/kalkulasi-tindakan-rawat-jalan" element={
+            <SessionGuard>
+              <KalkulasiTindakanRawatJalan />
+            </SessionGuard>
+          } />
+          <Route path="/kalkulasi-biaya-ibs" element={<Navigate to="/kalkulasi-biaya-operatif" replace />} />
+          <Route path="/kalkulasi-biaya-diklat" element={
+            <SessionGuard>
+              <KalkulasiBiayaDiklat />
+            </SessionGuard>
+          } />
+          <Route path="/unit-diklat/kalkulasi-aktivitas" element={
+            <SessionGuard>
+              <KalkulasiAktivitasDiklat />
+            </SessionGuard>
+          } />
+          <Route path="/kalkulasi-biaya-bdrs" element={
+            <SessionGuard>
+              <KalkulasiBiayaBDRS />
+            </SessionGuard>
+          } />
+          <Route path="/rekapitulasi-unit-cost" element={
+            <SessionGuard>
+              <RekapitulasiUnitCost />
+            </SessionGuard>
+          } />
+          <Route path="/produk-layanan" element={
+            <SessionGuard>
+              <ProdukLayanan />
+            </SessionGuard>
+          } />
+          <Route path="/pola-remunerasi" element={
+            <SessionGuard>
+              <PolaRemunerasi />
+            </SessionGuard>
+          } />
+          <Route path="/skenario-tarif-tindakan" element={
+            <SessionGuard>
+              <SkenarioTarif />
+            </SessionGuard>
+          } />
+          <Route path="/skenario-tarif" element={<Navigate to="/skenario-tarif-tindakan" replace />} />
+          <Route path="/skenario-tarif-akomodasi" element={
+            <SessionGuard>
+              <SkenarioTarifAkomodasi />
+            </SessionGuard>
+          } />
+          <Route path="/skenario-tarif-visit" element={
+            <SessionGuard>
+              <SkenarioTarifVisit />
+            </SessionGuard>
+          } />
+          <Route path="/dasar-alokasi" element={
+            <SessionGuard>
+              <DasarAlokasi />
+            </SessionGuard>
+          } />
+          <Route path="/distribusi-biaya" element={
+            <SessionGuard>
+              <DistribusiBiaya />
+            </SessionGuard>
+          } />
+          <Route path="/distribusi-biaya-pertama" element={
+            <SessionGuard>
+              <DistribusiBiayaPertama />
+            </SessionGuard>
+          } />
+          <Route path="/distribusi-biaya-kedua" element={
+            <SessionGuard>
+              <DistribusiBiayaKedua />
+            </SessionGuard>
+          } />
+          <Route path="/distribusi-biaya-rekap" element={
+            <SessionGuard>
+              <DistribusiBiayaRekap />
+            </SessionGuard>
+          } />
+          <Route path="/cost-recovery" element={
+            <SessionGuard>
+              <CostRecovery />
+            </SessionGuard>
+          } />
+          <Route path="/analisis-revenue-cost/struktur-biaya" element={
+            <SessionGuard>
+              <StrukturBiaya />
+            </SessionGuard>
+          } />
+          <Route path="/analisis-revenue-cost/proyeksi-pendapatan" element={
+            <SessionGuard>
+              <ProyeksiPendapatanLayanan />
+            </SessionGuard>
+          } />
+          <Route path="/budgeting-bhp/rupiah" element={
+            <SessionGuard>
+              <BudgetingBHPRupiah />
+            </SessionGuard>
+          } />
+          <Route path="/budgeting-bhp/rincian" element={
+            <SessionGuard>
+              <BudgetingBHPRincian />
+            </SessionGuard>
+          } />
+          <Route path="/test-dasar-alokasi" element={
+            <SessionGuard>
+              <TestDasarAlokasi />
+            </SessionGuard>
+          } />
+          <Route path="/modul-teknis" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Modul Teknis.">
+              <ModulTeknis />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/pengelompokan-data" element={
+            <SessionGuard>
+              <PengelompokanData />
+            </SessionGuard>
+          } />
+          <Route path="/manajemen-akses" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Manajemen Akses.">
+              <ManajemenAkses />
+            </RoleProtectedRoute>
+          } />
+          <Route path="/audit-trail" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Audit Trail.">
+              <AuditTrail />
+            </RoleProtectedRoute>
+          } />
+        </Route>
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+};
+
+const App = () => (
+  <AuthProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/test" element={<TestPage />} />
-            <Route path="/debug" element={<VercelDebug />} />
-            <Route path="/supabase-debug" element={<SupabaseDebug />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/health" element={<Health />} />
-            <Route path="/simple" element={<SimpleTest />} />
-            <Route path="/modul-teknis-test" element={<ModulTeknisTest />} />
-            <Route path="/modul-teknis-simple" element={<ModulTeknisSimple />} />
-            <Route path="/test-supabase" element={<TestSupabase />} />
-            <Route path="/" element={session ? <Layout /> : <Navigate to="/test" replace />}>
-              <Route index element={<Index />} />
-              <Route path="/data-master/unit-kerja" element={
-                <ProtectedRoute>
-                  <DataUnitKerja />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/barang" element={
-                <ProtectedRoute>
-                  <DataBarang />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/barang-gizi" element={
-                <ProtectedRoute>
-                  <DataBarangGizi />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/kamar" element={
-                <ProtectedRoute>
-                  <DataKamar />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/klinik" element={
-                <ProtectedRoute>
-                  <DataKlinik />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/data-dokter" element={
-                <ProtectedRoute>
-                  <DataDokter />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/kegiatan" element={
-                <ProtectedRoute>
-                  <DataKegiatan />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/daftar-tindakan" element={
-                <ProtectedRoute>
-                  <DataTindakan />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/tindakan-lab" element={
-                <ProtectedRoute>
-                  <DataTindakanLaboratorium />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/tindakan-radiologi" element={
-                <ProtectedRoute>
-                  <DataTindakanRadiologi />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/tindakan-operatif" element={
-                <ProtectedRoute>
-                  <DataTindakanOperatif />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/tindakan-bdrs" element={
-                <ProtectedRoute>
-                  <DataTindakanBDRS />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/tindakan-cathlab" element={
-                <ProtectedRoute>
-                  <DataTindakanCathlab />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/pendapatan" element={
-                <ProtectedRoute>
-                  <DataPendapatan />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/biaya" element={
-                <ProtectedRoute>
-                  <DataBiaya />
-                </ProtectedRoute>
-              } />
-              {/* Data Operasional Routes */}
-              <Route path="/data-operasional/kegiatan" element={
-                <ProtectedRoute>
-                  <DataKegiatan />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-operasional/kegiatan-rs" element={
-                <ProtectedRoute>
-                  <DataKegiatanRS />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-operasional/pendapatan" element={
-                <ProtectedRoute>
-                  <DataPendapatan />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-operasional/biaya" element={
-                <ProtectedRoute>
-                  <DataBiaya />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/menu-gizi" element={
-                <ProtectedRoute>
-                  <MenuGizi />
-                </ProtectedRoute>
-              } />
-              <Route path="/data-master/diklat" element={
-                <ProtectedRoute>
-                  <DataDiklat />
-                </ProtectedRoute>
-              } />
-              <Route path="/unit-penunjang" element={
-                <ProtectedRoute>
-                  <UnitPenunjang />
-                </ProtectedRoute>
-              } />
-              <Route path="/unit-keperawatan" element={
-                <ProtectedRoute>
-                  <UnitKeperawatan />
-                </ProtectedRoute>
-              } />
-              <Route path="/unit-pelayanan" element={
-                <ProtectedRoute>
-                  <UnitPelayanan />
-                </ProtectedRoute>
-              } />
-              <Route path="/unit-diklat" element={
-                <ProtectedRoute>
-                  <UnitDiklat />
-                </ProtectedRoute>
-              } />
-              <Route path="/kalkulasi-biaya-gizi" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Penunjang"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Penunjang yang dapat mengakses halaman Kalkulasi Biaya Gizi.">
-                  <KalkulasiBiayaGizi />
-                </RoleProtectedRoute>
-              } />
-              <Route path="/keperawatan/manajemen-tindakan-inap" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Manajemen Tindakan Inap.">
-                  <ManajemenTindakanInap />
-                </RoleProtectedRoute>
-              } />
-              <Route path="/keperawatan/kalkulasi-tindakan-inap" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Kalkulasi Tindakan Inap.">
-                  <KalkulasiTindakanInap />
-                </RoleProtectedRoute>
-              } />
-              <Route path="/keperawatan/kalkulasi-biaya-kelas-akomodasi" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Kalkulasi Biaya Kelas Akomodasi.">
-                  <KalkulasiBiayaKelasAkomodasi />
-                </RoleProtectedRoute>
-              } />
-                <Route path="/keperawatan/data-akomodasi-inap" element={
-                  <RoleProtectedRoute allowedRoles={["Super Admin", "Admin", "Operator", "Operator Keperawatan"]} fallbackMessage="Hanya Super Admin, Admin, Operator, dan Operator Keperawatan yang dapat mengakses halaman Data Akomodasi Inap.">
-                    <AlokasiBiayaGizi />
-                  </RoleProtectedRoute>
-                } />
-              <Route path="/kalkulasi-biaya-operatif" element={
-                <ProtectedRoute>
-                  <KalkulasiBiayaOperatif />
-                </ProtectedRoute>
-              } />
-              <Route path="/kalkulasi-biaya-laboratorium" element={
-                <ProtectedRoute>
-                  <KalkulasiBiayaLaboratorium />
-                </ProtectedRoute>
-              } />
-              <Route path="/kalkulasi-biaya-radiologi" element={
-                <ProtectedRoute>
-                  <KalkulasiBiayaRadiologi />
-                </ProtectedRoute>
-              } />
-              <Route path="/kalkulasi-biaya-cathlab" element={
-                <ProtectedRoute>
-                  <KalkulasiBiayaCathlab />
-                </ProtectedRoute>
-              } />
-              <Route path="/pelayanan/kalkulasi-pendaftaran-resep" element={
-                <ProtectedRoute>
-                  <KalkulasiPendaftaranDanPeresepan />
-                </ProtectedRoute>
-              } />
-              <Route path="/pelayanan/manajemen-tindakan-rawat-jalan" element={
-                <ProtectedRoute>
-                  <ManajemenTindakanRawatJalan />
-                </ProtectedRoute>
-              } />
-              <Route path="/pelayanan/kalkulasi-tindakan-rawat-jalan" element={
-                <ProtectedRoute>
-                  <KalkulasiTindakanRawatJalan />
-                </ProtectedRoute>
-              } />
-              {/* Redirect old IBS route to Operatif */}
-              <Route path="/kalkulasi-biaya-ibs" element={<Navigate to="/kalkulasi-biaya-operatif" replace />} />
-              <Route path="/kalkulasi-biaya-diklat" element={
-                <ProtectedRoute>
-                  <KalkulasiBiayaDiklat />
-                </ProtectedRoute>
-              } />
-              <Route path="/unit-diklat/kalkulasi-aktivitas" element={
-                <ProtectedRoute>
-                  <KalkulasiAktivitasDiklat />
-                </ProtectedRoute>
-              } />
-              <Route path="/kalkulasi-biaya-bdrs" element={
-                <ProtectedRoute>
-                  <KalkulasiBiayaBDRS />
-                </ProtectedRoute>
-              } />
-              <Route path="/rekapitulasi-unit-cost" element={
-                <ProtectedRoute>
-                  <RekapitulasiUnitCost />
-                </ProtectedRoute>
-              } />
-              <Route path="/produk-layanan" element={
-                <ProtectedRoute>
-                  <ProdukLayanan />
-                </ProtectedRoute>
-              } />
-              <Route path="/pola-remunerasi" element={
-                <ProtectedRoute>
-                  <PolaRemunerasi />
-                </ProtectedRoute>
-              } />
-              <Route path="/skenario-tarif-tindakan" element={
-                <ProtectedRoute>
-                  <SkenarioTarif />
-                </ProtectedRoute>
-              } />
-              {/* Redirect old URL to new URL */}
-              <Route path="/skenario-tarif" element={<Navigate to="/skenario-tarif-tindakan" replace />} />
-              <Route path="/skenario-tarif-akomodasi" element={
-                <ProtectedRoute>
-                  <SkenarioTarifAkomodasi />
-                </ProtectedRoute>
-              } />
-              <Route path="/skenario-tarif-visit" element={
-                <ProtectedRoute>
-                  <SkenarioTarifVisit />
-                </ProtectedRoute>
-              } />
-              <Route path="/dasar-alokasi" element={
-                <ProtectedRoute>
-                  <DasarAlokasi />
-                </ProtectedRoute>
-              } />
-              <Route path="/distribusi-biaya" element={
-                <ProtectedRoute>
-                  <DistribusiBiaya />
-                </ProtectedRoute>
-              } />
-              <Route path="/distribusi-biaya-pertama" element={
-                <ProtectedRoute>
-                  <DistribusiBiayaPertama />
-                </ProtectedRoute>
-              } />
-              <Route path="/distribusi-biaya-kedua" element={
-                <ProtectedRoute>
-                  <DistribusiBiayaKedua />
-                </ProtectedRoute>
-              } />
-              <Route path="/distribusi-biaya-rekap" element={
-                <ProtectedRoute>
-                  <DistribusiBiayaRekap />
-                </ProtectedRoute>
-              } />
-              <Route path="/cost-recovery" element={
-                <ProtectedRoute>
-                  <CostRecovery />
-                </ProtectedRoute>
-              } />
-              <Route path="/analisis-revenue-cost/struktur-biaya" element={
-                <ProtectedRoute>
-                  <StrukturBiaya />
-                </ProtectedRoute>
-              } />
-              <Route path="/analisis-revenue-cost/proyeksi-pendapatan" element={
-                <ProtectedRoute>
-                  <ProyeksiPendapatanLayanan />
-                </ProtectedRoute>
-              } />
-              <Route path="/budgeting-bhp/rupiah" element={
-                <ProtectedRoute>
-                  <BudgetingBHPRupiah />
-                </ProtectedRoute>
-              } />
-              <Route path="/budgeting-bhp/rincian" element={
-                <ProtectedRoute>
-                  <BudgetingBHPRincian />
-                </ProtectedRoute>
-              } />
-              <Route path="/test-dasar-alokasi" element={
-                <ProtectedRoute>
-                  <TestDasarAlokasi />
-                </ProtectedRoute>
-              } />
-              <Route path="/modul-teknis" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Modul Teknis.">
-                  <ModulTeknis />
-                </RoleProtectedRoute>
-              } />
-              <Route path="/pengelompokan-data" element={
-                <ProtectedRoute>
-                  <PengelompokanData />
-                </ProtectedRoute>
-              } />
-              <Route path="/manajemen-akses" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Manajemen Akses.">
-                  <ManajemenAkses />
-                </RoleProtectedRoute>
-              } />
-              <Route path="/audit-trail" element={
-                <RoleProtectedRoute allowedRoles={["Super Admin"]} fallbackMessage="Hanya Super Admin yang dapat mengakses halaman Audit Trail.">
-                  <AuditTrail />
-                </RoleProtectedRoute>
-              } />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <AppContent />
       </TooltipProvider>
     </QueryClientProvider>
-  );
-};
+  </AuthProvider>
+);
 
 export default App;

@@ -636,45 +636,45 @@ export default function ManajemenAkses() {
                   <TableCell className="text-sm text-muted-foreground">
                     {user.assigned_by_email || "-"}
                   </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openViewDialog(user)}
-                      title="Lihat detail user"
-                    >
-                      <Eye className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditDialog(user)}
-                      title="Edit role user"
-                    >
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    {user.role_is_active && user.id !== currentUser?.id && (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDeactivateUser(user.id, user.email)}
-                        title="Nonaktifkan user"
-                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                        onClick={() => openViewDialog(user)}
+                        title="Lihat detail user"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Eye className="h-3 w-3" />
                       </Button>
-                    )}
-                    {isSuperadmin && user.id !== currentUser?.id && user.role_name !== 'Super Admin' && (
                       <Button
-                        variant="destructive"
+                        variant="edit"
                         size="sm"
-                        onClick={() => handleDeleteUser(user.id, user.email)}
-                        title="Hapus permanen user (hanya Super Admin)"
-                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => openEditDialog(user)}
+                        title="Edit role user"
                       >
-                        <X className="h-3 w-3" />
+                        <Edit className="h-3 w-3" />
                       </Button>
-                    )}
+                      {user.role_is_active && user.id !== currentUser?.id && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeactivateUser(user.id, user.email)}
+                          title="Nonaktifkan user"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {isSuperadmin && user.id !== currentUser?.id && user.role_name !== 'Super Admin' && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteUser(user.id, user.email)}
+                          title="Hapus permanen user (hanya Super Admin)"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

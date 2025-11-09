@@ -43,6 +43,11 @@ interface DaftarTindakan {
   id: string;
   kode_tindakan: string;
   nama_tindakan: string;
+  waktu?: number;
+  profesionalisme?: number;
+  tingkat_kesulitan?: number;
+  biaya_bahan_tindakan?: number;
+  updated_at?: string;
 }
 
 interface UnitKerjaWithTindakan extends UnitKerja {
@@ -75,51 +80,62 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
 
   useEffect(() => { 
     fetchAll();
-    fetchTindakanMaster();
   }, []);
-
-  const fetchTindakanMaster = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('daftar_tindakan')
-        .select('id, kode_tindakan, nama_tindakan')
-        .order('kode_tindakan', { ascending: true });
-
-      if (error) throw error;
-      setTindakanMasterList(data || []);
-    } catch (error: any) {
-      toast.error("Gagal memuat daftar tindakan: " + error.message);
-    }
-  };
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-
-      // Fetch unit kerja rawat inap (jenis = 2)
-      const { data: unitKerjaData, error: unitKerjaError } = await supabase
-        .from('unit_kerja')
-        .select('id, kode, nama, jenis')
-        .eq('jenis', 2)
-        .order('kode', { ascending: true });
+      const [
+        { data: unitKerjaData, error: unitKerjaError },
+        { data: tindakanMasterData, error: tindakanMasterError },
+        { data: tindakanData, error: tindakanError }
+      ] = await Promise.all([
+        supabase
+          .from('unit_kerja')
+          .select('id, kode, nama, jenis')
+          .eq('jenis', 2)
+          .order('kode', { ascending: true }),
+        supabase
+          .from('daftar_tindakan')
+          .select('id, kode_tindakan, nama_tindakan, waktu, profesionalisme, tingkat_kesulitan, biaya_bahan_tindakan, updated_at')
+          .order('kode_tindakan', { ascending: true }),
+        supabase
+          .from('jenis_tindakan_inap')
+          .select('*')
+          .eq('kode_jenis', 2)
+          .order('kode_unit_kerja', { ascending: true })
+      ]);
 
       if (unitKerjaError) throw unitKerjaError;
-
-      // Fetch all jenis tindakan inap for this user
-      const { data: tindakanData, error: tindakanError } = await supabase
-        .from('jenis_tindakan_inap')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('kode_unit_kerja', { ascending: true });
-
+      if (tindakanMasterError) throw tindakanMasterError;
       if (tindakanError) throw tindakanError;
 
-      // Combine data
+      const tindakanMasterListData = tindakanMasterData || [];
+      setTindakanMasterList(tindakanMasterListData);
+
+      const tindakanMasterMap = new Map<string, DaftarTindakan>(
+        tindakanMasterListData.map((item) => [item.kode_tindakan, item])
+      );
+
+      const tindakanWithLatest = (tindakanData || []).map((tindakan) => {
+        const master = tindakanMasterMap.get(tindakan.kode_jenis_tindakan);
+        return {
+          ...tindakan,
+          jenis_tindakan: master?.nama_tindakan ?? tindakan.jenis_tindakan,
+          waktu: master?.waktu ?? tindakan.waktu,
+          profesionalisme: master?.profesionalisme ?? tindakan.profesionalisme,
+          tingkat_kesulitan: master?.tingkat_kesulitan ?? tindakan.tingkat_kesulitan,
+          biaya_bahan_tindakan: master?.biaya_bahan_tindakan ?? tindakan.biaya_bahan_tindakan,
+          updated_at: master?.updated_at ?? tindakan.updated_at
+        } as JenisTindakanInap;
+      });
+
       const combinedData: UnitKerjaWithTindakan[] = (unitKerjaData || []).map(uk => ({
         ...uk,
-        tindakan_list: (tindakanData || []).filter(t => t.kode_unit_kerja === uk.kode)
+        tindakan_list: tindakanWithLatest
+          .filter(t => t.kode_unit_kerja === uk.kode)
+          .map(t => ({ ...t, nama_unit_kerja: uk.nama }))
+          .sort((a, b) => (a.kode_jenis_tindakan || "").localeCompare(b.kode_jenis_tindakan || ""))
       }));
 
       setUnitKerjaList(combinedData);
@@ -294,37 +310,54 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-bold">Manajemen Tindakan Inap</h1>
           <p className="text-muted-foreground">Kelola jenis tindakan untuk unit kerja rawat inap</p>
-        </div>
-        <Button onClick={fetchAll} variant="outline" size="sm">
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
       </div>
 
-      {/* Filter */}
-      <div className="flex items-center gap-2 max-w-sm">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Cari unit kerja..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-xl">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari unit kerja..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            {searchTerm && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSearchTerm("")}
+                aria-label="Bersihkan pencarian"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={fetchAll}
+              variant="outline"
+              className="flex items-center gap-2 text-sky-700 border-sky-200 hover:bg-sky-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Perbarui
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => handleOpenDialog(unitKerjaList[0])}
+              className="bg-sky-600 hover:bg-sky-700 text-white flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Tindakan
+            </Button>
+          </div>
         </div>
-        {searchTerm && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSearchTerm("")}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        )}
       </div>
 
       {/* Unit Kerja Cards */}
@@ -357,6 +390,7 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                       {unitKerja.tindakan_list.length} tindakan terdaftar
                     </CardDescription>
                   </div>
+                  <div className="flex items-center gap-2">
                   <Button
                     size="sm"
                     onClick={() => handleOpenDialog(unitKerja)}
@@ -364,6 +398,15 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                     <Plus className="mr-2 h-4 w-4" />
                     Tambah Tindakan
                   </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={fetchAll}
+                      aria-label="Refresh data"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -374,36 +417,36 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                 ) : (
                   <div className="rounded-md border">
                     <Table>
-                      <TableHeader>
+                      <TableHeader className="bg-teal-700">
                         <TableRow>
-                          <TableHead className="w-[120px]">Kode</TableHead>
-                          <TableHead>Nama Tindakan</TableHead>
-                          <TableHead className="w-[100px] text-center">Jumlah</TableHead>
-                          <TableHead className="w-[90px] text-center">
+                          <TableHead className="w-[120px] text-white font-semibold">Kode</TableHead>
+                          <TableHead className="text-white font-semibold">Nama Tindakan</TableHead>
+                          <TableHead className="w-[100px] text-center text-white font-semibold">Jumlah</TableHead>
+                          <TableHead className="w-[90px] text-center text-white font-semibold">
                             <div className="flex items-center justify-center gap-1">
                               <Clock className="h-3 w-3" />
-                              Waktu
+                              <span>Waktu</span>
                             </div>
                           </TableHead>
-                          <TableHead className="w-[80px] text-center">
+                          <TableHead className="w-[80px] text-center text-white font-semibold">
                             <div className="flex items-center justify-center gap-1">
                               <Star className="h-3 w-3" />
-                              Prof.
+                              <span>Prof.</span>
                             </div>
                           </TableHead>
-                          <TableHead className="w-[90px] text-center">
+                          <TableHead className="w-[90px] text-center text-white font-semibold">
                             <div className="flex items-center justify-center gap-1">
                               <AlertTriangle className="h-3 w-3" />
-                              Tingkat
+                              <span>Tingkat</span>
                             </div>
                           </TableHead>
-                          <TableHead className="w-[120px] text-center">
+                          <TableHead className="w-[120px] text-center text-white font-semibold">
                             <div className="flex items-center justify-center gap-1">
                               <ShoppingCart className="h-3 w-3" />
-                              Biaya Bahan
+                              <span>Biaya Bahan</span>
                             </div>
                           </TableHead>
-                          <TableHead className="w-[80px] text-center">Aksi</TableHead>
+                          <TableHead className="w-[80px] text-center text-white font-semibold">Aksi</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -415,44 +458,16 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                             <TableCell>{tindakan.jenis_tindakan}</TableCell>
                             <TableCell className="text-center">
                               {editingJumlahId === tindakan.id ? (
-                                <div className="flex items-center gap-1">
                                   <Input
                                     type="number"
                                     min="0"
                                     value={editJumlahValue}
                                     onChange={(e) => setEditJumlahValue(parseInt(e.target.value) || 0)}
-                                    className="w-16 h-7 text-center"
+                                  className="w-16 h-7 text-center mx-auto"
                                     autoFocus
                                   />
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7"
-                                    onClick={() => handleSaveJumlah(tindakan.id)}
-                                  >
-                                    <Check className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7"
-                                    onClick={handleCancelEditJumlah}
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
                               ) : (
-                                <div className="flex items-center justify-center gap-1">
                                   <span className="font-medium">{tindakan.jumlah || 0}</span>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6"
-                                    onClick={() => handleEditJumlah(tindakan)}
-                                  >
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
                               )}
                             </TableCell>
                             <TableCell className="text-center">
@@ -480,13 +495,44 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              <div className="flex justify-center">
+                              <div className="flex justify-center gap-2">
+                                {editingJumlahId === tindakan.id ? (
+                                  <>
+                                    <Button
+                                      size="icon"
+                                      className="h-7 w-7 bg-emerald-500 hover:bg-emerald-600 text-white"
+                                      onClick={() => handleSaveJumlah(tindakan.id)}
+                                      aria-label="Simpan jumlah"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-7 w-7 border-rose-200 text-rose-500 hover:bg-rose-50"
+                                      onClick={handleCancelEditJumlah}
+                                      aria-label="Batalkan"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    size="icon"
+                                    className="h-7 w-7 bg-sky-500 hover:bg-sky-600 text-white"
+                                    onClick={() => handleEditJumlah(tindakan)}
+                                    aria-label="Edit jumlah"
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
+                                )}
                                 <Button
-                                  variant="ghost"
                                   size="icon"
+                                  className="h-7 w-7 bg-rose-500 hover:bg-rose-600 text-white"
                                   onClick={() => handleDeleteTindakan(tindakan.id, tindakan.jenis_tindakan)}
+                                  aria-label="Hapus tindakan"
                                 >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </TableCell>

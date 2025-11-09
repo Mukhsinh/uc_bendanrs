@@ -28,7 +28,7 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
             <p className="text-sm text-gray-600 mb-4">{this.state.message}</p>
             <div className="space-y-2">
               <a href="/debug" className="block px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Buka Halaman Debug</a>
-              <a href="/test" className="block px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700">Buka Halaman Test</a>
+              <a href="/login" className="block px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-700">Buka Halaman Login</a>
               <button onClick={() => location.reload()} className="block w-full px-4 py-2 bg-gray-100 rounded hover:bg-gray-200">Muat Ulang</button>
             </div>
           </div>

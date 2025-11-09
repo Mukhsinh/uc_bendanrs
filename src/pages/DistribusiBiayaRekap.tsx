@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Download, RefreshCw, BarChart3 } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type RekapRow = {
@@ -62,8 +62,10 @@ export default function DistribusiBiayaRekap() {
   const [rows, setRows] = useState<RekapRow[]>([]);
   const [tahun, setTahun] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState<boolean>(false);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const { toast } = useToast();
   const [filterNama, setFilterNama] = useState<string>("");
+  const [showFilters, setShowFilters] = useState<boolean>(true);
 
   const rowTotals = useMemo(() => rows.map(r => {
     let sum = 0;
@@ -97,21 +99,118 @@ export default function DistribusiBiayaRekap() {
         .order("urutan");
 
       console.log('📊 Data diterima:', data?.length || 0, 'rows');
-      console.log('❌ Error:', error);
 
-      if (error) throw error;
-      setRows((data as any[]) as RekapRow[]);
+      if (error) {
+        console.error('❌ Error dari Supabase:', error);
+        throw error;
+      }
       
+      setRows((data as any[]) || []);
+      
+      // Hanya tampilkan toast sukses jika data berhasil dimuat
+      if (data && data.length > 0) {
+        toast({ 
+          title: "✅ Data berhasil dimuat", 
+          description: `${data.length} baris data dimuat untuk tahun ${tahun}`,
+          duration: 3000
+        });
+      }
+    } catch (err: any) {
+      console.error('❌ Error fetchRows:', err);
+      const errorMessage = err?.message || err?.error?.message || String(err) || 'Gagal memuat data';
       toast({ 
-        title: "✅ Data berhasil diperbarui", 
-        description: `${data?.length || 0} baris data dimuat untuk tahun ${tahun}`,
+        title: "Gagal memuat data", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePerbaruiData = async () => {
+    try {
+      setIsUpdating(true);
+      console.log('🔄 Memulai proses perbarui data distribusi biaya rekap untuk tahun:', tahun);
+      
+      // Ambil user_id dari session
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error("User tidak ditemukan. Silakan login kembali.");
+      }
+      
+      toast({
+        title: "Memperbarui data...",
+        description: "Sedang memperbarui data distribusi biaya rekap dari tabel sumber",
+        duration: 3000
+      });
+      
+      // Panggil fungsi RPC untuk populate distribusi_biaya_rekap
+      console.log('📤 Memanggil RPC dengan parameter:', { p_user_id: user.id, p_tahun: tahun });
+      
+      const { data: rpcData, error: rpcError } = await supabase.rpc('populate_distribusi_biaya_rekap', {
+        p_user_id: user.id,
+        p_tahun: tahun
+      });
+      
+      if (rpcError) {
+        console.error('❌ Error dari RPC populate_distribusi_biaya_rekap:', rpcError);
+        console.error('❌ Error code:', rpcError.code);
+        console.error('❌ Error message:', rpcError.message);
+        console.error('❌ Error details:', rpcError.details);
+        console.error('❌ Error hint:', rpcError.hint);
+        
+        // Buat error message yang lebih informatif
+        let errorMsg = rpcError.message || 'Gagal memperbarui data distribusi biaya rekap';
+        if (rpcError.details) {
+          errorMsg += ` - Detail: ${rpcError.details}`;
+        }
+        if (rpcError.hint) {
+          errorMsg += ` - Hint: ${rpcError.hint}`;
+        }
+        
+        throw new Error(errorMsg);
+      }
+      
+      console.log('✅ RPC response data:', rpcData);
+      
+      console.log('✅ Fungsi populate_distribusi_biaya_rekap berhasil dijalankan');
+      
+      // Setelah RPC selesai, reload data dari tabel
+      await fetchRows();
+      
+      toast({
+        title: "✅ Data berhasil diperbarui",
+        description: "Data distribusi biaya rekap telah diperbarui dari tabel sumber",
         duration: 3000
       });
     } catch (err: any) {
-      console.error('❌ Error fetchRows:', err);
-      toast({ title: "Gagal memuat data", description: err.message || String(err), variant: "destructive" });
+      console.error('❌ Error saat memperbarui data:', err);
+      console.error('❌ Error type:', typeof err);
+      console.error('❌ Error keys:', err ? Object.keys(err) : 'null');
+      console.error('❌ Full error object:', JSON.stringify(err, null, 2));
+      
+      let errorMessage = "Gagal memperbarui data distribusi biaya rekap";
+      
+      if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.error?.message) {
+        errorMessage = err.error.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err?.code) {
+        errorMessage = `Error ${err.code}: ${err.message || 'Unknown error'}`;
+      }
+      
+      toast({
+        title: "Gagal memperbarui data",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 8000
+      });
     } finally {
-      setLoading(false);
+      setIsUpdating(false);
     }
   };
 
@@ -172,66 +271,81 @@ export default function DistribusiBiayaRekap() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Distribusi Biaya Rekap
-          </CardTitle>
-          <CardDescription>
-            Ringkasan total biaya final per unit kerja dari hasil distribusi biaya tahap kedua.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label htmlFor="tahun">Tahun</Label>
-              <Input id="tahun" type="number" value={tahun} min={2020} max={2035} onChange={(e) => setTahun(parseInt(e.target.value))} />
-            </div>
-            <div>
-              <Label htmlFor="filter">Filter Nama Unit Kerja</Label>
-              <Input id="filter" placeholder="ketik nama unit kerja..." value={filterNama} onChange={(e) => setFilterNama(e.target.value)} />
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-end gap-2 flex-wrap">
-                <Button variant="destructive" disabled={loading} onClick={exportExcel}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Unduh Laporan
-                </Button>
-                <Button 
-                  variant="default" 
-                  disabled={loading} 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    console.log('🔘 Tombol Perbarui Data diklik');
-                    fetchRows().catch((err) => console.error('❌ Error saat fetchRows:', err));
-                  }} 
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Perbarui Data
-                </Button>
+      <div>
+        <h1 className="text-3xl font-bold">Distribusi Biaya Rekap</h1>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setShowFilters((prev) => !prev)}
+          className="min-w-[110px] border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        >
+          Filter
+        </Button>
+        <Button
+          className="bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300 disabled:text-white/70"
+          disabled={loading || rows.length === 0}
+          onClick={exportExcel}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Unduh Laporan
+        </Button>
+        <Button
+          className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"
+          disabled={isUpdating}
+          onClick={(e) => {
+            e.preventDefault();
+            handlePerbaruiData().catch((err) => console.error('❌ Error saat handlePerbaruiData:', err));
+          }}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
+          {isUpdating ? 'Memperbarui...' : 'Perbarui Data'}
+        </Button>
+      </div>
+
+      {showFilters && (
+        <Card>
+          <CardContent>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-2 w-[120px]">
+                <Label htmlFor="tahun">Tahun</Label>
+                <Input
+                  id="tahun"
+                  type="number"
+                  value={tahun}
+                  min={2020}
+                  max={2035}
+                  onChange={(e) => setTahun(parseInt(e.target.value) || tahun)}
+                />
+              </div>
+              <div className="flex flex-col gap-2 min-w-[220px]">
+                <Label htmlFor="filter">Filter Nama Unit Kerja</Label>
+                <Input
+                  id="filter"
+                  placeholder="Ketik nama unit kerja..."
+                  value={filterNama}
+                  onChange={(e) => setFilterNama(e.target.value)}
+                />
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Tabel Rekap</CardTitle>
-          <CardDescription>Rekap berdasarkan tabel `distribusi_biaya_rekap` (baris per jenis biaya, kolom UK037–UK077).</CardDescription>
-        </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[240px]">Biaya</TableHead>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                  <TableHead className="min-w-[240px] text-white">Biaya</TableHead>
                   {filteredIndices.map((i) => (
-                    <TableHead key={i} className="text-right min-w-[160px]">{getUkDisplayName(i)}</TableHead>
+                    <TableHead key={i} className="min-w-[160px] text-right text-white">
+                      {getUkDisplayName(i)}
+                    </TableHead>
                   ))}
-                  <TableHead className="min-w-[160px] text-right">Total</TableHead>
+                  <TableHead className="min-w-[160px] text-right text-white">Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -241,9 +355,15 @@ export default function DistribusiBiayaRekap() {
                     {filteredIndices.map((i) => {
                       const col = getUkColumnName(i);
                       const val = Number(((r as any)[col] ?? 0));
-                      return <TableCell key={col} className="text-right">{val.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>;
+                      return (
+                        <TableCell key={col} className="text-right">
+                          {val.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                      );
                     })}
-                    <TableCell className="text-right font-semibold">{rowTotals[idx]?.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {rowTotals[idx]?.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

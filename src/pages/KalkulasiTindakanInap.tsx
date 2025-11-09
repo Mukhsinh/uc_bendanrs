@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Filter, Calculator } from "lucide-react";
+import { Download, RefreshCcw, ClipboardList, Bed, TrendingUp, TrendingDown } from "lucide-react";
 import * as XLSX from 'xlsx';
 
 interface KalkulasiTindakanInapData {
@@ -31,11 +29,8 @@ interface KalkulasiTindakanInapData {
   dasar_alokasi_kali_waktu: number;
   dasar_alokasi_hasil_kali: number;
   biaya_gaji_tunjangan: number;
-  biaya_jasa_pelayanan: number;
-  biaya_obat: number;
   biaya_bhp: number;
   biaya_makan_karyawan: number;
-  biaya_makan_pasien: number;
   biaya_rumah_tangga: number;
   biaya_cetak: number;
   biaya_atk: number;
@@ -58,6 +53,65 @@ interface KalkulasiTindakanInapData {
   created_at: string;
   updated_at: string;
 }
+
+const biayaFields: Array<keyof Pick<KalkulasiTindakanInapData,
+  'biaya_gaji_tunjangan' |
+  'biaya_bhp' |
+  'biaya_makan_karyawan' |
+  'biaya_rumah_tangga' |
+  'biaya_cetak' |
+  'biaya_atk' |
+  'biaya_listrik' |
+  'biaya_air' |
+  'biaya_telp' |
+  'biaya_pemeliharaan_bangunan' |
+  'biaya_pemeliharaan_alat_medis' |
+  'biaya_pemeliharaan_alat_non_medis' |
+  'biaya_operasional_lainnya' |
+  'biaya_penyusutan_gedung' |
+  'biaya_penyusutan_jaringan' |
+  'biaya_penyusutan_alat_medis' |
+  'biaya_penyusutan_alat_non_medis' |
+  'biaya_pendidikan_pelatihan' |
+  'biaya_laundry' |
+  'biaya_sterilisasi' |
+  'biaya_tidak_langsung_terdistribusi'
+>> = [
+  'biaya_gaji_tunjangan',
+  'biaya_bhp',
+  'biaya_makan_karyawan',
+  'biaya_rumah_tangga',
+  'biaya_cetak',
+  'biaya_atk',
+  'biaya_listrik',
+  'biaya_air',
+  'biaya_telp',
+  'biaya_pemeliharaan_bangunan',
+  'biaya_pemeliharaan_alat_medis',
+  'biaya_pemeliharaan_alat_non_medis',
+  'biaya_operasional_lainnya',
+  'biaya_penyusutan_gedung',
+  'biaya_penyusutan_jaringan',
+  'biaya_penyusutan_alat_medis',
+  'biaya_penyusutan_alat_non_medis',
+  'biaya_pendidikan_pelatihan',
+  'biaya_laundry',
+  'biaya_sterilisasi',
+  'biaya_tidak_langsung_terdistribusi',
+];
+
+const safeNumber = (value: number | string | null | undefined) => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  return 0;
+};
 
 const KalkulasiTindakanInap = () => {
   const [data, setData] = useState<KalkulasiTindakanInapData[]>([]);
@@ -82,7 +136,8 @@ const KalkulasiTindakanInap = () => {
     applyFilters();
   }, [data, filters]);
 
-  const fetchData = async () => {
+  const fetchData = async (): Promise<boolean> => {
+    let success = false;
     try {
       console.log('Starting data fetch...');
       setLoading(true);
@@ -101,8 +156,44 @@ const KalkulasiTindakanInap = () => {
         throw fetchError;
       }
 
-      setData(result || []);
-      console.log('Data set successfully:', result?.length || 0, 'items');
+      const normalizedData = (result || []).map((item) => {
+        const normalizedItem: KalkulasiTindakanInapData = {
+          ...item,
+          tahun: safeNumber(item.tahun),
+          kode_jenis: safeNumber(item.kode_jenis),
+          jumlah: safeNumber(item.jumlah),
+          waktu: safeNumber(item.waktu),
+          profesionalisme: safeNumber(item.profesionalisme),
+          tingkat_kesulitan: safeNumber(item.tingkat_kesulitan),
+          hasil_kali_waktu: safeNumber(item.hasil_kali_waktu),
+          hasil_kali: safeNumber(item.hasil_kali),
+          biaya_bahan_tindakan: safeNumber(item.biaya_bahan_tindakan),
+          kali_bahan: safeNumber(item.kali_bahan),
+          rasio_tindakan: safeNumber(item.rasio_tindakan),
+          dasar_alokasi_kali_waktu: safeNumber(item.dasar_alokasi_kali_waktu),
+          dasar_alokasi_hasil_kali: safeNumber(item.dasar_alokasi_hasil_kali),
+          unit_cost_tindakan_inap: safeNumber(item.unit_cost_tindakan_inap),
+        } as KalkulasiTindakanInapData;
+
+        biayaFields.forEach((field) => {
+          normalizedItem[field] = safeNumber(item[field]);
+        });
+
+        if (!Number.isFinite(normalizedItem.unit_cost_tindakan_inap) || normalizedItem.unit_cost_tindakan_inap <= 0) {
+          const computedUnitCost = biayaFields.reduce((sum, field) => sum + safeNumber(item[field]), 0);
+          if (computedUnitCost > 0) {
+            normalizedItem.unit_cost_tindakan_inap = computedUnitCost;
+          } else if (!Number.isFinite(normalizedItem.unit_cost_tindakan_inap)) {
+            normalizedItem.unit_cost_tindakan_inap = 0;
+          }
+        }
+
+        return normalizedItem;
+      });
+
+      setData(normalizedData);
+      console.log('Data set successfully:', normalizedData.length, 'items');
+      success = true;
     } catch (error) {
       console.error('Error fetching data:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -115,6 +206,46 @@ const KalkulasiTindakanInap = () => {
     } finally {
       setLoading(false);
       console.log('Fetch completed, loading set to false');
+    }
+    return success;
+  };
+
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+
+      const parsedYear = filters.tahun ? parseInt(filters.tahun, 10) : NaN;
+      const tahunParam = Number.isFinite(parsedYear) ? parsedYear : null;
+
+      const { data: recalcResult, error: recalcError } = await supabase.rpc('manual_recalculate_kalkulasi_tindakan_inap', {
+        p_tahun: tahunParam,
+        p_kode_unit_kerja: null,
+      });
+
+      if (recalcError) {
+        throw recalcError;
+      }
+
+      const success = await fetchData();
+
+      if (success) {
+        const message = typeof recalcResult === 'object' && recalcResult !== null && 'message' in recalcResult
+          ? String((recalcResult as { message?: string }).message ?? 'Kalkulasi tindakan inap berhasil diperbarui')
+          : 'Kalkulasi tindakan inap berhasil diperbarui';
+
+        toast({
+          title: "Berhasil",
+          description: message,
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Gagal memperbarui data kalkulasi';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setLoading(false);
     }
   };
 
@@ -160,12 +291,13 @@ const KalkulasiTindakanInap = () => {
   };
 
   const formatCurrency = (amount: number) => {
+    const value = Number.isFinite(amount) ? amount : 0;
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
       currency: 'IDR',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(value);
   };
 
   const exportToExcel = () => {
@@ -185,9 +317,9 @@ const KalkulasiTindakanInap = () => {
         'Nama Unit Kerja': item.nama_unit_kerja,
         'Kode Jenis Tindakan': item.kode_jenis_tindakan,
         'Jenis Tindakan': item.jenis_tindakan,
-        'Jumlah': item.jumlah,
-        'Biaya Bahan Tindakan': item.biaya_bahan_tindakan,
-        'Unit Cost Tindakan Inap': item.unit_cost_tindakan_inap,
+        'Jumlah': safeNumber(item.jumlah),
+        'Biaya Bahan Tindakan': safeNumber(item.biaya_bahan_tindakan),
+        'Unit Cost Tindakan Inap': safeNumber(item.unit_cost_tindakan_inap),
       }))
     );
 
@@ -203,16 +335,24 @@ const KalkulasiTindakanInap = () => {
     });
   };
 
-  const getTotalUnitCost = () => {
-    return filteredData.reduce((total, item) => total + item.unit_cost_tindakan_inap, 0);
-  };
-
   const getTotalJumlah = () => {
-    return filteredData.reduce((total, item) => total + item.jumlah, 0);
+    return filteredData.reduce((total, item) => total + safeNumber(item.jumlah), 0);
   };
 
-  const getTotalBiayaBahanTindakan = () => {
-    return filteredData.reduce((total, item) => total + item.biaya_bahan_tindakan, 0);
+  const uniqueUnitCount = new Set(filteredData.map((item) => item.kode_unit_kerja)).size;
+  const topTerbanyak = filteredData
+    .slice()
+    .sort((a, b) => b.jumlah - a.jumlah)
+    .slice(0, 3);
+  const topTersedikit = filteredData
+    .slice()
+    .sort((a, b) => a.jumlah - b.jumlah)
+    .slice(0, 3);
+
+  const totalJumlahTindakan = getTotalJumlah();
+  const calculateShare = (value: number) => {
+    if (!totalJumlahTindakan) return 0;
+    return Math.round((value / totalJumlahTindakan) * 1000) / 10;
   };
 
   console.log('Rendering component. Loading:', loading, 'Error:', error, 'Data length:', data.length);
@@ -242,118 +382,170 @@ const KalkulasiTindakanInap = () => {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="space-y-3">
           <h1 className="text-3xl font-bold">Kalkulasi Tindakan Inap</h1>
-          <p className="text-muted-foreground">
-            Manajemen dan analisis biaya tindakan rawat inap
-          </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Input
+            value={filters.tahun}
+            onChange={(e) => handleFilterChange('tahun', e.target.value)}
+            placeholder="Tahun"
+            className="w-24"
+          />
+          <Input
+            value={filters.nama_unit_kerja}
+            onChange={(e) => handleFilterChange('nama_unit_kerja', e.target.value)}
+            placeholder="Filter unit kerja"
+            className="w-48"
+          />
+          <Input
+            value={filters.jenis_tindakan}
+            onChange={(e) => handleFilterChange('jenis_tindakan', e.target.value)}
+            placeholder="Filter jenis tindakan"
+            className="flex-1 min-w-[180px]"
+          />
+          <Input
+            value={filters.search}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            placeholder="Cari unit kerja atau tindakan..."
+            className="flex-1 min-w-[200px]"
+          />
+          <Button
+            onClick={exportToExcel}
+            disabled={loading || filteredData.length === 0}
+            variant="report"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Unduh Laporan
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={loading}
+            aria-label="Perbarui data"
+          >
+            <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       </div>
 
-      {/* Filter Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filter Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="tahun">Tahun</Label>
-              <Input
-                id="tahun"
-                type="number"
-                value={filters.tahun}
-                onChange={(e) => handleFilterChange('tahun', e.target.value)}
-                placeholder="Tahun"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit-kerja">Nama Unit Kerja</Label>
-              <Input
-                id="unit-kerja"
-                value={filters.nama_unit_kerja}
-                onChange={(e) => handleFilterChange('nama_unit_kerja', e.target.value)}
-                placeholder="Nama Unit Kerja"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="jenis-tindakan">Jenis Tindakan</Label>
-              <Input
-                id="jenis-tindakan"
-                value={filters.jenis_tindakan}
-                onChange={(e) => handleFilterChange('jenis_tindakan', e.target.value)}
-                placeholder="Jenis Tindakan"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="search">Pencarian</Label>
-              <Input
-                id="search"
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-                placeholder="Cari unit kerja, jenis tindakan..."
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardContent className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Card className="border border-sky-100 bg-sky-50">
+          <CardContent className="p-6 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Data</p>
-                <p className="text-2xl font-bold">{filteredData.length}</p>
+                <p className="text-sm font-medium text-sky-700">Total Data</p>
+                <p className="text-2xl font-bold text-sky-900">{filteredData.length}</p>
               </div>
-              <Calculator className="h-8 w-8 text-muted-foreground" />
+              <div className="rounded-full bg-sky-100 p-3 text-sky-600">
+                <ClipboardList className="h-6 w-6" />
+              </div>
             </div>
+            <p className="text-xs text-sky-600">Jumlah baris sesuai filter aktif</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-6">
+        <Card className="border border-emerald-100 bg-emerald-50">
+          <CardContent className="p-6 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Jumlah Tindakan</p>
-                <p className="text-2xl font-bold">{getTotalJumlah().toLocaleString('id-ID')}</p>
+                <p className="text-sm font-medium text-emerald-700">Jumlah Ruang Rawat Inap</p>
+                <p className="text-2xl font-bold text-emerald-900">
+                  {uniqueUnitCount.toLocaleString('id-ID')}
+                </p>
               </div>
-              <Button onClick={exportToExcel} size="sm" className="ml-4">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan
-              </Button>
+              <div className="rounded-full bg-emerald-100 p-3 text-emerald-600">
+                <Bed className="h-6 w-6" />
+              </div>
             </div>
+            <p className="text-xs text-emerald-600">Unit kerja unik dalam daftar</p>
+        </CardContent>
+      </Card>
+        <Card className="border border-indigo-100 bg-indigo-50">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-indigo-700">Top 3 Tindakan Terbanyak</p>
+              <div className="rounded-full bg-indigo-100 p-3 text-indigo-600">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+            </div>
+            {topTerbanyak.length > 0 ? (
+              <ul className="space-y-2">
+                {topTerbanyak.map((item, index) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-2"
+                  >
+                    <div className="flex-1 pr-3">
+                      <p className="text-sm font-semibold text-indigo-800">
+                        {index + 1}. {item.jenis_tindakan}
+                      </p>
+                      <p className="text-xs text-indigo-500">
+                        {item.jumlah.toLocaleString("id-ID")} tindakan · {calculateShare(item.jumlah)}%
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-600">
+                      #{index + 1}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center">Data tidak tersedia</p>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="border border-amber-100 bg-amber-50">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-amber-700">Top 3 Tindakan Tersedikit</p>
+              <div className="rounded-full bg-amber-100 p-3 text-amber-600">
+                <TrendingDown className="h-6 w-6" />
+              </div>
+            </div>
+            {topTersedikit.length > 0 ? (
+              <ul className="space-y-2">
+                {topTersedikit.map((item, index) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-2"
+                  >
+                    <div className="flex-1 pr-3">
+                      <p className="text-sm font-semibold text-amber-800">
+                        {index + 1}. {item.jenis_tindakan}
+                      </p>
+                      <p className="text-xs text-amber-500">
+                        {item.jumlah.toLocaleString("id-ID")} tindakan · {calculateShare(item.jumlah)}%
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-600">
+                      #{index + 1}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center">Data tidak tersedia</p>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Data Table */}
       <Card>
         <CardHeader>
           <CardTitle>Data Kalkulasi Tindakan Inap</CardTitle>
-          <CardDescription>
-            Menampilkan {filteredData.length} dari {data.length} data
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-teal-700">
                 <TableRow>
-                  <TableHead>Tahun</TableHead>
-                  <TableHead>Unit Kerja</TableHead>
-                  <TableHead>Jenis Tindakan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Biaya Bahan Tindakan</TableHead>
-                  <TableHead>
-                    <div>
-                      Unit Cost
-                      <div className="text-xs font-normal text-muted-foreground">(exclude biaya bahan)</div>
-                    </div>
+                  <TableHead className="text-white font-semibold">Tahun</TableHead>
+                  <TableHead className="text-white font-semibold">Unit Kerja</TableHead>
+                  <TableHead className="text-white font-semibold">Jenis Tindakan</TableHead>
+                  <TableHead className="text-white font-semibold">Jumlah</TableHead>
+                  <TableHead className="text-white font-semibold">Biaya Bahan Tindakan</TableHead>
+                  <TableHead className="text-white font-semibold">
+                    <span>Unit Cost</span>
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -362,20 +554,12 @@ const KalkulasiTindakanInap = () => {
                   <TableRow key={item.id}>
                     <TableCell>{item.tahun}</TableCell>
                     <TableCell>
-                      <div>
-                        <Badge variant="outline" className="mb-1">
-                          {item.kode_unit_kerja}
-                        </Badge>
-                        <div className="text-sm">{item.nama_unit_kerja}</div>
-                      </div>
+                      <div className="font-medium">{item.nama_unit_kerja}</div>
+                      <div className="text-sm text-muted-foreground">{item.kode_unit_kerja}</div>
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <Badge variant="secondary" className="mb-1">
-                          {item.kode_jenis_tindakan}
-                        </Badge>
-                        <div className="text-sm">{item.jenis_tindakan}</div>
-                      </div>
+                      <div className="font-medium">{item.jenis_tindakan}</div>
+                      <div className="text-sm text-muted-foreground">{item.kode_jenis_tindakan}</div>
                     </TableCell>
                     <TableCell>{item.jumlah.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="font-medium">

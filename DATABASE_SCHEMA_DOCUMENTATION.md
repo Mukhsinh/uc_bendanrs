@@ -29,6 +29,7 @@ Aplikasi Unit Cost RS adalah sistem untuk menghitung biaya unit cost di rumah sa
 
 ### **2. Data Operasional**
 - `data_kegiatan` - Data kegiatan operasional unit kerja
+- `data_kegiatan_transpose` - Data kegiatan dalam format transpose (pivot) untuk analisis
 - `data_biaya` - Data biaya tahunan per unit kerja
 - `data_pendapatan` - Data pendapatan per unit kerja
 - `data_diklat` - Data pendidikan dan pelatihan
@@ -229,6 +230,85 @@ Aplikasi Unit Cost RS adalah sistem untuk menghitung biaya unit cost di rumah sa
 - `Total_Kunjungan_Pasien` = Kunjungan_Pasien_Lama + Kunjungan_Pasien_Baru
 - `Total_Diklat` = Diklat_Jumlah_Siswa × Diklat_Lama_Hari
 - `Jumlah_Hari_Rawat` = SUM(semua hari rawat per kelas)
+
+---
+
+### **📊 data_kegiatan_transpose**
+**Data kegiatan dalam format transpose (pivot) untuk analisis**
+
+Tabel ini adalah hasil transpose dari `data_kegiatan`, di mana setiap baris mewakili satu kombinasi `(dasar_alokasi, sub_kategori, tahun)` dan setiap kolom mewakili unit kerja. Struktur ini memudahkan analisis data per unit kerja secara horizontal.
+
+| Kolom | Tipe | Deskripsi | Constraint |
+|-------|------|-----------|------------|
+| `id` | INTEGER | Primary key | PK, auto-increment |
+| `dasar_alokasi` | VARCHAR | Dasar alokasi (contoh: "SDM", "Kunjungan", "Listrik") | NOT NULL |
+| `sub_kategori` | VARCHAR | Sub kategori (contoh: "dr", "Total", "Kwh") | - |
+| `tahun` | INTEGER | Tahun periode | - |
+| `direktur` | DOUBLE PRECISION | Nilai untuk unit kerja Direktur | - |
+| `komite_ppi` | DOUBLE PRECISION | Nilai untuk unit kerja Komite PPI | - |
+| `komite_pmkp` | DOUBLE PRECISION | Nilai untuk unit kerja Komite PMKP | - |
+| `komite_medik` | DOUBLE PRECISION | Nilai untuk unit kerja Komite Medik | - |
+| `akreditasi` | DOUBLE PRECISION | Nilai untuk unit kerja Akreditasi | - |
+| `dewan_pengawas` | DOUBLE PRECISION | Nilai untuk unit kerja Dewan Pengawas | - |
+| ... (35 kolom Pusat Biaya lainnya) | DOUBLE PRECISION | ... | ... |
+| `ambulance` | DOUBLE PRECISION | Nilai untuk unit kerja Ambulance | - |
+| `laboratorium_pk_pa` | DOUBLE PRECISION | Nilai untuk unit kerja Laboratorium PK PA | - |
+| `radiologi` | DOUBLE PRECISION | Nilai untuk unit kerja Radiologi | - |
+| `farmasi` | DOUBLE PRECISION | Nilai untuk unit kerja Farmasi | - |
+| ... (41 kolom Pusat Pendapatan lainnya) | DOUBLE PRECISION | ... | ... |
+| `total_dasar_alokasi` | DOUBLE PRECISION | **GENERATED** - Total semua kolom unit kerja | AUTO-CALCULATED |
+| `total_dasar_alokasi_pusat_biaya` | DOUBLE PRECISION | **GENERATED** - Total kolom Pusat Biaya | AUTO-CALCULATED |
+| `total_dasar_alokasi_pusat_pendapatan` | DOUBLE PRECISION | **GENERATED** - Total kolom Pusat Pendapatan | AUTO-CALCULATED |
+| `created_at` | TIMESTAMPTZ | Timestamp pembuatan | DEFAULT now() |
+| `updated_at` | TIMESTAMPTZ | Timestamp update | DEFAULT now() |
+
+**Struktur:**
+- Setiap baris = 1 kombinasi `(dasar_alokasi, sub_kategori, tahun)`
+- Setiap kolom unit kerja = nilai dari `data_kegiatan` untuk unit kerja tersebut
+- Total 76 kolom unit kerja (35 Pusat Biaya + 41 Pusat Pendapatan)
+
+**Kombinasi dasar_alokasi + sub_kategori (48 kombinasi):**
+1. **Jml jam Praktek** - Shift (8 jam)
+2. **SDM** - dr, Prwt, Non, Total
+3. **Listrik** - Kwh
+4. **Air** - m3
+5. **Telepon** - Freq pakai/titik
+6. **Komputer** - jml. User
+7. **Tempat Tidur** - SVIP, VIP, I, II, III, Khusus
+8. **Kunjungan** - Total, Baru, Lama
+9. **Diklat** - Total, Jumlah Siswa, Lama Hari
+10. **Hari Rawat** - Total, SVIP, VIP, I, II, III
+11. **Tindakan** - Jumlah
+12. **Cucian** - kg
+13. **Makanan** - Karyawan (Porsi), Pasien (Porsi), Porsi SVIP, VIP, I, II, III
+14. **Resep** - Lembar
+15. **Instrumen** - Besar, Sedang, Kecil
+16. **Set Pack** - Besar, Sedang, Kecil
+17. **Kamar** - Luas SVIP, VIP, I, II, III
+
+**Generated Columns:**
+- `total_dasar_alokasi` = SUM(semua kolom unit kerja) - Total dari semua 76 kolom unit kerja
+- `total_dasar_alokasi_pusat_biaya` = SUM(35 kolom Pusat Biaya) - Total dari unit kerja kategori "Pusat Biaya"
+- `total_dasar_alokasi_pusat_pendapatan` = SUM(41 kolom Pusat Pendapatan) - Total dari unit kerja kategori "Pusat Pendapatan"
+
+**Unit Kerja Pusat Biaya (35 kolom):**
+direktur, komite_ppi, komite_pmkp, komite_medik, akreditasi, dewan_pengawas, bid_pengembangan, seksi_penunjang_non_medis, ipsrs_medis_non_medis, seksi_penunjang_medis, bid_keperawatan, seksi_asuhan_pelayanan_keperawatan, seksi_pengembangan_dan_etika_keperawatan, bid_pelayanan_medis, seksi_pengembangan_pelayanan_medis, seksi_pelayanan_medis_dan_rekam_medis, tpprj, tppri, bag_tata_usaha, subag_keuangan, unit_perbendaharaan, unit_pendapatan, unit_akuntansi_dan_verifikasi, unit_akuntansi_manajemen, analis_biaya_dan_kasir, subag_umpeg, staf_umum_dan_kepegawaian, unit_it, rumah_tangga, cleaning_service, security, unit_aset, instalasi_humas_komplain, subag_renval, staf_renval, rekam_medik
+
+**Unit Kerja Pusat Pendapatan (41 kolom):**
+ambulance, laboratorium_pk_pa, radiologi, farmasi, rehab_medik, gizi_dapur, laundry_cssd, bdrs, cathlab, terang_bulan_vip_vvip, truntum, sekarjagat, jlamprang, nifas, perinatologi, buketan, icu_picu_nicu, vk, igd_ponek, klinik_kebid_kandungan, klinik_bedah_mulut, klinik_syaraf, klinik_bedah_syaraf, klinik_bedah_digestif, klinik_bedah_umum, klinik_anak, klinik_penyakit_dalam, klinik_mata, klinik_kulit_kelamin, klinik_tht, klinik_gigi, klinik_jantung, klinik_dot_vct_cst, klinik_paru, klinik_orthopedi, klinik_jiwa, klinik_parikesit, ibs, pemulasaran_jenazah, hemodialisis, unit_diklat
+
+**Fungsi dan Trigger:**
+- `populate_transpose_data()` - Fungsi untuk mengisi/memperbarui data dari `data_kegiatan`
+- `refresh_transpose_data()` - Fungsi wrapper untuk memanggil `populate_transpose_data()`
+- `refresh_transpose_data_with_status()` - Fungsi wrapper yang mengembalikan status dan durasi
+- Trigger `trigger_refresh_transpose_on_data_kegiatan_*` - Trigger otomatis untuk refresh saat `data_kegiatan` berubah
+- Trigger `set_totals_on_dk_transpose` - Trigger untuk set nilai total sebelum INSERT/UPDATE
+- Trigger `trigger_data_kegiatan_transpose_changed` - Trigger untuk recalculate distribusi biaya setelah perubahan
+
+**Cara Menggunakan:**
+- Data diisi otomatis melalui fungsi `refresh_transpose_data()` atau `refresh_transpose_data_with_status()`
+- Data juga ter-update otomatis melalui trigger saat `data_kegiatan` diubah (INSERT/UPDATE/DELETE)
+- Kolom computed (`total_dasar_alokasi`, `total_dasar_alokasi_pusat_biaya`, `total_dasar_alokasi_pusat_pendapatan`) dihitung otomatis oleh database
 
 ---
 
@@ -579,6 +659,38 @@ Aplikasi Unit Cost RS adalah sistem untuk menghitung biaya unit cost di rumah sa
 2. **populate_skenario_tarif_from_rekapitulasi()**
    - Mengisi data `skenario_tarif` dari `rekapitulasi_unit_cost`
 
+3. **populate_transpose_data()**
+   - Fungsi untuk mengisi/memperbarui data di tabel `data_kegiatan_transpose` dari `data_kegiatan`
+   - Melakukan transpose data: setiap baris = kombinasi `(dasar_alokasi, sub_kategori, tahun)`, setiap kolom = unit kerja
+   - Memproses 48 kombinasi dasar_alokasi + sub_kategori
+   - Menggunakan SECURITY DEFINER untuk bypass RLS
+   - Timeout: 20 menit (1200 detik)
+   - **Return:** void
+
+4. **refresh_transpose_data()**
+   - Wrapper function untuk memanggil `populate_transpose_data()`
+   - Menggunakan SECURITY DEFINER untuk bypass RLS
+   - **Return:** void
+
+5. **refresh_transpose_data_with_status()**
+   - Wrapper function yang mengembalikan status dan durasi eksekusi
+   - Menggunakan SECURITY DEFINER untuk bypass RLS
+   - **Return:** JSONB dengan format:
+     ```json
+     {
+       "success": true/false,
+       "message": "Data berhasil diperbarui" / "Gagal memperbarui data transpose",
+       "duration_seconds": 0.123,
+       "error": "error message" (jika ada),
+       "detail": "error stack" (jika ada)
+     }
+     ```
+
+6. **trigger_refresh_transpose_data()**
+   - Trigger function yang dipanggil otomatis saat `data_kegiatan` berubah
+   - Memanggil `refresh_transpose_data()` untuk update otomatis
+   - Dipanggil oleh trigger: `trigger_refresh_transpose_on_data_kegiatan_insert`, `trigger_refresh_transpose_on_data_kegiatan_update`, `trigger_refresh_transpose_on_data_kegiatan_delete`
+
 ---
 
 ## 🔒 **Row Level Security (RLS)**
@@ -597,9 +709,11 @@ Banyak tabel menggunakan generated columns untuk perhitungan otomatis:
 
 2. **data_kegiatan**: `Jumlah_SDM`, `Total_Kunjungan_Pasien`, `Total_Diklat`, `Jumlah_Hari_Rawat`
 
-3. **kalkulasi_biaya_gizi**: `waktu_total`, `jumlah`, `hasil_kali_waktu`, `unit_cost_per_porsi`
+3. **data_kegiatan_transpose**: `total_dasar_alokasi`, `total_dasar_alokasi_pusat_biaya`, `total_dasar_alokasi_pusat_pendapatan`
 
-4. **Semua tabel kalkulasi**: `unit_cost_per_*` = SUM(semua biaya)
+4. **kalkulasi_biaya_gizi**: `waktu_total`, `jumlah`, `hasil_kali_waktu`, `unit_cost_per_porsi`
+
+5. **Semua tabel kalkulasi**: `unit_cost_per_*` = SUM(semua biaya)
 
 ---
 
@@ -608,6 +722,8 @@ Banyak tabel menggunakan generated columns untuk perhitungan otomatis:
 ### **1. Input Data Operasional**
 ```
 data_kegiatan + data_biaya + data_pendapatan
+↓
+data_kegiatan_transpose (transpose otomatis dari data_kegiatan)
 ↓
 Distribusi Biaya (Tahap I & II)
 ↓

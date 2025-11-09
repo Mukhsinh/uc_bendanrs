@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Loader2, Download, Upload, Calculator, Settings, Pencil, Check, X } from "lucide-react";
+import { Loader2, Download, Upload, Calculator, Pencil, Check, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { formatCurrency } from "@/lib/utils";
 
@@ -208,15 +208,6 @@ const SkenarioTarifAkomodasi = () => {
 
       {/* Configuration Panel */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Konfigurasi Skenario Tarif Akomodasi
-          </CardTitle>
-          <CardDescription>
-            Setel tahun dan tarif per kelas akomodasi
-          </CardDescription>
-        </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -239,13 +230,14 @@ const SkenarioTarifAkomodasi = () => {
               <Button 
                 onClick={() => populateMutation.mutate()} 
                 disabled={populateMutation.isPending}
+                className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"
               >
                 {populateMutation.isPending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Upload className="h-4 w-4 mr-2" />
                 )}
-                Update Data dari Kalkulasi
+                Update Data
               </Button>
               
               <Button 
@@ -292,21 +284,21 @@ const SkenarioTarifAkomodasi = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px] font-bold">Kelas</TableHead>
-                    <TableHead className="text-right w-[150px]">Rata-rata UC</TableHead>
-                    <TableHead className="text-right w-[150px]">
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                    <TableHead className="w-[120px] font-bold text-white">Kelas</TableHead>
+                    <TableHead className="text-right w-[150px] text-white">Rata-rata UC</TableHead>
+                    <TableHead className="text-right w-[150px] text-white">
                       <div className="flex items-center justify-end gap-1">
                         Tarif
                         {editingKelas && (
-                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                          <Pencil className="h-3 w-3 text-white/80" />
                         )}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right w-[150px]">Profit (Rp)</TableHead>
-                    <TableHead className="text-right w-[120px]">Profit (%)</TableHead>
-                    <TableHead className="w-[100px] text-center">Aksi</TableHead>
+                    <TableHead className="text-right w-[150px] text-white">Profit (Rp)</TableHead>
+                    <TableHead className="text-right w-[120px] text-white">Profit (%)</TableHead>
+                    <TableHead className="w-[100px] text-center text-white">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

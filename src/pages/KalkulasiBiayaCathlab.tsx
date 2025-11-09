@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,41 @@ import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Download, Calculator, RefreshCw } from "lucide-react";
 import { manualRecalculateCathlab, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
+
+const toNumber = (value: unknown): number => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const normalizeBahanList = (list: any[]): any[] => {
+  return (list || []).map((item) => {
+    const qty = toNumber(item?.qty);
+    const hargaSatuan = toNumber(item?.harga_satuan ?? item?.hargaSatuan);
+    const rawTotal = item?.harga_total ?? item?.hargaTotal;
+    const totalCandidate = Number(rawTotal);
+    const computedTotal = Number.isFinite(totalCandidate)
+      ? totalCandidate
+      : qty * hargaSatuan;
+    const roundedTotal = Math.round(toNumber(computedTotal));
+
+    return {
+      ...item,
+      qty,
+      harga_satuan: hargaSatuan,
+      hargaSatuan,
+      harga_total: roundedTotal,
+      hargaTotal: roundedTotal,
+    };
+  });
+};
+
+const formatCurrency = (value: number | null | undefined): string => {
+  const rounded = Math.round(toNumber(value));
+  return rounded.toLocaleString("id-ID", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+};
 
 const KalkulasiBiayaCathlab: React.FC = () => {
   const [rows, setRows] = useState<any[]>([]);
@@ -35,12 +70,12 @@ const KalkulasiBiayaCathlab: React.FC = () => {
 
   // Total biaya bahan (Rp) untuk ringkasan di footer form bahan
   const totalBahanFarmasi = useMemo(() => {
-    return (bahanFarmasiList || []).reduce((sum: number, item: any) => {
-      const hargaTotal = Number(
-        item?.harga_total ?? item?.hargaTotal ?? ((Number(item?.qty || 0)) * (Number(item?.harga_satuan || item?.hargaSatuan || 0)))
-      );
-      return sum + (isNaN(hargaTotal) ? 0 : hargaTotal);
+    const total = (bahanFarmasiList || []).reduce((sum: number, item: any) => {
+      const hargaTotal = toNumber(item?.harga_total ?? item?.hargaTotal);
+      return sum + hargaTotal;
     }, 0);
+
+    return Math.round(total);
   }, [bahanFarmasiList]);
 
   // Initialize user session
@@ -574,21 +609,13 @@ const KalkulasiBiayaCathlab: React.FC = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Kalkulasi Biaya Cathlab</CardTitle>
-          <CardDescription>
-            Kelola bahan pemeriksaan, impor jumlah & parameter kalkulasi tindakan cathlab, dan lihat hasil.
-            <br />
-            <span className="text-green-600 font-medium">✅ Sistem perhitungan otomatis aktif - semua kolom biaya akan dihitung ulang saat data berubah</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2 mb-4 items-center">
-            <Input 
-              type="number" 
-              value={year} 
-              onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)} 
-              className="w-[120px]" 
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)}
+              className="w-[140px] border-slate-200 bg-white text-slate-700"
               placeholder="Tahun"
             />
             <div className="flex flex-col gap-2">
@@ -659,51 +686,63 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 </div>
               )}
             </div>
-            <Button variant="outline" onClick={handleDownloadTemplate}>
-              Unduh Template Import
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowReportFilter(true)} 
-              disabled={loading || importing || autoCalculating || rows.length === 0}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={handleDownloadTemplate}
+              className="bg-orange-500 text-white hover:bg-orange-600"
+              disabled={loading || importing || autoCalculating}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Unduh Laporan
+              Unduh Template
             </Button>
-            <label className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-600">
               Import Data
               <Input type="file" accept=".csv" onChange={handleImport} className="sr-only" />
             </label>
-            <Button 
+            <Button
               onClick={() => {
                 setManualInputData({});
                 setShowManualInput(true);
-              }} 
+              }}
               disabled={loading || importing || autoCalculating}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-rose-500 text-white hover:bg-rose-600"
             >
               Input Manual
             </Button>
-            <Button 
-              variant="default" 
-              disabled={loading || importing || autoCalculating || recalculating} 
+            <Button
+              onClick={() => setShowReportFilter(true)}
+              disabled={loading || importing || autoCalculating || rows.length === 0}
+              className="bg-sky-500 text-white hover:bg-sky-600"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Unduh Laporan
+            </Button>
+            <Button
               onClick={handleManualRecalculation}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+              disabled={loading || importing || autoCalculating || recalculating}
+              className="bg-blue-500 text-white hover:bg-blue-600"
             >
               {recalculating ? (
                 <span className="flex items-center">
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   {recalcProgress.message || 'Rekalkulasi...'}
                 </span>
               ) : (
                 <span className="flex items-center">
-                  <Calculator className="h-4 w-4 mr-2" />
+                  <Calculator className="mr-2 h-4 w-4" />
                   Rekalkulasi Semua
                 </span>
               )}
             </Button>
-            
-            {recalculating && (
+            <Button
+              onClick={() => loadData()}
+              disabled={loading}
+              className="bg-purple-600 text-white hover:bg-purple-700"
+            >
+              Perbarui Data
+            </Button>
+          </div>
+          {recalculating && (
               <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
                 <div className="flex items-center space-x-2">
                   <div className="w-full bg-blue-200 rounded-full h-2">
@@ -721,13 +760,6 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 </div>
               </div>
             )}
-            
-            {rows && rows.length > 0 && !recalculating && (
-              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
-                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
-              </div>
-            )}
-          </div>
 
           {(importing || autoCalculating) && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
@@ -743,25 +775,24 @@ const KalkulasiBiayaCathlab: React.FC = () => {
 
           <div className="rounded-md border overflow-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama Tindakan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Prof</TableHead>
-                  <TableHead>Kesulitan</TableHead>
-                  <TableHead>Bahan</TableHead>
-                  <TableHead>Bahan Rp</TableHead>
-                  <TableHead>Unit Cost</TableHead>
-                  <TableHead>Edit</TableHead>
-                  <TableHead>Hapus</TableHead>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                  <TableHead className="text-white">Kode</TableHead>
+                  <TableHead className="text-white">Nama Tindakan</TableHead>
+                  <TableHead className="text-white">Jumlah</TableHead>
+                  <TableHead className="text-white">Waktu</TableHead>
+                  <TableHead className="text-white">Prof</TableHead>
+                  <TableHead className="text-white">Kesulitan</TableHead>
+                  <TableHead className="text-white">Bahan</TableHead>
+                  <TableHead className="text-right text-white">Bahan Rp</TableHead>
+                  <TableHead className="text-right text-white">Unit Cost</TableHead>
+                  <TableHead className="w-[140px] text-center text-white">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <div className="text-gray-500">Memuat data...</div>
@@ -770,7 +801,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="text-gray-500">Tidak ada data untuk ditampilkan</div>
                     </TableCell>
                   </TableRow>
@@ -791,7 +822,9 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                           size="sm"
                           onClick={() => {
                             setSelectedRowForBahan(r);
-                            setBahanFarmasiList(r.bahan_pemeriksaan || []);
+                            setBahanFarmasiList(
+                              normalizeBahanList(r.bahan_pemeriksaan || [])
+                            );
                             setShowBahanFarmasiForm(true);
                           }}
                           className={`text-xs ${hasBahan ? 'bg-orange-100 hover:bg-orange-200 text-orange-800 font-semibold' : 'bg-green-100 hover:bg-green-200 text-green-800'}`}
@@ -799,27 +832,25 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                           {hasBahan ? `✓ ${r.bahan_pemeriksaan.length}` : 'Tambah'}
                         </Button>
                       </TableCell>
-                      <TableCell className="font-semibold">{r.biaya_bahan_pemeriksaan_numeric?.toLocaleString() || 0}</TableCell>
-                      <TableCell className="font-semibold text-blue-600">{r.unit_cost_per_tindakan?.toLocaleString() || 0}</TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditRow(r)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeleteRow(r)}
-                          className="bg-red-100 hover:bg-red-200 text-red-800"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <TableCell className="text-right font-semibold">{r.biaya_bahan_pemeriksaan_numeric?.toLocaleString() || 0}</TableCell>
+                      <TableCell className="text-right font-semibold text-blue-600">{r.unit_cost_per_tindakan?.toLocaleString() || 0}</TableCell>
+                      <TableCell className="w-[140px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button 
+                            variant="edit" 
+                            size="sm"
+                            onClick={() => handleEditRow(r)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteRow(r)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -850,7 +881,11 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 kode={selectedRowForBahan.kode}
                 jenisPemeriksaan={selectedRowForBahan.jenis_pemeriksaan}
                 onSave={(bahanData: any) => {
-                  setBahanFarmasiList([...bahanFarmasiList, bahanData]);
+                  const updatedList = normalizeBahanList([
+                    ...bahanFarmasiList,
+                    bahanData,
+                  ]);
+                  setBahanFarmasiList(updatedList);
                   toast.success("Bahan berhasil ditambahkan!");
                 }}
                 onCancel={() => setShowBahanFarmasiForm(false)}
@@ -865,7 +900,8 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                         <div className="flex-1">
                           <div className="font-medium">{bahan.nama}</div>
                           <div className="text-sm text-gray-600">
-                            {bahan.kode_barang} - {bahan.qty} pcs - Rp {bahan.harga_total?.toLocaleString()}
+                            {bahan.kode_barang} - {bahan.qty} pcs - Rp{" "}
+                            {formatCurrency(bahan.harga_total ?? bahan.hargaTotal)}
                           </div>
                         </div>
                         <Button
@@ -891,8 +927,12 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 {/* Ringkasan total biaya bahan - posisikan kanan bawah di atas tombol simpan */}
                 <div className="bg-gray-50 rounded-lg border p-4 text-right w-full sm:w-auto">
                   <div className="text-sm text-gray-600">Jumlah Biaya Bahan</div>
-                  <div className="text-2xl font-bold text-blue-700">Rp {totalBahanFarmasi.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
+                  <div className="text-2xl font-bold text-blue-700">
+                    Rp {formatCurrency(totalBahanFarmasi)}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Total {bahanFarmasiList.length} item
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>Batal</Button>
@@ -900,15 +940,17 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 onClick={async () => {
                   try {
                     setAutoCalculating(true);
+                    const normalizedList = normalizeBahanList(bahanFarmasiList);
                     const { error } = await supabase
                       .from("kalkulasi_biaya_cathlab")
-                      .update({ bahan_pemeriksaan: bahanFarmasiList })
+                      .update({ bahan_pemeriksaan: normalizedList })
                       .eq("id", selectedRowForBahan.id);
                     
                     if (error) throw error;
                     
                     toast.success("Bahan disimpan!");
                     setShowBahanFarmasiForm(false);
+                    setBahanFarmasiList(normalizedList);
                     await loadData(userId);
                     setAutoCalculating(false);
                   } catch (e: any) {

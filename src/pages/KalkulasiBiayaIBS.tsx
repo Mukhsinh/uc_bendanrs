@@ -1155,22 +1155,12 @@ const KalkulasiBiayaIBS: React.FC = () => {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleEditRow(r)}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-                      >
+                    <Button variant="edit" size="sm" onClick={() => handleEditRow(r)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleDeleteRow(r)}
-                        className="bg-red-100 hover:bg-red-200 text-red-800"
-                      >
+                    <Button variant="destructive" size="sm" onClick={() => handleDeleteRow(r)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>

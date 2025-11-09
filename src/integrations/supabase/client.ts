@@ -18,7 +18,12 @@ const getSupabaseConfig = () => {
   console.log('Environment Key:', envKey ? 'Present' : 'Not found');
   console.log('Final URL:', supabaseUrl);
   console.log('Final Key:', supabaseAnonKey ? 'Present' : 'Missing');
-  console.log('Using fallback:', !envUrl || !envKey);
+  const usingFallback = !envUrl || !envKey;
+  console.log('Using fallback:', usingFallback);
+
+  if (usingFallback) {
+    console.warn('⚠️ Supabase fallback credentials sedang digunakan. Set nilai VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY untuk lingkungan produksi.');
+  }
   
   return { supabaseUrl, supabaseAnonKey };
 };

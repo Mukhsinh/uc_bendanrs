@@ -601,12 +601,21 @@ const DataDiklatFormTable: React.FC = () => {
                   <TableCell>{row.kode_materi}</TableCell>
                   <TableCell>{row.nama_materi}</TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditing(row); setIsDialogOpen(true); }} className="mr-2">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(row.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="edit"
+                        size="icon"
+                        onClick={() => {
+                          setEditing(row);
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(row.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

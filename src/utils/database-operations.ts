@@ -1,6 +1,99 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+const TABLE_COLUMN_WHITELIST: Record<string, ReadonlySet<string>> = {
+  jenis_tindakan_rawat_jalan: new Set([
+    'id',
+    'user_id',
+    'kode_jenis',
+    'kode_unit_kerja',
+    'nama_unit_kerja',
+    'kode_jenis_tindakan',
+    'jenis_tindakan',
+    'jumlah',
+    'waktu',
+    'profesionalisme',
+    'tingkat_kesulitan',
+    'hasil_kali_waktu',
+    'hasil_kali',
+    'biaya_bahan_tindakan',
+    'kali_bahan',
+    'created_at',
+    'updated_at'
+  ]),
+  kalkulasi_tindakan_rawat_jalan: new Set([
+    'id',
+    'user_id',
+    'tahun',
+    'kode_jenis',
+    'kode_unit_kerja',
+    'nama_unit_kerja',
+    'kode_jenis_tindakan',
+    'jenis_tindakan',
+    'jumlah',
+    'waktu',
+    'profesionalisme',
+    'tingkat_kesulitan',
+    'hasil_kali_waktu',
+    'hasil_kali',
+    'biaya_bahan_tindakan',
+    'kali_bahan',
+    'dasar_alokasi_kali_waktu',
+    'dasar_alokasi_hasil_kali',
+    'biaya_gaji_tunjangan',
+    'biaya_makan_karyawan',
+    'biaya_rumah_tangga',
+    'biaya_cetak',
+    'biaya_atk',
+    'biaya_listrik',
+    'biaya_air',
+    'biaya_telp',
+    'biaya_pemeliharaan_bangunan',
+    'biaya_pemeliharaan_alat_medis',
+    'biaya_pemeliharaan_alat_non_medis',
+    'biaya_operasional_lainnya',
+    'biaya_penyusutan_gedung',
+    'biaya_penyusutan_jaringan',
+    'biaya_penyusutan_alat_medis',
+    'biaya_penyusutan_alat_non_medis',
+    'biaya_pendidikan_pelatihan',
+    'biaya_laundry',
+    'biaya_sterilisasi',
+    'biaya_tidak_langsung_terdistribusi',
+    'created_at',
+    'updated_at'
+  ])
+};
+
+const filterPayloadByTable = (table: string, payload: Record<string, any>) => {
+  const whitelist = TABLE_COLUMN_WHITELIST[table];
+  if (!whitelist) {
+    return payload;
+  }
+
+  const filteredEntries = Object.entries(payload).filter(([key]) => whitelist.has(key));
+
+  if (filteredEntries.length === Object.keys(payload).length) {
+    return payload;
+  }
+
+  return filteredEntries.reduce<Record<string, any>>((acc, [key, value]) => {
+    acc[key] = value;
+    return acc;
+  }, {});
+};
+
+export const filterDataForTable = (
+  table: string,
+  data: Record<string, any> | Record<string, any>[]
+) => {
+  if (Array.isArray(data)) {
+    return data.map((item) => filterPayloadByTable(table, item));
+  }
+
+  return filterPayloadByTable(table, data);
+};
+
 interface RetryOptions {
   maxRetries?: number;
   baseDelay?: number;
@@ -107,9 +200,10 @@ export async function optimizedUpdate(
   entityName: string = 'data'
 ): Promise<void> {
   return executeWithRetry(async () => {
+    const filteredData = filterPayloadByTable(table, data);
     const { error, count } = await supabase
       .from(table)
-      .update(data)
+      .update(filteredData)
       .eq('id', id);
 
     if (error) {
@@ -137,9 +231,10 @@ export async function optimizedInsert(
   entityName: string = 'data'
 ): Promise<any> {
   return executeWithRetry(async () => {
+    const filteredData = filterDataForTable(table, data);
     const { data: result, error } = await supabase
       .from(table)
-      .insert(data)
+      .insert(filteredData)
       .select();
 
     if (error) {
@@ -206,9 +301,10 @@ export async function safeCRUDOperation(
       if (!dataPayload) {
         throw new Error('Data payload is required for INSERT operation');
       }
+      const filteredPayload = filterPayloadByTable(tableName, dataPayload);
       const { data, error } = await supabase
         .from(tableName)
-        .insert([dataPayload])
+        .insert([filteredPayload])
         .select();
       if (error) throw error;
       result = { success: true, data };
@@ -216,9 +312,10 @@ export async function safeCRUDOperation(
       if (!recordId || !dataPayload) {
         throw new Error('Record ID and data payload are required for UPDATE operation');
       }
+      const filteredPayload = filterPayloadByTable(tableName, dataPayload);
       const { data, error } = await supabase
         .from(tableName)
-        .update(dataPayload)
+        .update(filteredPayload)
         .eq('id', recordId)
         .select();
       if (error) throw error;
@@ -401,16 +498,16 @@ export async function manualRecalculateBdrs(
 
 export async function manualRecalculateOperatif(
   tahun: number,
-  userId?: string
+  datasetUserId?: string | null
 ): Promise<any> {
-  if (!userId) {
-    throw new Error('User ID required for batched recalculation');
+  if (!datasetUserId) {
+    throw new Error('ID pemilik data kalkulasi diperlukan untuk rekalkulasi Operatif');
   }
-  
+
   console.log(`🔄 Starting batched manual recalculation Operatif for year ${tahun}`);
   
   // Use batched approach like laboratorium to avoid timeout
-  const result = await recalculateOperatifBatched(tahun, userId);
+  const result = await recalculateOperatifBatched(tahun, datasetUserId);
   
   console.log(`✅ Batched recalculation Operatif completed successfully`);
   console.log(`📊 Stats: ${result.totalOperators} operators, ${result.totalAffected} records, ${result.totalDbSeconds}s`);
@@ -456,6 +553,38 @@ export async function manualRecalculateCathlab(
 }
 
 /**
+ * Rekalkulasi manual distribusi_biaya_kedua
+ * Update biaya_alokasi_i dari distribusi_biaya_pertama (bukan _dengan_jp)
+ */
+export async function manualRecalculateDistribusiBiayaKedua(
+  tahun: number
+): Promise<any> {
+  return executeWithRetry(async () => {
+    console.log(`🔄 Manual recalculation Distribusi Biaya Kedua for year ${tahun}`);
+    
+    const { data, error } = await supabase.rpc('manual_recalculate_distribusi_biaya_kedua', {
+      p_tahun: tahun
+    });
+
+    if (error) {
+      console.error(`Manual recalculation Distribusi Biaya Kedua error:`, error);
+      throw new Error(`Gagal melakukan rekalkulasi: ${error.message}`);
+    }
+
+    if (data && !data.success) {
+      throw new Error(data.message || 'Rekalkulasi gagal');
+    }
+
+    console.log(`✅ Manual recalculation Distribusi Biaya Kedua completed successfully`);
+    console.log(`📊 Stats: ${data.updated_count} records updated`);
+    return data;
+  }, {
+    maxRetries: 1,
+    timeoutMs: 120000 // 2 minutes
+  });
+}
+
+/**
  * Batched recalculation untuk Laboratorium, menjalankan RPC per unit kerja
  * Hanya menyentuh kolom computed-by-system di sisi database.
  */
@@ -466,13 +595,15 @@ export async function recalculateLaboratoriumBatched(
 ): Promise<{ totalUnits: number; succeeded: number; failed: number; failures: { unit: string; error: string }[]; totalAffected: number; totalDbSeconds: number }>{
   return executeWithRetry(async () => {
     console.log(`🔄 Batched recalculation Laboratorium for year ${tahun}`);
+    console.log(`📌 Menggunakan data terbaru berdasarkan kombinasi kode dan tahun, tanpa filter user_id`);
 
-    // Ambil daftar unit kerja yang relevan
+    // Ambil daftar unit kerja yang relevan berdasarkan tahun saja (tidak filter berdasarkan user_id)
+    // Ini memastikan kita menggunakan data terbaru dari semua user sesuai kombinasi kode dan tahun
     const { data: unitsData, error: unitsError } = await supabase
       .from('kalkulasi_biaya_laboratorium')
       .select('kode_unit_kerja')
-      .eq('tahun', tahun)
-      .eq('user_id', userId);
+      .eq('tahun', tahun);
+      // Hapus filter .eq('user_id', userId) untuk menggunakan data terbaru dari semua user
 
     if (unitsError) {
       throw new Error(`Gagal mengambil daftar unit: ${unitsError.message}`);
@@ -483,10 +614,25 @@ export async function recalculateLaboratoriumBatched(
       .filter((v: any) => typeof v === 'string' && v.trim().length > 0)));
 
     const total = unitCodes.length || 0;
+    console.log(`📊 Ditemukan ${total} unit kerja untuk tahun ${tahun}`);
+    
     if (total === 0) {
       // Jalankan global sebagai fallback bila tidak ada kode unit
-      const data = await executeRPC('manual_recalculate_laboratorium_batch', { p_tahun: tahun, p_user_id: userId, p_kode_unit_kerja: null }, { timeoutMs: 600000 });
-      return { totalUnits: 0, succeeded: 0, failed: 0, failures: [], totalAffected: Number(data?.affected_rows || 0), totalDbSeconds: Number(data?.execution_time_seconds || 0) };
+      // Kirim null untuk user_id agar fungsi database menggunakan data terbaru berdasarkan kode dan tahun
+      console.log(`⚠️ Tidak ada unit kerja ditemukan, menjalankan rekalkulasi global...`);
+      const data = await executeRPC('manual_recalculate_laboratorium_batch', { 
+        p_tahun: tahun, 
+        p_user_id: null, // null agar menggunakan data terbaru tanpa filter user
+        p_kode_unit_kerja: null 
+      }, { timeoutMs: 600000 });
+      return { 
+        totalUnits: 0, 
+        succeeded: 0, 
+        failed: 0, 
+        failures: [], 
+        totalAffected: Number(data?.affected_rows || 0), 
+        totalDbSeconds: Number(data?.execution_time_seconds || 0) 
+      };
     }
 
     let succeeded = 0;
@@ -499,22 +645,26 @@ export async function recalculateLaboratoriumBatched(
       const unit = unitCodes[i];
       onProgress?.({ current: i + 1, total, unit, message: `Memproses unit ${unit} (${i + 1}/${total})...` });
       try {
+        // Kirim null untuk user_id agar fungsi database menggunakan data terbaru berdasarkan kode dan tahun
+        // tanpa memperhatikan user yang melakukan input/update
         const data = await executeRPC('manual_recalculate_laboratorium_batch', {
           p_tahun: tahun,
-          p_user_id: userId,
+          p_user_id: null, // null agar menggunakan data terbaru tanpa filter user
           p_kode_unit_kerja: unit
         }, { timeoutMs: 600000 });
 
         totalAffected += Number(data?.affected_rows || 0);
         totalDbSeconds += Number(data?.execution_time_seconds || 0);
         succeeded += 1;
+        console.log(`✅ Unit ${unit} berhasil: ${data?.affected_rows || 0} rows diperbarui`);
       } catch (err: any) {
-        console.error(`Unit ${unit} gagal:`, err);
+        console.error(`❌ Unit ${unit} gagal:`, err);
         failures.push({ unit, error: err?.message || 'unknown error' });
         failed += 1;
       }
     }
 
+    console.log(`📊 Rekalkulasi batch selesai: ${succeeded} berhasil, ${failed} gagal, ${totalAffected} total rows diperbarui`);
     return { totalUnits: total, succeeded, failed, failures, totalAffected, totalDbSeconds };
   }, {
     maxRetries: 1,
@@ -528,19 +678,24 @@ export async function recalculateLaboratoriumBatched(
  */
 export async function recalculateOperatifBatched(
   tahun: number,
-  userId: string,
+  datasetUserId: string | null,
   onProgress?: (info: { current: number; total: number; operator?: string; message?: string }) => void
 ): Promise<{ totalOperators: number; succeeded: number; failed: number; failures: { operator: string; error: string }[]; totalAffected: number; totalDbSeconds: number }>{
   return executeWithRetry(async () => {
     console.log(`🔄 Batched recalculation Operatif for year ${tahun}`);
 
     // Ambil daftar operator yang relevan
-    const { data: operatorsData, error: operatorsError } = await supabase
+    let operatorQuery = supabase
       .from('kalkulasi_biaya_operatif')
       .select('kode_operator_spesialistik')
       .eq('tahun', tahun)
-      .eq('user_id', userId)
       .eq('kode_unit_kerja', 'UK074');
+
+    if (datasetUserId) {
+      operatorQuery = operatorQuery.eq('user_id', datasetUserId);
+    }
+
+    const { data: operatorsData, error: operatorsError } = await operatorQuery;
 
     if (operatorsError) {
       throw new Error(`Gagal mengambil daftar operator: ${operatorsError.message}`);
@@ -553,7 +708,7 @@ export async function recalculateOperatifBatched(
     const total = operatorCodes.length || 0;
     if (total === 0) {
       // Jalankan global sebagai fallback bila tidak ada kode operator
-      const data = await executeRPC('manual_recalculate_operatif_batch', { p_tahun: tahun, p_user_id: userId, p_kode_unit_kerja: 'UK074', p_kode_operator_spesialistik: null }, { timeoutMs: 600000 });
+      const data = await executeRPC('manual_recalculate_operatif_batch', { p_tahun: tahun, p_user_id: datasetUserId, p_kode_unit_kerja: 'UK074', p_kode_operator_spesialistik: null }, { timeoutMs: 600000 });
       return { totalOperators: 0, succeeded: 0, failed: 0, failures: [], totalAffected: Number(data?.affected_rows || 0), totalDbSeconds: Number(data?.execution_time_seconds || 0) };
     }
 
@@ -569,7 +724,7 @@ export async function recalculateOperatifBatched(
       try {
         const data = await executeRPC('manual_recalculate_operatif_batch', {
           p_tahun: tahun,
-          p_user_id: userId,
+          p_user_id: datasetUserId,
           p_kode_unit_kerja: 'UK074',
           p_kode_operator_spesialistik: operator
         }, { timeoutMs: 600000 });

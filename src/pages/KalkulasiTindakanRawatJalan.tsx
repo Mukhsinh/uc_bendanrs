@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, Filter, Calculator } from "lucide-react";
+import { Download, Calculator, RefreshCw, Building, TrendingUp, TrendingDown, Layers, ListOrdered } from "lucide-react";
+import { BarChart, Bar, CartesianGrid, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import * as XLSX from 'xlsx';
 
 interface KalkulasiTindakanRawatJalanData {
@@ -63,6 +64,7 @@ const KalkulasiTindakanRawatJalan = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filteredData, setFilteredData] = useState<KalkulasiTindakanRawatJalanData[]>([]);
+  const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState({
     tahun: new Date().getFullYear().toString(),
     nama_unit_kerja: "",
@@ -206,6 +208,70 @@ const KalkulasiTindakanRawatJalan = () => {
     return filteredData.reduce((total, item) => total + item.unit_cost_tindakan_rawat_jalan, 0);
   };
 
+  const totalKlinik = useMemo(() => {
+    const uniqueUnits = new Set(filteredData.map(item => item.kode_unit_kerja));
+    return uniqueUnits.size;
+  }, [filteredData]);
+
+  const topTindakanTerbanyak = useMemo(() => {
+    const sorted = [...filteredData].sort((a, b) => b.jumlah - a.jumlah);
+    return sorted.slice(0, 3);
+  }, [filteredData]);
+
+  const topTindakanTersedikit = useMemo(() => {
+    const sorted = [...filteredData].sort((a, b) => a.jumlah - b.jumlah);
+    return sorted.slice(0, 3);
+  }, [filteredData]);
+
+  const ThreeDBar = ({
+    x,
+    y,
+    width,
+    height,
+    frontFill,
+    topFill,
+    sideFill,
+    depth = 12,
+  }: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    frontFill: string;
+    topFill: string;
+    sideFill: string;
+    depth?: number;
+  }) => {
+    if (width <= 0 || height <= 0) return null;
+    const adjustedY = y;
+    const adjustedHeight = height;
+    const topY = adjustedY - depth;
+    const bottomY = adjustedY + adjustedHeight;
+    const rightX = x + width;
+    const leftX = x;
+    const rightTopX = rightX - depth;
+    const leftTopX = leftX - depth;
+    const rightBottomX = rightX - depth;
+    const bottomTopY = bottomY - depth;
+
+    return (
+      <g>
+        <path
+          d={`M${leftX},${adjustedY} L${rightX},${adjustedY} L${rightX},${bottomY} L${leftX},${bottomY} Z`}
+          fill={frontFill}
+        />
+        <path
+          d={`M${leftX},${adjustedY} L${rightX},${adjustedY} L${rightTopX},${topY} L${leftTopX},${topY} Z`}
+          fill={topFill}
+        />
+        <path
+          d={`M${rightX},${adjustedY} L${rightX},${bottomY} L${rightBottomX},${bottomTopY} L${rightTopX},${topY} Z`}
+          fill={sideFill}
+        />
+      </g>
+    );
+  };
+
   const getTotalJumlah = () => {
     return filteredData.reduce((total, item) => total + item.jumlah, 0);
   };
@@ -250,18 +316,36 @@ const KalkulasiTindakanRawatJalan = () => {
         </div>
       </div>
 
-      {/* Filter Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filter Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="tahun">Tahun</Label>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="outline"
+          onClick={() => setShowFilters((prev) => !prev)}
+          className="border-slate-300 text-slate-700 hover:bg-slate-100"
+        >
+          Filter
+        </Button>
+        <Button
+          onClick={exportToExcel}
+          className="bg-red-500 hover:bg-red-600 text-white"
+          disabled={filteredData.length === 0 || loading}
+        >
+          <Download className="h-4 w-4 mr-2" />
+          Unduh Laporan
+        </Button>
+        <Button
+          onClick={fetchData}
+          className="bg-purple-600 hover:bg-purple-700 text-white"
+          disabled={loading}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Perbarui Data
+        </Button>
+      </div>
+
+      {showFilters && (
+        <Card className="border-none bg-slate-50 shadow-sm">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Input
                 id="tahun"
                 type="number"
@@ -269,63 +353,212 @@ const KalkulasiTindakanRawatJalan = () => {
                 onChange={(e) => handleFilterChange('tahun', e.target.value)}
                 placeholder="Tahun"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="unit-kerja">Nama Unit Kerja</Label>
               <Input
                 id="unit-kerja"
                 value={filters.nama_unit_kerja}
                 onChange={(e) => handleFilterChange('nama_unit_kerja', e.target.value)}
                 placeholder="Nama Unit Kerja"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="jenis-tindakan">Jenis Tindakan</Label>
               <Input
                 id="jenis-tindakan"
                 value={filters.jenis_tindakan}
                 onChange={(e) => handleFilterChange('jenis_tindakan', e.target.value)}
                 placeholder="Jenis Tindakan"
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="search">Pencarian</Label>
               <Input
                 id="search"
                 value={filters.search}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
-                placeholder="Cari unit kerja, jenis tindakan..."
+                placeholder="Cari unit kerja atau jenis tindakan..."
               />
-            </div>
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-none bg-emerald-50 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Data</p>
-                <p className="text-2xl font-bold">{filteredData.length}</p>
+                <p className="text-sm font-medium text-emerald-700">Total Data</p>
+                <p className="text-2xl font-bold text-emerald-900">{filteredData.length}</p>
               </div>
-              <Calculator className="h-8 w-8 text-muted-foreground" />
+              <div className="rounded-full bg-white/80 p-3 text-emerald-600">
+                <Layers className="h-6 w-6" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-none bg-sky-50 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Jumlah Tindakan</p>
-                <p className="text-2xl font-bold">{getTotalJumlah().toLocaleString('id-ID')}</p>
+                <p className="text-sm font-medium text-sky-700">Total Jumlah Tindakan</p>
+                <p className="text-2xl font-bold text-sky-900">{getTotalJumlah().toLocaleString('id-ID')}</p>
               </div>
-              <Button onClick={exportToExcel} size="sm" className="ml-4">
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan
-              </Button>
+              <div className="rounded-full bg-white/80 p-3 text-sky-500">
+                <TrendingUp className="h-6 w-6" />
+              </div>
             </div>
+          </CardContent>
+        </Card>
+        <Card className="border-none bg-rose-50 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-rose-700">Jumlah Klinik</p>
+                <p className="text-2xl font-bold text-rose-900">{totalKlinik}</p>
+              </div>
+              <div className="rounded-full bg-white/80 p-3 text-rose-500">
+                <Building className="h-6 w-6" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-none bg-indigo-50 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-indigo-700">Total Unit Cost</p>
+                <p className="text-2xl font-bold text-indigo-900">{formatCurrency(getTotalUnitCost())}</p>
+              </div>
+              <div className="rounded-full bg-white/80 p-3 text-indigo-500">
+                <Calculator className="h-6 w-6" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="border-none bg-violet-50 shadow-sm">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-violet-700">Top 3 Tindakan Terbanyak</p>
+                <p className="text-xs text-violet-500">Berdasarkan jumlah tindakan</p>
+              </div>
+              <div className="rounded-full bg-white/80 p-3 text-violet-500">
+                <ListOrdered className="h-6 w-6" />
+              </div>
+            </div>
+            {topTindakanTerbanyak.length > 0 ? (
+              <ChartContainer
+                className="h-[220px] w-full"
+                config={{ value: { label: "Jumlah", color: "#7c3aed" } }}
+              >
+                <BarChart
+                  data={topTindakanTerbanyak.map(item => ({
+                    label:
+                      item.jenis_tindakan.length > 18
+                        ? `${item.jenis_tindakan.slice(0, 18)}…`
+                        : item.jenis_tindakan,
+                    fullLabel: item.jenis_tindakan,
+                    value: item.jumlah,
+                  }))}
+                  margin={{ top: 10, right: 16, left: -12, bottom: 8 }}
+                >
+                  <defs>
+                    <linearGradient id="rjTopGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#c4b5fd" />
+                      <stop offset="70%" stopColor="#7c3aed" />
+                      <stop offset="100%" stopColor="#4c1d95" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="rgba(124,58,237,0.12)" strokeDasharray="6 10" />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#4c1d95", fontSize: 12 }}
+                  />
+                  <YAxis hide />
+                  <ChartTooltip content={<ChartTooltipContent labelKey="fullLabel" />} cursor={{ fill: "rgba(124,58,237,0.08)" }} />
+                  <Bar
+                    dataKey="value"
+                    shape={(props) => (
+                      <ThreeDBar
+                        {...props}
+                        frontFill="url(#rjTopGradient)"
+                        topFill="#ede9fe"
+                        sideFill="#5b21b6"
+                      />
+                    )}
+                    barSize={44}
+                  />
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <div className="rounded-lg bg-white/70 px-4 py-6 text-center text-sm text-violet-500">
+                Data tidak tersedia
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="border-none bg-amber-50 shadow-sm">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-amber-700">Top 3 Tindakan Tersedikit</p>
+                <p className="text-xs text-amber-500">Berdasarkan jumlah tindakan</p>
+              </div>
+              <div className="rounded-full bg-white/80 p-3 text-amber-500">
+                <TrendingDown className="h-6 w-6" />
+              </div>
+            </div>
+            {topTindakanTersedikit.length > 0 ? (
+              <ChartContainer
+                className="h-[220px] w-full"
+                config={{ value: { label: "Jumlah", color: "#f97316" } }}
+              >
+                <BarChart
+                  data={topTindakanTersedikit.map(item => ({
+                    label:
+                      item.jenis_tindakan.length > 18
+                        ? `${item.jenis_tindakan.slice(0, 18)}…`
+                        : item.jenis_tindakan,
+                    fullLabel: item.jenis_tindakan,
+                    value: item.jumlah,
+                  }))}
+                  margin={{ top: 10, right: 16, left: -12, bottom: 8 }}
+                >
+                  <defs>
+                    <linearGradient id="rjLowGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#fde68a" />
+                      <stop offset="70%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#b45309" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid vertical={false} stroke="rgba(249,115,22,0.12)" strokeDasharray="6 10" />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: "#b45309", fontSize: 12 }}
+                  />
+                  <YAxis hide />
+                  <ChartTooltip content={<ChartTooltipContent labelKey="fullLabel" />} cursor={{ fill: "rgba(249,115,22,0.08)" }} />
+                  <Bar
+                    dataKey="value"
+                    shape={(props) => (
+                      <ThreeDBar
+                        {...props}
+                        frontFill="url(#rjLowGradient)"
+                        topFill="#fef3c7"
+                        sideFill="#c2410c"
+                      />
+                    )}
+                    barSize={44}
+                  />
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <div className="rounded-lg bg-white/70 px-4 py-6 text-center text-sm text-amber-500">
+                Data tidak tersedia
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -341,17 +574,17 @@ const KalkulasiTindakanRawatJalan = () => {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Tahun</TableHead>
-                  <TableHead>Unit Kerja</TableHead>
-                  <TableHead>Jenis Tindakan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Biaya Bahan Tindakan</TableHead>
-                  <TableHead>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                  <TableHead className="text-white">Tahun</TableHead>
+                  <TableHead className="text-white">Unit Kerja</TableHead>
+                  <TableHead className="text-white">Jenis Tindakan</TableHead>
+                  <TableHead className="text-white">Jumlah</TableHead>
+                  <TableHead className="text-white">Biaya Bahan Tindakan</TableHead>
+                  <TableHead className="text-white">
                     <div>
                       Unit Cost
-                      <div className="text-xs font-normal text-muted-foreground">(exclude biaya bahan)</div>
+                      <div className="text-xs font-normal text-white/80">(exclude biaya bahan)</div>
                     </div>
                   </TableHead>
                 </TableRow>

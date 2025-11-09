@@ -198,12 +198,12 @@ export default function DataKegiatanFormTable() {
         throw new Error("User tidak ditemukan. Silakan login kembali.");
       }
 
-      let query = supabase
-        .from("data_kegiatan")
-        .select("*")
-        .eq("tahun", selectedYear)
-        .eq("user_id", user.id)  // Add user_id filter for RLS
-        .order("Kode_UK");
+              let query = supabase
+          .from("data_kegiatan")
+          .select("*")
+          .eq("tahun", selectedYear)
+          // Removed user_id filter - all users can see all data
+          .order("Kode_UK");
 
       if (selectedUnitName !== "all") {
         query = query.eq("Nama_Unit_Kerja", selectedUnitName);
@@ -260,25 +260,26 @@ export default function DataKegiatanFormTable() {
         user_id: user.id  // Add user_id for RLS
       } as any;
       
-      if (editingItem) {
-        // Update existing
-        const { error } = await supabase
-          .from("data_kegiatan")
-          .update(payload)
-          .eq("id", editingItem.id)
-          .eq("user_id", user.id); // Add user_id filter for RLS
+              if (editingItem) {
+          // Update existing - all users can update all data
+          const { error } = await supabase
+            .from("data_kegiatan")
+            .update(payload)
+            .eq("id", editingItem.id);
+            // Removed user_id filter - all users can update all data
 
         if (error) throw error;
         toast.success("Data berhasil diperbarui");
       } else {
-        // Create new - check for duplicates first
-        const { data: existingData, error: checkError } = await supabase
-          .from("data_kegiatan")
-          .select("id")
-          .eq("Kode_UK", values.Kode_UK)
-          .eq("tahun", values.tahun)
-          .eq("user_id", user.id)
-          .maybeSingle();
+                  // Create new - check for duplicates first
+          // Check based on unique constraint (tahun, Kode_UK) - all users share the same data
+          const { data: existingData, error: checkError } = await supabase      
+            .from("data_kegiatan")
+            .select("id")
+            .eq("Kode_UK", values.Kode_UK)
+            .eq("tahun", values.tahun)
+            // Removed user_id filter - check duplicate across all users
+            .maybeSingle();
 
         if (checkError) throw checkError;
         
@@ -1521,18 +1522,10 @@ export default function DataKegiatanFormTable() {
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(item)}
-                        >
+                        <Button size="sm" variant="edit" onClick={() => handleEdit(item)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDelete(item.id!)}
-                        >
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(item.id!)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

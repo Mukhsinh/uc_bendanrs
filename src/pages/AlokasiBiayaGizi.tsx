@@ -130,7 +130,23 @@ const AlokasiBiayaGizi: React.FC = () => {
 
       if (error) throw error;
 
-      setData(alokasiData || []);
+      const dedupMap = new Map<string, AlokasiBiayaGiziData>();
+      (alokasiData || []).forEach((row) => {
+        const key = `${row.kode_unit_kerja}-${row.tahun}`;
+        const existing = dedupMap.get(key);
+        const existingUpdated = existing?.updated_at ? new Date(existing.updated_at).getTime() : 0;
+        const currentUpdated = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+
+        if (!existing || currentUpdated >= existingUpdated) {
+          dedupMap.set(key, row);
+        }
+      });
+
+      const dedupedData = Array.from(dedupMap.values()).sort((a, b) =>
+        a.kode_unit_kerja.localeCompare(b.kode_unit_kerja),
+      );
+
+      setData(dedupedData);
       
       if (!alokasiData || alokasiData.length === 0) {
         toast({
@@ -312,71 +328,49 @@ const AlokasiBiayaGizi: React.FC = () => {
     });
   };
 
-  const totalGizi = data.reduce((sum, row) => sum + row.total_gizi, 0);
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Data Akomodasi Inap</h1>
-          <p className="text-muted-foreground">
-            Kelola data akomodasi inap per unit kerja rawat inap
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={fetchData}
-            variant="outline"
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button
-            onClick={exportToExcel}
-            disabled={loading || data.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
-          </Button>
-        </div>
-      </div>
-
-      {/* Filter Tahun */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            Filter Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <Label htmlFor="tahun">Tahun:</Label>
+      <div className="space-y-3">
+        <h1 className="text-3xl font-bold tracking-tight">Data Akomodasi Inap</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="tahun" className="text-sm font-medium">
+              Tahun
+            </Label>
             <Input
               id="tahun"
               type="number"
               value={tahun}
-              onChange={(e) => setTahun(parseInt(e.target.value))}
-              className="w-32"
-              min="2020"
-              max="2030"
+              onChange={(e) => setTahun(parseInt(e.target.value) || tahun)}
+              className="w-24"
+              min={2015}
+              max={2100}
             />
-            <Badge variant="secondary">
-              Total Biaya Gizi: {formatCurrency(totalGizi)}
-            </Badge>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            onClick={exportToExcel}
+            disabled={loading || data.length === 0}
+            variant="report"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Unduh Laporan
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={fetchData}
+            disabled={loading}
+            aria-label="Refresh data"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
 
       {/* Tabel Data */}
       <Card>
         <CardHeader>
           <CardTitle>Data Akomodasi Inap</CardTitle>
-          <CardDescription>
-            Data ini tersinkronisasi otomatis dari data kegiatan dan dihitung berdasarkan hari rawat dan AUC gizi. 
-            Hanya menampilkan unit kerja yang memiliki tindakan inap. Anda dapat mengedit jumlah hari rawat untuk mengubah perhitungan.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -391,17 +385,17 @@ const AlokasiBiayaGizi: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-teal-700">
                   <TableRow>
-                    <TableHead>Unit Kerja</TableHead>
-                    <TableHead className="text-center">Tempat Tidur</TableHead>
-                    <TableHead className="text-center">Kamar Luas (m²)</TableHead>
-                    <TableHead className="text-center">Jumlah Porsi</TableHead>
-                    <TableHead className="text-center">Hari Rawat</TableHead>
-                    <TableHead className="text-center">AUC Gizi</TableHead>
-                    <TableHead className="text-center">Kali Porsi</TableHead>
-                    <TableHead className="text-right">Total Gizi</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
+                    <TableHead className="text-white font-semibold">Unit Kerja</TableHead>
+                    <TableHead className="text-center text-white font-semibold">Tempat Tidur</TableHead>
+                    <TableHead className="text-center text-white font-semibold">Kamar Luas (m²)</TableHead>
+                    <TableHead className="text-center text-white font-semibold">Jumlah Porsi</TableHead>
+                    <TableHead className="text-center text-white font-semibold">Hari Rawat</TableHead>
+                    <TableHead className="text-center text-white font-semibold">AUC Gizi</TableHead>
+                    <TableHead className="text-center text-white font-semibold">Kali Porsi</TableHead>
+                    <TableHead className="text-right text-white font-semibold">Total Gizi</TableHead>
+                    <TableHead className="text-center text-white font-semibold">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -409,8 +403,8 @@ const AlokasiBiayaGizi: React.FC = () => {
                     <TableRow key={row.id}>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{row.kode_unit_kerja}</div>
-                          <div className="text-sm text-muted-foreground">{row.nama_unit_kerja}</div>
+                          <div className="font-medium">{row.nama_unit_kerja}</div>
+                          <div className="text-sm text-muted-foreground">{row.kode_unit_kerja}</div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -470,11 +464,12 @@ const AlokasiBiayaGizi: React.FC = () => {
                       <TableCell className="text-right font-medium">
                         {formatCurrency(row.total_gizi)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-center">
                         <Button
-                          variant="outline"
+                          variant="edit"
                           size="sm"
                           onClick={() => handleEdit(row)}
+                          aria-label="Edit hari rawat"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>

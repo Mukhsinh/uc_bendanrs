@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { filterDataForTable } from "@/utils/database-operations";
 
 interface JenisTindakanRawatJalan {
   id: string;
@@ -121,7 +122,6 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
       const { data: tindakanData, error: tindakanError } = await supabase
         .from('jenis_tindakan_rawat_jalan')
         .select('*')
-        .eq('user_id', user.id)
         .order('kode_unit_kerja', { ascending: true });
 
       if (tindakanError) throw tindakanError;
@@ -216,9 +216,14 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
         return;
       }
 
+      const insertPayload = filterDataForTable(
+        'jenis_tindakan_rawat_jalan',
+        tindakanToInsert as Record<string, any>[]
+      );
+
       const { error } = await supabase
         .from('jenis_tindakan_rawat_jalan')
-        .insert(tindakanToInsert);
+        .insert(insertPayload as Record<string, any>[]);
 
       if (error) throw error;
       
@@ -461,7 +466,7 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
                                   <span className="font-medium">{tindakan.jumlah || 0}</span>
                                   <Button
                                     size="icon"
-                                    variant="ghost"
+                                    variant="edit"
                                     className="h-6 w-6"
                                     onClick={() => handleEditJumlah(tindakan)}
                                   >

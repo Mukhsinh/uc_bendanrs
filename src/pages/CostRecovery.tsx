@@ -3,7 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, Calculator } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis, ComposedChart, Line } from "recharts";
+import { toast } from "sonner";
 
 type CostRecoveryRow = {
   unit_kerja_id: string;
@@ -33,6 +36,65 @@ const CostRecovery: React.FC = () => {
   const [revenueFilter, setRevenueFilter] = useState<string>("total");
   const [rows, setRows] = useState<CostRecoveryRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [updating, setUpdating] = useState<boolean>(false);
+  
+  // Fungsi untuk update distribusi biaya pertama dengan JP
+  const handleUpdateDistribusiBiaya = async () => {
+    if (!confirm("Apakah Anda yakin ingin memperbarui data distribusi biaya pertama dengan JP? Proses ini akan melakukan recalculate dan rebuild table.")) {
+      return;
+    }
+    
+    try {
+      setUpdating(true);
+      
+      // Ambil user_id dari session
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      
+      if (!userId) {
+        toast.error('User tidak ditemukan. Silakan login kembali.');
+        return;
+      }
+      
+      toast.info('Memperbarui data distribusi biaya pertama dengan JP...');
+      
+      // Panggil fungsi RPC untuk update
+      const { data, error } = await supabase.rpc('api_update_distribusi_biaya_pertama_dengan_jp', {
+        p_tahun: tahun,
+        p_user_id: userId
+      });
+      
+      if (error) {
+        console.error('Error updating:', error);
+        toast.error(`Gagal memperbarui: ${error.message}`);
+        return;
+      }
+      
+      if (data && !data.success) {
+        toast.error(`Gagal memperbarui: ${data.message || 'Unknown error'}`);
+        return;
+      }
+      
+      const execTime = data?.execution_time_seconds?.toFixed(2) || '0';
+      toast.success(
+        `✅ Data distribusi biaya pertama dengan JP berhasil diperbarui!\n` +
+        `📊 ${data?.recalculate_rows || 0} rows dihitung ulang\n` +
+        `⏱️ Waktu eksekusi: ${execTime}s\n\n` +
+        `Silakan refresh halaman untuk melihat data terbaru.`
+      );
+      
+      // Refresh data cost recovery setelah update
+      // Data akan otomatis ter-refresh karena useEffect yang bergantung pada tahun
+      // Tapi karena distribusi biaya pertama tidak langsung mempengaruhi cost recovery,
+      // kita tidak perlu refresh rows di sini
+      
+    } catch (error: any) {
+      console.error('Error updating distribusi biaya:', error);
+      toast.error(`Terjadi kesalahan: ${error.message || 'Unknown error'}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -221,6 +283,25 @@ const CostRecovery: React.FC = () => {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cost Recovery</h1>
           <p className="text-sm text-muted-foreground">Perbandingan total pendapatan vs total biaya per unit kerja (Pusat Pendapatan). Total biaya dari distribusi_biaya_rekap baris "Total Biaya", pendapatan dari data_pendapatan</p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleUpdateDistribusiBiaya}
+            disabled={updating}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {updating ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                Memperbarui...
+              </>
+            ) : (
+              <>
+                <Calculator className="h-4 w-4 mr-2" />
+                Perbarui Total Biaya
+              </>
+            )}
+          </Button>
         </div>
       </div>
 

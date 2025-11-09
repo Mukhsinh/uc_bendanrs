@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { recalculateLaboratoriumBatched } from "@/utils/database-operations";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2, Calculator, RefreshCw } from "lucide-react";
+import { Edit, Trash2, Calculator, RefreshCw, Download, Upload, Plus } from "lucide-react";
 import * as XLSX from "xlsx";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -832,152 +832,161 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Kalkulasi Biaya Laboratorium</h1>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Kalkulasi Biaya Laboratorium</h1>
         <p className="text-muted-foreground">
           Hitung biaya pemeriksaan laboratorium
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Kalkulasi Biaya Laboratorium</CardTitle>
-          <CardDescription>
-            Kelola bahan pemeriksaan, impor jumlah & parameter kalkulasi, dan lihat hasil.
-            <br />
-            <span className="text-green-600 font-medium">✅ Sistem perhitungan otomatis aktif - semua kolom biaya akan dihitung ulang saat data berubah</span>
-          </CardDescription>
+      <Card className="border border-sky-100 bg-[#F8FBFF] shadow-sm">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-semibold text-slate-800">Kalkulasi Biaya Laboratorium</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2 mb-4 items-center">
-            <Input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)} className="w-[120px]" />
-            <div className="flex flex-col gap-2">
-              <div className="relative w-[280px]">
-                <Input
-                  value={jenisFilterInput}
-                  onChange={(e) => { setJenisFilterInput(e.target.value); setShowFilterSuggestions(true); }}
-                  onFocus={() => setShowFilterSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowFilterSuggestions(false), 150)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      const v = (jenisFilterInput || '').trim();
-                      if (!v) return;
-                      if (selectedJenisFilters.includes(v)) { setJenisFilterInput(''); return; }
-                      setSelectedJenisFilters((prev) => [...prev, v]);
-                      setJenisFilterInput('');
-                    } else if (e.key === 'Backspace' && !jenisFilterInput) {
-                      setSelectedJenisFilters((prev) => prev.slice(0, -1));
-                    }
-                  }}
-                  placeholder={selectedJenisFilters.length ? "Tambah jenis pemeriksaan..." : "Filter jenis pemeriksaan..."}
-                  className="pr-8"
-                />
-                {showFilterSuggestions && filteredJenisOptions.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-md max-h-60 overflow-auto">
-                    {filteredJenisOptions.map((opt) => {
-                      const isSelected = selectedJenisFilters.includes(opt);
-                      return (
-                        <div
-                          key={opt}
-                          className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-gray-50' : ''}`}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedJenisFilters(prev => prev.filter(v => v !== opt));
-                            } else {
-                              setSelectedJenisFilters(prev => [...prev, opt]);
-                            }
-                            setJenisFilterInput('');
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="truncate">{opt}</span>
-                            {isSelected && <span className="text-xs text-gray-500">✓</span>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-              {selectedJenisFilters.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {selectedJenisFilters.map((tag) => (
-                    <span key={tag} className="inline-flex items-center gap-2 px-2 py-1 text-xs bg-gray-100 rounded border">
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedJenisFilters((prev) => prev.filter((t) => t !== tag))}
-                        className="text-gray-500 hover:text-gray-700"
-                        aria-label={`Hapus ${tag}`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Button variant="outline" onClick={handleDownloadTemplate}>Unduh Template Import</Button>
-            <Button variant="outline" onClick={() => setShowReportFilter(true)} disabled={loading || importing || autoCalculating || rows.length === 0}>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="template" onClick={handleDownloadTemplate}>
+              <Download className="mr-2 h-4 w-4" />
+              Unduh Template Impor
+            </Button>
+            <label htmlFor="laboratorium-import" className="cursor-pointer">
+              <Button asChild variant="import" disabled={loading || importing || autoCalculating}>
+                <span>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Impor Data
+                </span>
+              </Button>
+            </label>
+            <Input id="laboratorium-import" type="file" accept=".csv,.xlsx" onChange={handleImport} className="hidden" />
+            <Button
+              variant="destructive"
+              onClick={() => setShowManualInput(true)}
+              disabled={loading || importing || autoCalculating}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Tambah Data Unit Kerja
+            </Button>
+            <Button
+              variant="report"
+              onClick={() => setShowReportFilter(true)}
+              disabled={loading || importing || autoCalculating || rows.length === 0}
+            >
+              <Download className="mr-2 h-4 w-4" />
               Unduh Laporan
             </Button>
-            <label className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-              Import Data
-              <Input type="file" accept=".csv,.xlsx" onChange={handleImport} className="sr-only" />
-            </label>
-            <Button 
-              onClick={() => setShowManualInput(true)} 
-              disabled={loading || importing || autoCalculating}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Input Manual
-            </Button>
-            <Button 
-              variant="default" 
-              disabled={loading || importing || autoCalculating || recalculating} 
+            <Button
+              disabled={loading || importing || autoCalculating || recalculating}
               onClick={handleManualRecalculation}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+              className="bg-purple-600 text-white hover:bg-purple-700"
             >
               {recalculating ? (
                 <span className="flex items-center">
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   {recalcProgress.message || 'Rekalkulasi...'}
                 </span>
               ) : (
                 <span className="flex items-center">
-                  <Calculator className="h-4 w-4 mr-2" />
+                  <Calculator className="mr-2 h-4 w-4" />
                   Rekalkulasi Semua
                 </span>
               )}
             </Button>
-            
-            {recalculating && (
-              <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
-                <div className="flex items-center space-x-2">
-                  <div className="w-full bg-blue-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-medium">
-                    {recalcProgress.step}/{recalcProgress.total}
-                  </span>
-                </div>
-                <div className="mt-1 text-xs">
-                  {recalcProgress.message}
-                </div>
-              </div>
-            )}
-            
-            {rows && rows.length > 0 && !recalculating && (
-              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
-                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
-              </div>
-            )}
           </div>
+
+          {recalculating && (
+            <div className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-700">
+              <div className="flex items-center space-x-2">
+                <div className="h-2 w-full rounded-full bg-purple-200">
+                  <div
+                    className="h-2 rounded-full bg-purple-600 transition-all duration-300"
+                    style={{ width: `${(recalcProgress.step / recalcProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+                <span className="text-xs font-medium">
+                  {recalcProgress.step}/{recalcProgress.total}
+                </span>
+              </div>
+              <div className="mt-1 text-xs">
+                {recalcProgress.message}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)}
+              className="w-[120px]"
+            />
+            <div className="relative w-[280px]">
+              <Input
+                value={jenisFilterInput}
+                onChange={(e) => { setJenisFilterInput(e.target.value); setShowFilterSuggestions(true); }}
+                onFocus={() => setShowFilterSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowFilterSuggestions(false), 150)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const v = (jenisFilterInput || '').trim();
+                    if (!v) return;
+                    if (selectedJenisFilters.includes(v)) { setJenisFilterInput(''); return; }
+                    setSelectedJenisFilters((prev) => [...prev, v]);
+                    setJenisFilterInput('');
+                  } else if (e.key === 'Backspace' && !jenisFilterInput) {
+                    setSelectedJenisFilters((prev) => prev.slice(0, -1));
+                  }
+                }}
+                placeholder="Filter jenis pemeriksaan..."
+                className="pr-8"
+              />
+              {showFilterSuggestions && filteredJenisOptions.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-md max-h-60 overflow-auto">
+                  {filteredJenisOptions.map((opt) => {
+                    const isSelected = selectedJenisFilters.includes(opt);
+                    return (
+                      <div
+                        key={opt}
+                        className={`cursor-pointer px-3 py-2 text-sm hover:bg-gray-50 ${isSelected ? 'bg-gray-50' : ''}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedJenisFilters(prev => prev.filter(v => v !== opt));
+                          } else {
+                            setSelectedJenisFilters(prev => [...prev, opt]);
+                          }
+                          setJenisFilterInput('');
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="truncate">{opt}</span>
+                          {isSelected && <span className="text-xs text-gray-500">✓</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {selectedJenisFilters.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedJenisFilters.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-2 rounded border bg-gray-100 px-2 py-1 text-xs">
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedJenisFilters((prev) => prev.filter((t) => t !== tag))}
+                    className="text-gray-500 hover:text-gray-700"
+                    aria-label={`Hapus ${tag}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
           {importing && (
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1049,39 +1058,28 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
             </div>
           )}
 
-          {!loading && !importing && !autoCalculating && rows.length > 0 && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-blue-700">
-                  ✅ Sistem perhitungan otomatis aktif - data diperbarui saat ada perubahan
-                </span>
-              </div>
-            </div>
-          )}
 
-
-          <div className="rounded-md border overflow-auto">
+          <div className="overflow-auto rounded-md border border-emerald-100 bg-white">
             <Table>
-              <TableHeader>
+              <TableHeader className="bg-teal-700">
                 <TableRow>
-                  <TableHead className="max-w-[200px]">Jenis Pemeriksaan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Prof</TableHead>
-                  <TableHead>Kesulitan</TableHead>
+                  <TableHead className="max-w-[200px] text-white font-semibold">Jenis Pemeriksaan</TableHead>
+                  <TableHead className="text-white font-semibold">Jumlah</TableHead>
+                  <TableHead className="text-white font-semibold">Waktu</TableHead>
+                  <TableHead className="text-white font-semibold">Prof</TableHead>
+                  <TableHead className="text-white font-semibold">Kesulitan</TableHead>
                   {/* Hidden columns: HK Waktu, Alokasi Waktu, Hasil Kali, Alokasi HK */}
-                  <TableHead>Bahan Rp</TableHead>
-                  <TableHead>Biaya Tidak Langsung Terdistribusi</TableHead>
-                  <TableHead>Unit Cost</TableHead>
-                  <TableHead>Update Bahan</TableHead>
-                  <TableHead>Aksi</TableHead>
+                  <TableHead className="text-white font-semibold">Bahan Rp</TableHead>
+                  <TableHead className="text-white font-semibold">Biaya Tidak Langsung Terdistribusi</TableHead>
+                  <TableHead className="text-white font-semibold">Unit Cost</TableHead>
+                  <TableHead className="text-white font-semibold">Update Bahan</TableHead>
+                  <TableHead className="text-white font-semibold">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <div className="text-gray-500">Memuat data...</div>
@@ -1090,7 +1088,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="text-gray-500">Tidak ada data.</div>
                         <div className="text-xs text-blue-600">
@@ -1123,18 +1121,16 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
                     <TableCell>
                       <div className="flex gap-2">
                         <Button 
-                          variant="outline" 
+                          variant="edit" 
                           size="sm"
                           onClick={() => handleEditRow(r)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button 
-                          variant="outline" 
+                          variant="destructive" 
                           size="sm"
                           onClick={() => handleDeleteRow(r)}
-                          className="bg-red-100 hover:bg-red-200 text-red-800"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

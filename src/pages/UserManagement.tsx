@@ -591,11 +591,7 @@ const UserManagement: React.FC = () => {
                     <TableCell>{role.description}</TableCell>
                     <TableCell>{userCount} user</TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openEditDialog(role)}
-                      >
+                      <Button variant="edit" size="sm" onClick={() => openEditDialog(role)}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </Button>

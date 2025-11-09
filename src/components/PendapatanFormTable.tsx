@@ -563,134 +563,151 @@ const PendapatanFormTable: React.FC = () => {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manajemen Data Pendapatan</h2>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchData()} variant="outline" size="icon">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingPendapatan(null)}>Tambah Data Pendapatan</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>{editingPendapatan ? "Edit Data Pendapatan" : "Tambah Data Pendapatan"}</DialogTitle>
-                <DialogDescription>
-                  {editingPendapatan ? "Perbarui detail pendapatan." : "Tambahkan data pendapatan baru ke sistem."}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="unit_kerja_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Unit Kerja (Pusat Pendapatan)</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih Unit Kerja" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {unitKerjaList.map((unitKerja) => (
-                              <SelectItem key={unitKerja.id} value={unitKerja.id}>
-                                {unitKerja.kode} - {unitKerja.nama}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tahun"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tahun</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="2024" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="pendapatan_umum"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pendapatan Umum (Rp)</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="0" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="pendapatan_bpjs"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pendapatan BPJS (Rp)</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="0" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="pendapatan_apbd"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Pendapatan APBD (Rp)</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder="0" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <Button type="submit">{editingPendapatan ? "Simpan Perubahan" : "Tambah"}</Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-6">
-        <Button onClick={handleDownloadTemplate} variant="outline">
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <Button
+          onClick={handleDownloadTemplate}
+          className="bg-orange-500 hover:bg-orange-600 text-white"
+        >
           <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
         </Button>
-        <label htmlFor="import-file" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
+        <label
+          htmlFor="import-file"
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-green-600 hover:bg-green-700 text-white ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 cursor-pointer"
+        >
           <Upload className="mr-2 h-4 w-4" /> Impor Data
           <Input id="import-file" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
         </label>
-        <Button onClick={handleDownloadReport} variant="outline">
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button
+              onClick={() => setEditingPendapatan(null)}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Tambah Data Pendapatan
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{editingPendapatan ? "Edit Data Pendapatan" : "Tambah Data Pendapatan"}</DialogTitle>
+              <DialogDescription>
+                {editingPendapatan ? "Perbarui detail pendapatan." : "Tambahkan data pendapatan baru ke sistem."}
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                <FormField
+                  control={form.control}
+                  name="unit_kerja_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unit Kerja (Pusat Pendapatan)</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih Unit Kerja" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {unitKerjaList.map((unitKerja) => (
+                            <SelectItem key={unitKerja.id} value={unitKerja.id}>
+                              {unitKerja.kode} - {unitKerja.nama}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="tahun"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tahun</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="2024" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="pendapatan_umum"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pendapatan Umum (Rp)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="pendapatan_bpjs"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pendapatan BPJS (Rp)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="pendapatan_apbd"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pendapatan APBD (Rp)</FormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="0" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="submit">{editingPendapatan ? "Simpan Perubahan" : "Tambah"}</Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+        <Button
+          onClick={handleDownloadReport}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+        </Button>
+        <Button
+          onClick={() => fetchData()}
+          size="icon"
+          className="bg-slate-200 hover:bg-slate-300 text-teal-700"
+          title="Perbarui Data"
+        >
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode Unit Kerja</TableHead>
-              <TableHead>Nama Unit Kerja</TableHead>
-              <TableHead>Tahun</TableHead>
-              <TableHead>Pendapatan Umum (Rp)</TableHead>
-              <TableHead>Pendapatan BPJS (Rp)</TableHead>
-              <TableHead>Pendapatan APBD (Rp)</TableHead>
-              <TableHead>Total Pendapatan (Rp)</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="text-white">Kode Unit Kerja</TableHead>
+              <TableHead className="text-white">Nama Unit Kerja</TableHead>
+              <TableHead className="text-white">Tahun</TableHead>
+              <TableHead className="text-white">Pendapatan Umum (Rp)</TableHead>
+              <TableHead className="text-white">Pendapatan BPJS (Rp)</TableHead>
+              <TableHead className="text-white">Pendapatan APBD (Rp)</TableHead>
+              <TableHead className="text-white">Total Pendapatan (Rp)</TableHead>
+              <TableHead className="text-right text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -713,21 +730,14 @@ const PendapatanFormTable: React.FC = () => {
                     <TableCell>{pendapatan.pendapatan_apbd?.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="font-medium">{totalPendapatan.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(pendapatan)}
-                        className="mr-2"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(pendapatan.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="edit" size="icon" onClick={() => handleEdit(pendapatan)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDelete(pendapatan.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

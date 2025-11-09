@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Permission {
   id: string;
@@ -18,26 +19,13 @@ export const usePermissions = () => {
   const [userRole, setUserRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user: authUser, initializing: authInitializing } = useAuth();
 
-  useEffect(() => {
-    fetchUserRole();
-  }, []);
-
-  const fetchUserRole = async () => {
+  const fetchUserRole = useCallback(async (userId: string) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
-      if (!user) {
-        setUserRole(null);
-        setLoading(false);
-        return;
-      }
-
-      // Get user role
       const { data: userRoleData, error: roleError } = await supabase
         .from('user_roles')
         .select(`
@@ -51,7 +39,7 @@ export const usePermissions = () => {
             )
           )
         `)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('is_active', true)
         .single();
 
@@ -64,6 +52,8 @@ export const usePermissions = () => {
           role_name: roleData.role_name,
           permissions: roleData.role_permissions || []
         });
+      } else {
+        setUserRole(null);
       }
     } catch (err) {
       console.error('Error fetching user role:', err);
@@ -72,7 +62,22 @@ export const usePermissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (authInitializing) {
+      setLoading(true);
+      return;
+    }
+
+    if (!authUser) {
+      setUserRole(null);
+      setLoading(false);
+      return;
+    }
+
+    fetchUserRole(authUser.id);
+  }, [authUser, authInitializing, fetchUserRole]);
 
   const hasPermission = (permissionName: string): boolean => {
     if (!userRole) return false;
@@ -124,6 +129,14 @@ export const usePermissions = () => {
     return userRole?.role_name === 'Super Admin';
   };
 
+  const refetch = useCallback(async () => {
+    if (!authUser?.id) {
+      setUserRole(null);
+      return;
+    }
+    await fetchUserRole(authUser.id);
+  }, [authUser, fetchUserRole]);
+
   return {
     userRole,
     loading,
@@ -139,7 +152,7 @@ export const usePermissions = () => {
     canManageRoles,
     isAdmin,
     isSuperAdmin,
-    refetch: fetchUserRole
+    refetch
   };
 };
 

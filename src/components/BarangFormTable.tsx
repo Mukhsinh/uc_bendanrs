@@ -606,124 +606,142 @@ const BarangFormTable: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Manajemen Barang Farmasi</h2>
-          {process.env.NODE_ENV === 'development' && (
-            <div className="text-xs text-gray-500 mt-1">
-              Debug: Total data: {barangList.length} | BHP: {barangList.filter(item => item.gudang === 'bhp').length}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchBarang(userId)} variant="outline" size="icon" title="Refresh Data">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingBarang(null)}>Tambah Barang Farmasi</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>{editingBarang ? "Edit Barang Farmasi" : "Tambah Barang Farmasi"}</DialogTitle>
-                <DialogDescription>
-                  {editingBarang ? "Perbarui detail barang." : "Tambahkan barang baru ke sistem."}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="kode_barang"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kode Barang</FormLabel>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">Manajemen Barang Farmasi</h2>
+        {process.env.NODE_ENV === "development" && (
+          <div className="text-xs text-gray-500 mt-1">
+            Debug: Total data: {barangList.length} | BHP: {barangList.filter(item => item.gudang === "bhp").length}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <Button onClick={handleDownloadTemplate} variant="template" className="shadow-sm">
+          <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
+        </Button>
+        <Button variant="import" className="shadow-sm" asChild>
+          <label className="flex cursor-pointer items-center gap-2">
+            <Upload className="h-4 w-4" /> Impor Data
+            <Input 
+              type="file" 
+              accept=".csv" 
+              onChange={handleImportData} 
+              className="sr-only" 
+            />
+          </label>
+        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setEditingBarang(null)} className="shadow-sm">
+              Tambah Barang Farmasi
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{editingBarang ? "Edit Barang Farmasi" : "Tambah Barang Farmasi"}</DialogTitle>
+              <DialogDescription>
+                {editingBarang ? "Perbarui detail barang." : "Tambahkan barang baru ke sistem."}
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+                <FormField
+                  control={form.control}
+                  name="kode_barang"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kode Barang</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Contoh: BRG001" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="nama_barang"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nama Barang</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Contoh: Infus Set" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="satuan"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Satuan</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Contoh: pcs, box, kg" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="harga"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Harga</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="gudang"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Gudang</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <Input placeholder="Contoh: BRG001" {...field} />
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih Gudang" />
+                          </SelectTrigger>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="nama_barang"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nama Barang</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: Infus Set" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="satuan"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Satuan</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: pcs, box, kg" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="harga"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Harga</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="0" 
-                            {...field} 
-                            onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="gudang"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Gudang</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih Gudang" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="obat">Obat</SelectItem>
-                            <SelectItem value="bhp">BHP</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <LoadingButton 
-                      type="submit" 
-                      loading={saving}
-                      loadingText={editingBarang ? "Menyimpan perubahan..." : "Menyimpan..."}
-                    >
-                      {editingBarang ? "Simpan Perubahan" : "Tambah"}
-                    </LoadingButton>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                        <SelectContent>
+                          <SelectItem value="obat">Obat</SelectItem>
+                          <SelectItem value="bhp">BHP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <LoadingButton
+                    type="submit"
+                    loading={saving}
+                    loadingText={editingBarang ? "Menyimpan perubahan..." : "Menyimpan..."}
+                  >
+                    {editingBarang ? "Simpan Perubahan" : "Tambah"}
+                  </LoadingButton>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+          <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+        </Button>
+        <Button onClick={() => fetchBarang(userId)} variant="outline" size="icon" title="Refresh Data">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Search Section */}
@@ -771,52 +789,29 @@ const BarangFormTable: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 mb-6">
-        <Button onClick={handleDownloadTemplate} variant="outline">
-          <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
-        </Button>
-        <div className="relative">
-          <Input 
-            id="import-file" 
-            type="file" 
-            accept=".csv" 
-            onChange={handleImportData} 
-            className="sr-only" 
-          />
-          <label 
-            htmlFor="import-file" 
-            className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer"
-          >
-            <Upload className="mr-2 h-4 w-4" /> Impor Data
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select onValueChange={(value: "all" | "obat" | "bhp") => setReportFilter(value)} defaultValue={reportFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter Gudang" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Gudang</SelectItem>
-              <SelectItem value="obat">Obat</SelectItem>
-              <SelectItem value="bhp">BHP</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleDownloadReport} variant="outline">
-            <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
-          </Button>
-        </div>
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <Select onValueChange={(value: "all" | "obat" | "bhp") => setReportFilter(value)} defaultValue={reportFilter}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Filter Gudang" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Gudang</SelectItem>
+            <SelectItem value="obat">Obat</SelectItem>
+            <SelectItem value="bhp">BHP</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode Barang</TableHead>
-              <TableHead>Nama Barang</TableHead>
-              <TableHead>Satuan</TableHead>
-              <TableHead>Harga</TableHead>
-              <TableHead>Gudang</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="font-bold text-white">Kode Barang</TableHead>
+              <TableHead className="font-bold text-white">Nama Barang</TableHead>
+              <TableHead className="font-bold text-white">Satuan</TableHead>
+              <TableHead className="font-bold text-white">Harga</TableHead>
+              <TableHead className="font-bold text-white">Gudang</TableHead>
+              <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -835,21 +830,14 @@ const BarangFormTable: React.FC = () => {
                   <TableCell>{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(barang.harga)}</TableCell>
                   <TableCell>{barang.gudang}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(barang)}
-                      className="mr-2"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(barang.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="edit" size="icon" onClick={() => handleEdit(barang)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(barang.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

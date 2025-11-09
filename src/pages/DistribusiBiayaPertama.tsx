@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Download, Filter, RefreshCw, Calculator } from 'lucide-react';
+import { Download, RefreshCw, Calculator } from 'lucide-react';
 import * as XLSX from "xlsx";
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -133,6 +133,7 @@ const DistribusiBiayaPertama: React.FC = () => {
   const [selectedUnitKerja, setSelectedUnitKerja] = useState<string>('all');
   const [selectedTahun, setSelectedTahun] = useState<string>('2025');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showFilters, setShowFilters] = useState(true);
   
   // Unit kerja options
   const unitKerjaOptions = [
@@ -146,11 +147,44 @@ const DistribusiBiayaPertama: React.FC = () => {
     'Farmasi', 'Rehab Medik', 'Gizi Dapur', 'Laundry', 'BDRS', 'Cathlab', 'Unit Diklat'
   ];
 
-  // Load data
+  const columnKeys = useMemo(
+    () => Array.from({ length: 77 }, (_, idx) => getColumnName(idx + 1)),
+    []
+  );
+
+  const totals = useMemo(() => {
+    const totalsMap = new Map<string, number>();
+    columnKeys.forEach((key) => totalsMap.set(key, 0));
+
+    let totalBiayaTahunan = 0;
+    let totalTerdistribusi = 0;
+
+    filteredData.forEach((item) => {
+      totalBiayaTahunan += item.biaya_tahunan || 0;
+      totalTerdistribusi += item.jumlah_biaya_terdistribusi_i || 0;
+
+      columnKeys.forEach((key) => {
+        const current = totalsMap.get(key) || 0;
+        const value = (item as any)[key] ?? 0;
+        totalsMap.set(key, current + (value || 0));
+      });
+    });
+
+    return {
+      totalBiayaTahunan,
+      totalTerdistribusi,
+      columnTotals: totalsMap,
+    };
+  }, [filteredData, columnKeys]);
+
+  // Load data dari tabel distribusi_biaya_pertama
   const loadData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.rpc('api_distribusi_biaya_pertama', { p_tahun: parseInt(selectedTahun) });
+      // Gunakan fungsi RPC untuk membaca dari tabel distribusi_biaya_pertama
+      const { data, error } = await supabase.rpc('api_distribusi_biaya_pertama', { 
+        p_tahun: parseInt(selectedTahun) 
+      });
       if (error) {
         console.error('Supabase RPC error:', error);
         toast.error('Gagal memuat data distribusi biaya');
@@ -166,15 +200,102 @@ const DistribusiBiayaPertama: React.FC = () => {
     }
   };
 
-  // Calculate distribusi biaya -> backend already recalculates; just refresh
+  // Calculate distribusi biaya -> recalculate dan rebuild table
+  // PENTING: HANYA UPDATE TABEL distribusi_biaya_pertama (tabel utama yang ditampilkan)
+  // Tabel distribusi_biaya_pertama_norm hanya digunakan sebagai working table internal untuk kalkulasi
+  // Tidak ada update langsung ke tabel norm dari halaman ini
   const calculateDistribusiBiaya = async () => {
     try {
       setCalculating(true);
+      
+      // Ambil user_id dari session
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error('Auth error:', authError);
+        toast.error('Gagal mendapatkan informasi user. Silakan login kembali.');
+        return;
+      }
+      
+      const userId = user?.id;
+      
+      if (!userId) {
+        toast.error('User tidak ditemukan. Silakan login kembali.');
+        return;
+      }
+      
+      toast.info('Memperbarui data distribusi biaya pertama...');
+      
+      // Panggil fungsi RPC untuk update (HANYA update tabel distribusi_biaya_pertama)
+      const { data, error } = await supabase.rpc('recalculate_and_fill_distribusi_biaya_pertama', {
+        p_tahun: parseInt(selectedTahun),
+        p_user_id: userId
+      });
+      
+      if (error) {
+        console.error('Error updating:', error);
+        
+        // Handle specific error types
+        let errorMessage = error.message || 'Terjadi kesalahan saat memperbarui data';
+        
+        // Handle foreign key constraint violation (409 Conflict)
+        if (error.code === '409' || error.message?.includes('foreign key constraint')) {
+          errorMessage = 'Gagal memperbarui: Ada data di distribusi biaya kedua yang masih mereferensi data ini. Silakan coba lagi.';
+        }
+        
+        toast.error(`Gagal memperbarui: ${errorMessage}`);
+        return;
+      }
+      
+      // Check response
+      if (!data) {
+        toast.error('Tidak ada response dari server. Silakan coba lagi.');
+        return;
+      }
+      
+      if (data.success === false) {
+        const errorMsg = data.message || 'Gagal memperbarui data';
+        console.error('Update failed:', errorMsg);
+        
+        // Tampilkan pesan error yang lebih informatif
+        if (errorMsg.includes('tidak memiliki data biaya')) {
+          toast.error(
+            `⚠️ ${errorMsg}\n\n` +
+            `💡 Tips: Pastikan Anda sudah menginput data biaya untuk unit kerja pusat biaya pada tahun ${selectedTahun}.`
+          );
+        } else if (errorMsg.includes('denominator alokasi = 0')) {
+          toast.error(
+            `⚠️ ${errorMsg}\n\n` +
+            `💡 Tips: Pastikan data kegiatan (SDM/Kunjungan/Luas Ruangan) sudah diinput untuk tahun ${selectedTahun}.`
+          );
+        } else {
+          toast.error(errorMsg);
+        }
+        return;
+      }
+      
+      // Refresh data setelah update
       await loadData();
-      toast.success('Data berhasil diperbarui');
-    } catch (error) {
+      
+      const insertedRows = data?.inserted_rows || 0;
+      
+      if (insertedRows > 0) {
+        toast.success(
+          `✅ Data berhasil diperbarui!\n` +
+          `📊 ${insertedRows} baris diperbarui di tabel distribusi_biaya_pertama\n` +
+          `📅 Menggunakan data biaya terbaru untuk tahun ${selectedTahun}`
+        );
+      } else {
+        toast.warning('Tidak ada data yang diperbarui. Periksa apakah ada data untuk tahun yang dipilih.');
+      }
+    } catch (error: any) {
       console.error('Error calculating:', error);
-      toast.error('Terjadi kesalahan saat memperbarui');
+      // Handle specific error types
+      if (error.message?.includes('message channel closed')) {
+        // Browser extension error - ignore but log
+        console.warn('Browser extension error (safe to ignore):', error.message);
+      }
+      toast.error(`Terjadi kesalahan: ${error.message || 'Unknown error'}`);
     } finally {
       setCalculating(false);
     }
@@ -390,14 +511,9 @@ const DistribusiBiayaPertama: React.FC = () => {
     return wb;
   };
 
-  // Format currency (integer)
+  // Format number (integer)
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount || 0);
+    return Math.round(amount || 0).toLocaleString('id-ID');
   };
 
   useEffect(() => {
@@ -422,70 +538,24 @@ const DistribusiBiayaPertama: React.FC = () => {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Distribusi Biaya Pertama</h1>
-        <p className="text-muted-foreground">
-          Perhitungan distribusi biaya berdasarkan rumus yang telah divalidasi
-        </p>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filter Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="unit-kerja">Unit Kerja</Label>
-              <Select value={selectedUnitKerja} onValueChange={setSelectedUnitKerja}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih Unit Kerja" />
-                </SelectTrigger>
-                <SelectContent>
-                  {unitKerjaOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option === 'all' ? 'Semua Unit Kerja' : option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="tahun">Tahun</Label>
-              <Select value={selectedTahun} onValueChange={setSelectedTahun}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih Tahun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2023">2023</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="search">Pencarian</Label>
-              <Input
-                id="search"
-                placeholder="Cari unit kerja atau dasar alokasi..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Action Buttons */}
-      <div className="flex gap-2 justify-start">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          onClick={() => setShowFilters((prev) => !prev)}
+          className="min-w-[110px] border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+        >
+          Filter
+        </Button>
+        <Button onClick={downloadReport} className="bg-red-600 hover:bg-red-700 text-white">
+          <Download className="h-4 w-4 mr-2" />
+          Unduh Laporan
+        </Button>
         <Button
           onClick={calculateDistribusiBiaya}
           disabled={calculating}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"
         >
           {calculating ? (
             <RefreshCw className="h-4 w-4 animate-spin mr-2" />
@@ -494,49 +564,94 @@ const DistribusiBiayaPertama: React.FC = () => {
           )}
           Perbarui Data
         </Button>
-        <Button onClick={downloadReport} className="bg-red-600 hover:bg-red-700 text-white">
-          <Download className="h-4 w-4 mr-2" />
-          Unduh Laporan
-        </Button>
-        <Button onClick={applyFilters}>
+        <Button
+          onClick={applyFilters}
+          className="bg-orange-500 text-white hover:bg-orange-600"
+        >
           Terapkan Filter
         </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {showFilters && (
         <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{filteredData.length}</div>
-            <p className="text-sm text-muted-foreground">Total Unit Kerja</p>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="space-y-2 max-w-[220px]">
+                <Label htmlFor="unit-kerja">Unit Kerja</Label>
+                <Select value={selectedUnitKerja} onValueChange={setSelectedUnitKerja}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Unit Kerja" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unitKerjaOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option === 'all' ? 'Semua Unit Kerja' : option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 max-w-[180px]">
+                <Label htmlFor="tahun">Tahun</Label>
+                <Select value={selectedTahun} onValueChange={setSelectedTahun}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih Tahun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2023">2023</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 min-w-[220px]">
+                <Label htmlFor="search">Pencarian</Label>
+                <Input
+                  id="search"
+                  placeholder="Cari unit kerja atau dasar alokasi..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
-        <Card>
+      )}
+
+      {/* Summary Cards */}
+      <div className="flex flex-wrap gap-4">
+        <Card className="flex-1 min-w-[200px] max-w-[240px] border-slate-200 bg-slate-50">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">
+            <div className="text-xl font-semibold text-slate-800">{filteredData.length}</div>
+            <p className="text-xs text-slate-600">Total Unit Kerja</p>
+          </CardContent>
+        </Card>
+        <Card className="flex-1 min-w-[200px] max-w-[240px] border-emerald-200 bg-emerald-50">
+          <CardContent className="p-4">
+            <div className="text-xl font-semibold text-emerald-900">
               {formatCurrency(
                 filteredData.reduce((sum, item) => sum + (item.biaya_tahunan || 0), 0) / (filteredData.length || 1)
               )}
             </div>
-            <p className="text-sm text-muted-foreground">Rata-rata Biaya Tahunan</p>
+            <p className="text-xs text-emerald-700">Rata-rata Biaya Tahunan</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="flex-1 min-w-[200px] max-w-[240px] border-sky-200 bg-sky-50">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                filteredData.reduce((sum, item) => sum + (item.jumlah_biaya_terdistribusi_i || 0), 0)
-              )}
+            <div className="text-xl font-semibold text-sky-900">
+              {formatCurrency(totals.totalTerdistribusi)}
             </div>
-            <p className="text-sm text-muted-foreground">Total Alokasi (Terdistribusi I)</p>
+            <p className="text-xs text-sky-700">Total Alokasi (Terdistribusi I)</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="flex-1 min-w-[200px] max-w-[240px] border-purple-200 bg-purple-50">
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">
-              {new Set(filteredData.map(item => item.dasar_alokasi)).size}
+            <div className="text-xl font-semibold text-purple-900">
+              {new Set(filteredData.map((item) => item.dasar_alokasi)).size}
             </div>
-            <p className="text-sm text-muted-foreground">Jenis Dasar Alokasi</p>
+            <p className="text-xs text-purple-700">Jenis Dasar Alokasi</p>
           </CardContent>
         </Card>
       </div>
@@ -545,21 +660,28 @@ const DistribusiBiayaPertama: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Data Distribusi Biaya Pertama</CardTitle>
+          <p className="text-sm text-muted-foreground mt-2">
+            Keterangan: Selisih terjadi karena pembulatan alokasi distribusi menjadi format tanpa desimal
+          </p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky left-0 bg-background min-w-[200px]">Unit Kerja</TableHead>
-                  <TableHead className="min-w-[150px]">Dasar Alokasi</TableHead>
-                  <TableHead className="min-w-[120px]">Biaya Tahunan</TableHead>
-                  <TableHead className="min-w-[120px]">Terdistribusi I</TableHead>
-                  <TableHead className="min-w-[80px]">Audit</TableHead>
-                  {Array.from({ length: 77 }, (_, idx) => {
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                  <TableHead className="sticky left-0 min-w-[200px] bg-[#0f766e] text-white">
+                    Unit Kerja
+                  </TableHead>
+                  <TableHead className="min-w-[150px] text-white">Dasar Alokasi</TableHead>
+                  <TableHead className="min-w-[120px] text-white">Biaya Tahunan</TableHead>
+                  <TableHead className="min-w-[120px] text-white">Terdistribusi I</TableHead>
+                  <TableHead className="min-w-[80px] text-white">Audit</TableHead>
+                  {columnKeys.map((key, idx) => {
                     const ukCode = `UK${(1 + idx).toString().padStart(3, '0')}`;
                     return (
-                      <TableHead key={ukCode} className="min-w-[110px]">{ukCode}</TableHead>
+                      <TableHead key={key} className="min-w-[110px] text-white">
+                        {ukCode}
+                      </TableHead>
                     );
                   })}
                 </TableRow>
@@ -567,7 +689,7 @@ const DistribusiBiayaPertama: React.FC = () => {
               <TableBody>
                 {filteredData.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium sticky left-0 bg-background">
+                    <TableCell className="sticky left-0 bg-background font-medium">
                       {item.unit_kerja_pusat_biaya}
                     </TableCell>
                     <TableCell>
@@ -578,12 +700,21 @@ const DistribusiBiayaPertama: React.FC = () => {
                       {formatCurrency(item.jumlah_biaya_terdistribusi_i || 0)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={item.audit_check === 'OK' ? 'default' : 'destructive'}>
-                        {item.audit_check || ''}
+                      {item.audit_check ? (
+                        <Badge
+                          className={
+                            item.audit_check === 'OK'
+                              ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                              : 'bg-red-100 text-red-700 border-red-200'
+                          }
+                        >
+                          {item.audit_check}
                       </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
-                    {Array.from({ length: 77 }, (_, idx) => {
-                      const col = getColumnName(idx + 1);
+                    {columnKeys.map((col) => {
                       const val = (item as any)[col] ?? 0;
                       return (
                         <TableCell key={col}>{formatCurrency(val)}</TableCell>
@@ -591,6 +722,20 @@ const DistribusiBiayaPertama: React.FC = () => {
                     })}
                   </TableRow>
                 ))}
+                {filteredData.length > 0 && (
+                  <TableRow className="bg-slate-50 font-semibold">
+                    <TableCell className="sticky left-0 bg-slate-50">Total</TableCell>
+                    <TableCell>-</TableCell>
+                    <TableCell>{formatCurrency(totals.totalBiayaTahunan)}</TableCell>
+                    <TableCell>{formatCurrency(totals.totalTerdistribusi)}</TableCell>
+                    <TableCell>-</TableCell>
+                    {columnKeys.map((col) => (
+                      <TableCell key={`total-${col}`}>
+                        {formatCurrency(totals.columnTotals.get(col) || 0)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

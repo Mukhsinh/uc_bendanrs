@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -558,27 +558,37 @@ export default function KalkulasiAktivitasDiklat() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Kalkulasi Aktivitas Diklat</h1>
           <p className="text-gray-600 mt-2">Kelola aktivitas diklat dengan perhitungan unit cost otomatis</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button
+            onClick={handleDownloadTemplate}
+            className="bg-orange-500 text-white hover:bg-orange-600"
+          >
             <Download className="h-4 w-4 mr-2" />
             Unduh Template
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
+          <Button
+            onClick={() => setIsImportDialogOpen(true)}
+            className="bg-emerald-500 text-white hover:bg-emerald-600"
+          >
             <Upload className="h-4 w-4 mr-2" />
             Impor Data
           </Button>
-          <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+          <Button
+            onClick={fetchData}
+            className="bg-purple-600 text-white hover:bg-purple-700"
+            disabled={loading}
+          >
+            <RefreshCw className={loading ? "h-4 w-4 mr-2 animate-spin" : "h-4 w-4 mr-2"} />
+            Perbarui Data
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={async () => {
+              <Button
+                className="bg-sky-500 text-white hover:bg-sky-600"
+                onClick={async () => {
                 setEditingItem(null);
                 
                 // Pastikan data kalkulasi diklat sudah dimuat
@@ -612,7 +622,8 @@ export default function KalkulasiAktivitasDiklat() {
                   persen_profit: 0,
                   tarif: 0
                 });
-              }}>
+              }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Tambah Data Diklat
               </Button>
@@ -965,16 +976,7 @@ export default function KalkulasiAktivitasDiklat() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calculator className="h-5 w-5" />
-            Data Aktivitas Diklat
-          </CardTitle>
-          <CardDescription>
-            Daftar aktivitas diklat dengan perhitungan unit cost otomatis
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {dataDiklat.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Calculator className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -984,21 +986,21 @@ export default function KalkulasiAktivitasDiklat() {
           ) : (
             <div className="overflow-x-auto max-w-full">
               <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px]">Nama Strata</TableHead>
-                    <TableHead className="w-[180px]">Nama Materi</TableHead>
-                    <TableHead className="w-20">Lama Hari</TableHead>
-                    <TableHead className="w-24">Total UC</TableHead>
-                    <TableHead className="w-24">Biaya Bahan</TableHead>
-                    <TableHead className="w-24">Jasa Sarana</TableHead>
-                    <TableHead className="w-24">Jasa Pel. Medis</TableHead>
-                    <TableHead className="w-24">Jasa Pel. Non Medis</TableHead>
-                    <TableHead className="w-24">Jasa Pelayanan</TableHead>
-                    <TableHead className="w-20">% Jasa Pel.</TableHead>
-                    <TableHead className="w-20">% Profit</TableHead>
-                    <TableHead className="w-24">Tarif</TableHead>
-                    <TableHead className="w-20 text-right">Aksi</TableHead>
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                    <TableHead className="w-[120px] text-white">Nama Strata</TableHead>
+                    <TableHead className="w-[180px] text-white">Nama Materi</TableHead>
+                    <TableHead className="w-20 text-white">Lama Hari</TableHead>
+                    <TableHead className="w-24 text-white">Total UC</TableHead>
+                    <TableHead className="w-24 text-white">Biaya Bahan</TableHead>
+                    <TableHead className="w-24 text-white">Jasa Sarana</TableHead>
+                    <TableHead className="w-24 text-white">Jasa Pel. Medis</TableHead>
+                    <TableHead className="w-24 text-white">Jasa Pel. Non Medis</TableHead>
+                    <TableHead className="w-24 text-white">Jasa Pelayanan</TableHead>
+                    <TableHead className="w-20 text-white">% Jasa Pel.</TableHead>
+                    <TableHead className="w-20 text-white">% Profit</TableHead>
+                    <TableHead className="w-24 text-white">Tarif</TableHead>
+                    <TableHead className="w-20 text-right text-white">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1135,19 +1137,10 @@ export default function KalkulasiAktivitasDiklat() {
                           </Button>
                         ) : (
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleStartEdit(item)}
-                            >
+                            <Button variant="edit" size="sm" onClick={() => handleStartEdit(item)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(item.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
+                            <Button variant="destructive" size="sm" onClick={() => handleDelete(item.id)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2, Download, Calculator, RefreshCw } from "lucide-react";
+import { Edit, Trash2, Download, Calculator, RefreshCw, Check } from "lucide-react";
 import { manualRecalculateOperatif, recalculateOperatifBatched, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 
@@ -32,6 +34,9 @@ const KalkulasiBiayaOperatif: React.FC = () => {
   const [tindakanList, setTindakanList] = useState<{kode: string, nama: string}[]>([]);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
+  const [dataOwnerId, setDataOwnerId] = useState<string | null>(null);
+  const [tindakanFilterOpen, setTindakanFilterOpen] = useState(false);
+  const [selectedTindakanFilters, setSelectedTindakanFilters] = useState<string[]>([]);
 
   // Total biaya bahan dari daftar saat ini (untuk ringkasan di footer form bahan)
   const totalBahanFarmasi = useMemo(() => {
@@ -56,6 +61,10 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     };
     initializeUser();
   }, []);
+
+  useEffect(() => {
+    setDataOwnerId(null);
+  }, [year]);
 
   // Load data when userId and year are available
   useEffect(() => {
@@ -105,55 +114,76 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     }
   };
 
-  const generateInitialData = async (currentUserId: string) => {
+  const toggleTindakanFilter = (namaTindakan: string) => {
+    setSelectedTindakanFilters((prev) => {
+      if (prev.includes(namaTindakan)) {
+        return prev.filter((nama) => nama !== namaTindakan);
+      }
+      return [...prev, namaTindakan];
+    });
+  };
+
+  const clearTindakanFilters = () => setSelectedTindakanFilters([]);
+
+  const generateInitialData = async (currentUserId: string): Promise<string | null> => {
     try {
       const { data: existingData, error: checkError } = await supabase
         .from("kalkulasi_biaya_operatif")
-        .select("id")
-        .eq("user_id", currentUserId)
+        .select("id, user_id")
         .eq("tahun", year)
         .limit(1);
-        
+
       if (checkError) throw checkError;
-        
-      if (!existingData || existingData.length === 0) {
-        const { error: createError } = await supabase.rpc('create_kalkulasi_biaya_operatif_data', {
-          p_user_id: currentUserId,
-          p_tahun: year
-        });
-        
-        if (createError) throw createError;
-        
-        const { error: alokasiError } = await supabase.rpc('fix_dasar_alokasi_operatif', {
-          p_user_id: currentUserId,
-          p_tahun: year
-        });
-        
-        if (alokasiError) console.error("Error calculating dasar alokasi:", alokasiError);
-        
-        const { error: biayaError } = await supabase.rpc('fix_biaya_calculation_operatif', {
-          p_user_id: currentUserId,
-          p_tahun: year
-        });
-        
-        if (biayaError) console.error("Error calculating biaya:", biayaError);
+
+      if (existingData && existingData.length > 0) {
+        return existingData[0]?.user_id ?? null;
       }
+
+      const { error: createError } = await supabase.rpc('create_kalkulasi_biaya_operatif_data', {
+        p_user_id: currentUserId,
+        p_tahun: year
+      });
+
+      if (createError) throw createError;
+
+      const ownerId = currentUserId;
+
+      const { error: alokasiError } = await supabase.rpc('fix_dasar_alokasi_operatif', {
+        p_user_id: ownerId,
+        p_tahun: year
+      });
+
+      if (alokasiError) console.error("Error calculating dasar alokasi:", alokasiError);
+
+      const { error: biayaError } = await supabase.rpc('fix_biaya_calculation_operatif', {
+        p_user_id: ownerId,
+        p_tahun: year
+      });
+
+      if (biayaError) console.error("Error calculating biaya:", biayaError);
+
+      return ownerId;
     } catch (err: any) {
       console.error("Error in generateInitialData:", err);
+      return null;
     }
   };
 
   const loadData = async (currentUserId?: string) => {
     const userIdToUse = currentUserId || userId;
     if (!userIdToUse) return;
-    
+
     setLoading(true);
     try {
-      await generateInitialData(userIdToUse);
-      
+      let ownerId = dataOwnerId;
+      if (!ownerId) {
+        ownerId = await generateInitialData(userIdToUse);
+      }
+
+      const effectiveOwnerId = ownerId || userIdToUse;
+
       const startTime = performance.now();
-      
-      // Optimized query - only select columns needed for display and calculation
+
       let query = supabase
         .from("kalkulasi_biaya_operatif")
         .select(`
@@ -171,25 +201,28 @@ const KalkulasiBiayaOperatif: React.FC = () => {
           unit_cost_per_tindakan,
           bahan_pemeriksaan,
           created_at,
-          updated_at
+          updated_at,
+          user_id
         `)
         .eq("tahun", year)
-        .eq("user_id", userIdToUse);
-      
+        .eq("user_id", effectiveOwnerId);
+
       if (filterOperator !== 'all') {
         query = query.eq("kode_operator_spesialistik", filterOperator);
       }
-      
+
       const { data, error } = await query.order("kode", { ascending: true });
-      
+
       const endTime = performance.now();
       console.log(`📊 Data fetch took ${(endTime - startTime).toFixed(2)}ms`);
-        
+
       if (error) {
         toast.error(`Gagal memuat data: ${error.message}`);
         setRows([]);
       } else {
         setRows(data || []);
+        const detectedOwner = data?.find((item: any) => item?.user_id)?.user_id;
+        setDataOwnerId(detectedOwner || effectiveOwnerId);
       }
     } catch (err: any) {
       toast.error("Gagal memuat data kalkulasi.");
@@ -200,7 +233,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
   };
 
   const handleManualRecalculation = async () => {
-    if (!userId) {
+    const ownerId = dataOwnerId || userId;
+    if (!ownerId) {
       toast.error("User tidak ditemukan. Silakan login kembali.");
       return;
     }
@@ -216,7 +250,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       console.log("🔄 Starting batched manual recalculation for operatif (IBS/UK074)...");
       const startTime = performance.now();
 
-      const batchResult = await recalculateOperatifBatched(year, userId, ({ current, total, operator, message }) => {
+      const batchResult = await recalculateOperatifBatched(year, ownerId, ({ current, total, operator, message }) => {
         setRecalcProgress({ step: current, total: Math.max(total, 1), message: message || `Memproses operator ${operator || ''}...` });
       });
 
@@ -310,7 +344,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    const ownerId = dataOwnerId || userId;
+    if (!file || !ownerId) return;
     
     e.target.value = "";
     setImporting(true);
@@ -329,7 +364,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
             return;
           }
 
-          await generateInitialData(userId);
+          await generateInitialData(ownerId);
           
           let successCount = 0;
           let errorCount = 0;
@@ -347,7 +382,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 .from("kalkulasi_biaya_operatif")
                 .select("id")
                 .eq("tahun", year)
-                .eq("user_id", userId)
+                .eq("user_id", ownerId)
                 .eq("kode", kodeTindakan)
                 .maybeSingle();
 
@@ -376,7 +411,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
             toast.info("Menjalankan kalkulasi otomatis...");
             
             const { error: alokasiError } = await supabase.rpc('fix_dasar_alokasi_operatif', {
-              p_user_id: userId,
+              p_user_id: ownerId,
               p_tahun: year
             });
             
@@ -386,7 +421,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
             }
             
             const { error: biayaError } = await supabase.rpc('fix_biaya_calculation_operatif', {
-              p_user_id: userId,
+              p_user_id: ownerId,
               p_tahun: year
             });
             
@@ -457,7 +492,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
   const handleManualInput = async (data: any) => {
     try {
-      if (!userId) {
+      const ownerId = dataOwnerId || userId;
+      if (!ownerId) {
         toast.error("User tidak ditemukan. Silakan login kembali.");
         return;
       }
@@ -491,12 +527,12 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
       // Run calculations
       await supabase.rpc('fix_dasar_alokasi_operatif', {
-        p_user_id: userId,
+        p_user_id: ownerId,
         p_tahun: year
       });
       
       await supabase.rpc('fix_biaya_calculation_operatif', {
-        p_user_id: userId,
+        p_user_id: ownerId,
         p_tahun: year
       });
 
@@ -512,6 +548,12 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
   const handleDownloadReport = async () => {
     try {
+      const ownerId = dataOwnerId || userId;
+      if (!ownerId) {
+        toast.error("User tidak ditemukan. Silakan login kembali.");
+        return;
+      }
+
       // Query data langsung dari database untuk memastikan sinkronisasi
       let query = supabase
         .from('kalkulasi_biaya_operatif')
@@ -555,7 +597,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
           unit_cost_per_tindakan
         `)
         .eq('tahun', year)
-        .eq('user_id', userId);
+        .eq('user_id', ownerId);
       
       if (reportFilter.type === 'operator' && reportFilter.value) {
         query = query.eq('kode_operator_spesialistik', reportFilter.value);
@@ -695,7 +737,18 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     }
   };
 
-  const filteredRows = filterOperator === 'all' ? rows : rows.filter(r => r.kode_operator_spesialistik === filterOperator);
+  const filteredRows = useMemo(() => {
+    let currentRows = filterOperator === 'all'
+      ? rows
+      : rows.filter((r) => r.kode_operator_spesialistik === filterOperator);
+
+    if (selectedTindakanFilters.length > 0) {
+      const tindakanSet = new Set(selectedTindakanFilters);
+      currentRows = currentRows.filter((r) => tindakanSet.has(r.jenis_pemeriksaan));
+    }
+
+    return currentRows;
+  }, [rows, filterOperator, selectedTindakanFilters]);
 
   return (
     <div className="space-y-6">
@@ -707,27 +760,19 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Kalkulasi Biaya Operatif</CardTitle>
-          <CardDescription>
-            Kelola bahan pemeriksaan, impor jumlah & parameter kalkulasi tindakan operatif, dan lihat hasil.
-            <br />
-            <span className="text-green-600 font-medium">✅ Sistem perhitungan otomatis aktif - semua kolom biaya akan dihitung ulang saat data berubah</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2 mb-4 items-center">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex flex-wrap items-center gap-3">
             <Input 
               type="number" 
               value={year} 
               onChange={(e) => setYear(parseInt(e.target.value || "0", 10) || year)} 
-              className="w-[120px]" 
+              className="w-[140px] border-slate-200 bg-white text-slate-700"
               placeholder="Tahun"
             />
             <select 
               value={filterOperator} 
               onChange={(e) => setFilterOperator(e.target.value)}
-              className="h-10 px-3 py-2 text-sm border border-input rounded-md bg-background"
+              className="h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
             >
               <option value="all">Semua Operator</option>
               {operators.map((op, idx) => (
@@ -736,18 +781,63 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 </option>
               ))}
             </select>
-            <Button variant="outline" onClick={handleDownloadTemplate}>
-              Unduh Template Import
-            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Popover open={tindakanFilterOpen} onOpenChange={setTindakanFilterOpen}>
+              <PopoverTrigger asChild>
             <Button 
               variant="outline" 
-              onClick={() => setShowReportFilter(true)} 
-              disabled={loading || importing || autoCalculating || rows.length === 0}
+                  className="border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
             >
-              <Download className="h-4 w-4 mr-2" />
-              Unduh Laporan
+                  {selectedTindakanFilters.length > 0
+                    ? `Tindakan (${selectedTindakanFilters.length})`
+                    : "Filter Tindakan"}
             </Button>
-            <label className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Cari nama tindakan..." />
+                  <CommandList>
+                    <CommandEmpty>Tidak ada tindakan</CommandEmpty>
+                    <CommandGroup>
+                      {tindakanList.map((t) => {
+                        const isSelected = selectedTindakanFilters.includes(t.nama);
+                        return (
+                          <CommandItem
+                            key={`${t.kode}-${t.nama}`}
+                            value={t.nama}
+                            onSelect={() => toggleTindakanFilter(t.nama)}
+                            className="flex items-center justify-between"
+                          >
+                            <span className="truncate">{t.nama}</span>
+                            {isSelected && <Check className="h-4 w-4 text-emerald-600" />}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+                {selectedTindakanFilters.length > 0 && (
+                  <div className="border-t border-slate-100 px-3 py-2">
+                    <Button
+                      variant="link"
+                      className="px-0 text-sm text-rose-600"
+                      onClick={clearTindakanFilters}
+                    >
+                      Bersihkan pilihan
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            <Button
+              onClick={handleDownloadTemplate}
+              className="bg-orange-500 text-white hover:bg-orange-600"
+              disabled={loading || importing || autoCalculating}
+            >
+              Unduh Template
+            </Button>
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-emerald-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-600">
               Import Data
               <Input type="file" accept=".csv" onChange={handleImport} className="sr-only" />
             </label>
@@ -757,54 +847,74 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 setShowManualInput(true);
               }} 
               disabled={loading || importing || autoCalculating}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-rose-500 text-white hover:bg-rose-600"
             >
               Input Manual
             </Button>
             <Button 
-              variant="default" 
-              disabled={loading || importing || autoCalculating || recalculating} 
+              onClick={() => setShowReportFilter(true)}
+              disabled={loading || importing || autoCalculating || rows.length === 0}
+              className="bg-sky-500 text-white hover:bg-sky-600"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Unduh Laporan
+            </Button>
+            <Button
               onClick={handleManualRecalculation}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
+              disabled={loading || importing || autoCalculating || recalculating}
+              className="bg-blue-500 text-white hover:bg-blue-600"
             >
               {recalculating ? (
                 <span className="flex items-center">
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  {recalcProgress.message || 'Rekalkulasi...'}
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  {recalcProgress.message || "Rekalkulasi..."}
                 </span>
               ) : (
                 <span className="flex items-center">
-                  <Calculator className="h-4 w-4 mr-2" />
+                  <Calculator className="mr-2 h-4 w-4" />
                   Rekalkulasi Semua
                 </span>
               )}
             </Button>
-            
+            <Button
+              onClick={() => loadData()}
+              disabled={loading}
+              className="bg-purple-600 text-white hover:bg-purple-700"
+            >
+              Perbarui Data
+            </Button>
+          </div>
+          {selectedTindakanFilters.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedTindakanFilters.map((nama) => (
+                <button
+                  key={nama}
+                  type="button"
+                  onClick={() => toggleTindakanFilter(nama)}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  {nama}
+                  <span aria-hidden="true" className="text-slate-400">&times;</span>
+                </button>
+              ))}
+            </div>
+          )}
             {recalculating && (
-              <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-600">
                 <div className="flex items-center space-x-2">
-                  <div className="w-full bg-blue-200 rounded-full h-2">
+                <div className="h-2 w-full rounded-full bg-blue-200">
                     <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                      style={{width: `${(recalcProgress.step / recalcProgress.total) * 100}%`}}
+                    className="h-2 rounded-full bg-blue-600 transition-all duration-300"
+                    style={{ width: `${(recalcProgress.step / recalcProgress.total) * 100}%` }}
                     ></div>
                   </div>
                   <span className="text-xs font-medium">
                     {recalcProgress.step}/{recalcProgress.total}
                   </span>
                 </div>
-                <div className="mt-1 text-xs">
-                  {recalcProgress.message}
-                </div>
+              <div className="mt-1 text-xs">{recalcProgress.message}</div>
               </div>
             )}
-            
-            {rows && rows.length > 0 && !recalculating && (
-              <div className="text-sm text-orange-600 bg-orange-50 px-3 py-2 rounded-lg border border-orange-200">
-                🔄 <strong>Alur Manual:</strong> Setelah input, edit, atau hapus data → klik <strong>"Rekalkulasi Semua"</strong> untuk menghitung ulang semua kolom biaya sesuai rumus tabel.
-              </div>
-            )}
-          </div>
 
           {(importing || autoCalculating) && (
             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
@@ -818,27 +928,26 @@ const KalkulasiBiayaOperatif: React.FC = () => {
             </div>
           )}
 
-          <div className="rounded-md border overflow-auto">
+          <div className="overflow-auto rounded-md border">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama Tindakan</TableHead>
-                  <TableHead>Jumlah</TableHead>
-                  <TableHead>Waktu</TableHead>
-                  <TableHead>Prof</TableHead>
-                  <TableHead>Kesulitan</TableHead>
-                  <TableHead>Bahan</TableHead>
-                  <TableHead>Bahan Rp</TableHead>
-                  <TableHead>Unit Cost</TableHead>
-                  <TableHead>Edit</TableHead>
-                  <TableHead>Hapus</TableHead>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                  <TableHead className="text-white">Kode</TableHead>
+                  <TableHead className="text-white">Nama Tindakan</TableHead>
+                  <TableHead className="text-white">Jumlah</TableHead>
+                  <TableHead className="text-white">Waktu</TableHead>
+                  <TableHead className="text-white">Prof</TableHead>
+                  <TableHead className="text-white">Kesulitan</TableHead>
+                  <TableHead className="text-white">Bahan</TableHead>
+                  <TableHead className="text-right text-white">Bahan Rp</TableHead>
+                  <TableHead className="text-right text-white">Unit Cost</TableHead>
+                  <TableHead className="w-[140px] text-center text-white">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <div className="text-gray-500">Memuat data...</div>
@@ -847,7 +956,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       <div className="text-gray-500">Tidak ada data untuk ditampilkan</div>
                     </TableCell>
                   </TableRow>
@@ -876,27 +985,25 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                           {hasBahan ? `✓ ${r.bahan_pemeriksaan.length}` : 'Tambah'}
                         </Button>
                       </TableCell>
-                      <TableCell className="font-semibold">{r.biaya_bahan_pemeriksaan_numeric?.toLocaleString() || 0}</TableCell>
-                      <TableCell className="font-semibold text-blue-600">{r.unit_cost_per_tindakan?.toLocaleString() || 0}</TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditRow(r)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-800"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                      <TableCell>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleDeleteRow(r)}
-                          className="bg-red-100 hover:bg-red-200 text-red-800"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      <TableCell className="text-right font-semibold">{r.biaya_bahan_pemeriksaan_numeric?.toLocaleString() || 0}</TableCell>
+                      <TableCell className="text-right font-semibold text-blue-600">{r.unit_cost_per_tindakan?.toLocaleString() || 0}</TableCell>
+                      <TableCell className="w-[140px]">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button 
+                            variant="edit" 
+                            size="sm"
+                            onClick={() => handleEditRow(r)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteRow(r)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
@@ -975,6 +1082,11 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                   <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>Batal</Button>
                   <Button 
                 onClick={async () => {
+                  const ownerId = dataOwnerId || userId;
+                  if (!ownerId) {
+                    toast.error("User tidak ditemukan. Silakan login kembali.");
+                    return;
+                  }
                   try {
                     setAutoCalculating(true);
                     const { error } = await supabase
@@ -986,7 +1098,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                     
                     // Run calculations
                     await supabase.rpc('fix_biaya_calculation_operatif', {
-                      p_user_id: userId,
+                      p_user_id: ownerId,
                       p_tahun: year
                     });
                     

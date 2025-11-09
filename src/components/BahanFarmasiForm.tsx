@@ -102,11 +102,14 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
     setSelectedBarang(barang);
     setSearchTerm(barang.label);
     setShowResults(false);
-    setFormData(prev => ({
-      ...prev,
-      hargaSatuan: barang.harga,
-      hargaTotal: barang.harga * prev.qty
-    }));
+    setFormData(prev => {
+      const total = barang.harga * prev.qty;
+      return {
+        ...prev,
+        hargaSatuan: barang.harga,
+        hargaTotal: Math.round(total),
+      };
+    });
   };
 
   // Handle qty change
@@ -114,7 +117,7 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
     setFormData(prev => ({
       ...prev,
       qty,
-      hargaTotal: selectedBarang ? selectedBarang.harga * qty : 0
+      hargaTotal: selectedBarang ? Math.round(selectedBarang.harga * qty) : 0
     }));
   };
 
@@ -129,13 +132,15 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
       alert('Jumlah harus lebih dari 0');
       return;
     }
-    
+    const hargaTotal = Math.round(selectedBarang.harga * formData.qty);
+
     const data = {
       kode_barang: selectedBarang.kode_barang,
       nama: selectedBarang.nama_barang,
       qty: formData.qty,
       harga_satuan: selectedBarang.harga,
-      harga_total: formData.hargaTotal
+      harga_total: hargaTotal,
+      hargaTotal
     };
 
     onSave(data);

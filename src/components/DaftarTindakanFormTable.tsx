@@ -420,28 +420,38 @@ const DaftarTindakanFormTable: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">Manajemen Daftar Tindakan</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Kode tindakan otomatis digenerate dengan format T.001, T.002, dst.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchAll()} variant="outline" size="icon"><RefreshCw className="h-4 w-4" /></Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditing(null)}>Tambah Tindakan</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Edit Tindakan" : "Tambah Tindakan"}</DialogTitle>
-                <DialogDescription>
-                  {editing ? "Perbarui detail tindakan." : "Tambahkan tindakan baru dengan informasi lengkap."}
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">Manajemen Daftar Tindakan</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Kode tindakan otomatis digenerate dengan format T.001, T.002, dst.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Button onClick={handleDownloadTemplate} variant="template" className="shadow-sm">
+          <Download className="mr-2 h-4 w-4" /> Unduh Template CSV
+        </Button>
+        <Button variant="import" className="shadow-sm" asChild>
+          <label className="flex cursor-pointer items-center gap-2">
+            <Upload className="h-4 w-4" /> Impor Data
+            <Input id="import-file-daftar-tindakan" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+          </label>
+        </Button>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setEditing(null)} className="shadow-sm">
+              Tambah Tindakan
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Edit Tindakan" : "Tambah Tindakan"}</DialogTitle>
+              <DialogDescription>
+                {editing ? "Perbarui detail tindakan." : "Tambahkan tindakan baru dengan informasi lengkap."}
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
                   {editing && (
                     <FormField
                       control={form.control}
@@ -666,12 +676,17 @@ const DaftarTindakanFormTable: React.FC = () => {
                     )}
                   </div>
 
-                  <DialogFooter><Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button></DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                <DialogFooter><Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button></DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+          <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+        </Button>
+        <Button onClick={() => fetchAll()} variant="outline" size="icon">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4 items-center">
@@ -692,15 +707,6 @@ const DaftarTindakanFormTable: React.FC = () => {
             className="pl-10 w-[300px]"
           />
         </div>
-        <Button onClick={handleDownloadTemplate} variant="outline">
-          <Download className="mr-2 h-4 w-4" /> 
-          Unduh Template CSV
-        </Button>
-        <label htmlFor="import-file-daftar-tindakan" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          <Upload className="mr-2 h-4 w-4" /> Impor Data
-          <Input id="import-file-daftar-tindakan" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
-        </label>
-        <Button onClick={handleDownloadReport} variant="outline"><FileText className="mr-2 h-4 w-4" /> Unduh Laporan</Button>
       </div>
 
       {/* Dialog for Adding Bahan */}
@@ -825,30 +831,30 @@ const DaftarTindakanFormTable: React.FC = () => {
       <div className="rounded-md border">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode</TableHead>
-              <TableHead>Nama Tindakan</TableHead>
-              <TableHead className="text-center">
+            <TableRow className="bg-teal-700">
+              <TableHead className="font-bold text-white">Kode</TableHead>
+              <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
+              <TableHead className="text-center font-bold text-white">
                 <div className="flex items-center justify-center gap-1">
                   <Clock className="h-3 w-3" />
                   Waktu
                 </div>
               </TableHead>
-              <TableHead className="text-center">
+              <TableHead className="text-center font-bold text-white">
                 <div className="flex items-center justify-center gap-1">
                   <Star className="h-3 w-3" />
                   Prof.
                 </div>
               </TableHead>
-              <TableHead className="text-center">
+              <TableHead className="text-center font-bold text-white">
                 <div className="flex items-center justify-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
                   Kesulitan
                 </div>
               </TableHead>
-              <TableHead>Pelaksana</TableHead>
-              <TableHead className="text-right">Biaya Bahan</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <TableHead className="font-bold text-white">Pelaksana</TableHead>
+              <TableHead className="text-right font-bold text-white">Biaya Bahan</TableHead>
+              <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -906,8 +912,21 @@ const DaftarTindakanFormTable: React.FC = () => {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditing(item); setIsDialogOpen(true); }} className="mr-2"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="edit"
+                        size="icon"
+                        onClick={() => {
+                          setEditing(item);
+                          setIsDialogOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

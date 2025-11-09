@@ -57,11 +57,8 @@ interface KalkulasiTindakanInap {
   
   // Biaya Komponen
   biaya_gaji_tunjangan: number;
-  biaya_jasa_pelayanan: number;
-  biaya_obat: number;
   biaya_bhp: number;
   biaya_makan_karyawan: number;
-  biaya_makan_pasien: number;
   biaya_rumah_tangga: number;
   biaya_cetak: number;
   biaya_atk: number;

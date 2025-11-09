@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ShieldCheck, Users, Landmark, BarChart3 } from "lucide-react";
 
 interface UnitKerja {
   id: string;
@@ -212,56 +213,6 @@ const PendapatanChart: React.FC = () => {
         <CardDescription>
           Analisis perbandingan pendapatan berdasarkan jenis layanan
         </CardDescription>
-        <div className="flex gap-4 mt-4">
-          <div className="flex-1">
-            <label className="text-sm font-medium mb-2 block">Filter Jenis Layanan</label>
-            <Select value={selectedJenis} onValueChange={setSelectedJenis}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih jenis layanan" />
-              </SelectTrigger>
-              <SelectContent>
-                {jenisOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1">
-            <label className="text-sm font-medium mb-2 block">Tahun</label>
-            <Select value={selectedTahun.toString()} onValueChange={(value) => setSelectedTahun(parseInt(value))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih tahun" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 5 }, (_, i) => {
-                  const year = new Date().getFullYear() - i;
-                  return (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1">
-            <label className="text-sm font-medium mb-2 block">Filter Grafik</label>
-            <Select value={chartFilter} onValueChange={setChartFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih filter grafik" />
-              </SelectTrigger>
-              <SelectContent>
-                {chartFilterOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (
@@ -284,42 +235,50 @@ const PendapatanChart: React.FC = () => {
             <TabsContent value="bar" className="mt-6">
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                  <ReBarChart data={data.map(item => {
+                    const unitName = item.unit_kerja.includes(" - ") ? item.unit_kerja.split(" - ")[1] : item.unit_kerja;
+                    return { ...item, unit_name: unitName };
+                  })} margin={{ top: 20, right: 30, left: 20, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.4} />
                     <XAxis 
-                      dataKey="unit_kerja" 
-                      angle={-45}
+                      dataKey="unit_name"
+                      tickFormatter={(value) => value}
+                      interval={0}
+                      tick={{ fontSize: 12 }}
+                      height={80}
+                      angle={-20}
                       textAnchor="end"
-                      height={100}
-                      fontSize={12}
                     />
                     <YAxis 
                       tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
-                      fontSize={12}
+                      tick={{ fontSize: 12 }}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(59,130,246,0.08)" }} />
                     <Legend />
                     <Bar 
                       dataKey="pendapatan_bpjs" 
                       name="BPJS Kesehatan" 
                       fill={colors.bpjs}
-                      radius={[2, 2, 0, 0]}
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={42}
                     />
                     <Bar 
                       dataKey="pendapatan_umum" 
                       name="Umum/Asuransi" 
                       fill={colors.umum}
-                      radius={[2, 2, 0, 0]}
+                      radius={[8, 8, 0, 0]}
+                      maxBarSize={42}
                     />
                     {chartFilter === "all" && (
                       <Bar 
                         dataKey="pendapatan_apbd" 
                         name="Pendapatan APBD" 
                         fill={colors.apbd}
-                        radius={[2, 2, 0, 0]}
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={42}
                       />
                     )}
-                  </BarChart>
+                  </ReBarChart>
                 </ResponsiveContainer>
               </div>
             </TabsContent>
@@ -327,59 +286,127 @@ const PendapatanChart: React.FC = () => {
             <TabsContent value="pie" className="mt-6">
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
+                  <RePieChart
+                    innerRadius={60}
+                    outerRadius={120}
+                    startAngle={220}
+                    endAngle={-140}
+                  >
                     <Pie
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
+                      labelLine
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
-                      outerRadius={120}
                       fill="#8884d8"
                       dataKey="value"
+                      stroke="#fff"
+                      strokeWidth={3}
+                      cornerRadius={10}
+                      paddingAngle={2}
                     >
                       {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                    <Tooltip formatter={(value) => formatCurrency(value as number)} contentStyle={{ borderRadius: 12 }} />
                     <Legend />
-                  </PieChart>
+                  </RePieChart>
                 </ResponsiveContainer>
               </div>
             </TabsContent>
           </Tabs>
         )}
+
+        <div className="mt-6 flex flex-wrap gap-4">
+          <Select value={selectedJenis} onValueChange={setSelectedJenis}>
+            <SelectTrigger className="w-full sm:w-56" aria-label="Filter jenis layanan">
+              <SelectValue placeholder="Filter jenis layanan" />
+            </SelectTrigger>
+            <SelectContent>
+              {jenisOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedTahun.toString()} onValueChange={(value) => setSelectedTahun(parseInt(value))}>
+            <SelectTrigger className="w-full sm:w-40" aria-label="Filter tahun">
+              <SelectValue placeholder="Pilih tahun" />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - i;
+                return (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+
+          <Select value={chartFilter} onValueChange={setChartFilter}>
+            <SelectTrigger className="w-full sm:w-56" aria-label="Filter data grafik">
+              <SelectValue placeholder="Filter grafik" />
+            </SelectTrigger>
+            <SelectContent>
+              {chartFilterOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         
-        {/* Summary Statistics */}
         {data.length > 0 && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-900">Total BPJS Kesehatan</h4>
-              <p className="text-2xl font-bold text-blue-600">
-                {formatCurrency(pieData.find(p => p.name === "BPJS Kesehatan")?.value || 0)}
-              </p>
+            <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-medium text-blue-900">Total BPJS Kesehatan</h4>
+                  <p className="text-2xl font-bold text-blue-700 mt-2">
+                    {formatCurrency(pieData.find(p => p.name === "BPJS Kesehatan")?.value || 0)}
+                  </p>
+                </div>
+                <ShieldCheck className="h-10 w-10 text-blue-500" />
+              </div>
             </div>
-            <div className="bg-emerald-50 p-4 rounded-lg">
-              <h4 className="font-medium text-emerald-900">Total Umum/Asuransi</h4>
-              <p className="text-2xl font-bold text-emerald-600">
-                {formatCurrency(pieData.find(p => p.name === "Umum/Asuransi")?.value || 0)}
-              </p>
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-medium text-emerald-900">Total Umum/Asuransi</h4>
+                  <p className="text-2xl font-bold text-emerald-700 mt-2">
+                    {formatCurrency(pieData.find(p => p.name === "Umum/Asuransi")?.value || 0)}
+                  </p>
+                </div>
+                <Users className="h-10 w-10 text-emerald-500" />
+              </div>
             </div>
-            <div className="bg-amber-50 p-4 rounded-lg">
-              <h4 className="font-medium text-amber-900">
-                Total Pendapatan APBD
-                <span className="text-xs text-amber-700 ml-1">(SUBSIDI)</span>
-              </h4>
-              <p className="text-2xl font-bold text-amber-600">
-                {formatCurrency(pieData.find(p => p.name === "Pendapatan APBD")?.value || 0)}
-              </p>
+            <div className="rounded-lg border border-amber-100 bg-amber-50/70 p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-medium text-amber-900">Total Pendapatan APBD</h4>
+                  <p className="text-2xl font-bold text-amber-700 mt-2">
+                    {formatCurrency(pieData.find(p => p.name === "Pendapatan APBD")?.value || 0)}
+                  </p>
+                </div>
+                <Landmark className="h-10 w-10 text-amber-500" />
+              </div>
             </div>
-            <div className="bg-violet-50 p-4 rounded-lg">
-              <h4 className="font-medium text-violet-900">Total Pendapatan</h4>
-              <p className="text-2xl font-bold text-violet-600">
-                {formatCurrency(pieData.reduce((sum, item) => sum + item.value, 0))}
-              </p>
+            <div className="rounded-lg border border-violet-100 bg-violet-50/70 p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h4 className="font-medium text-violet-900">Total Pendapatan</h4>
+                  <p className="text-2xl font-bold text-violet-700 mt-2">
+                    {formatCurrency(pieData.reduce((sum, item) => sum + item.value, 0))}
+                  </p>
+                </div>
+                <BarChart3 className="h-10 w-10 text-violet-500" />
+              </div>
             </div>
           </div>
         )}

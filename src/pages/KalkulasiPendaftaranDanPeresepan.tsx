@@ -8,9 +8,10 @@ import { useToast } from "@/hooks/use-toast";
 
 interface KalkulasiData {
   jenis_layanan: string;
-  biaya_unit: number;
-  biaya_distribusi_kedua: number;
-  total_biaya_unit: number;
+  biaya_unit_kerja: number;
+  distribusi_biaya_pertama: number;
+  distribusi_biaya_kedua: number;
+  total_biaya: number;
   jumlah_pembagi: number;
   biaya_layanan: number;
   created_at: string;
@@ -26,16 +27,9 @@ const KalkulasiPendaftaranDanPeresepan = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session?.user.id) {
-        throw new Error("User tidak terautentikasi");
-      }
-
       const { data: kalkulasiData, error } = await supabase
         .from("kalkulasi_daftar_dan_resep")
         .select("*")
-        .eq("user_id", session.session.user.id)
         .eq("tahun", 2025)
         .order("jenis_layanan");
 
@@ -57,15 +51,8 @@ const KalkulasiPendaftaranDanPeresepan = () => {
   const refreshData = async () => {
     try {
       setRefreshing(true);
-      const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session?.user.id) {
-        throw new Error("User tidak terautentikasi");
-      }
-
       // Call populate function
       const { error } = await supabase.rpc("populate_kalkulasi_daftar_resep", {
-        p_user_id: session.session.user.id,
         p_tahun: 2025,
       });
 
@@ -236,20 +223,23 @@ const KalkulasiPendaftaranDanPeresepan = () => {
                       <h4 className="text-xs font-semibold text-gray-600 uppercase mb-3">Rincian Kalkulasi</h4>
                       
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Biaya Unit</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(item.biaya_unit)}</span>
+                        <span className="text-gray-600">Biaya Unit Kerja</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.biaya_unit_kerja)}</span>
                       </div>
                       
-                      {item.biaya_distribusi_kedua > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Distribusi Kedua</span>
-                          <span className="font-medium text-gray-900">{formatCurrency(item.biaya_distribusi_kedua)}</span>
-                        </div>
-                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Distribusi Biaya Pertama</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.distribusi_biaya_pertama)}</span>
+                      </div>
+
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Distribusi Biaya Kedua</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.distribusi_biaya_kedua)}</span>
+                      </div>
                       
                       <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
-                        <span className="text-gray-600 font-medium">Total Biaya Unit</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(item.total_biaya_unit)}</span>
+                        <span className="text-gray-600 font-medium">Total Biaya</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(item.total_biaya)}</span>
                       </div>
                       
                       <div className="flex justify-between text-sm">
@@ -308,20 +298,23 @@ const KalkulasiPendaftaranDanPeresepan = () => {
                       <h4 className="text-xs font-semibold text-gray-600 uppercase mb-3">Rincian Kalkulasi</h4>
                       
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Biaya Unit</span>
-                        <span className="font-medium text-gray-900">{formatCurrency(item.biaya_unit)}</span>
+                        <span className="text-gray-600">Biaya Unit Kerja</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.biaya_unit_kerja)}</span>
                       </div>
                       
-                      {item.biaya_distribusi_kedua > 0 && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Distribusi Kedua</span>
-                          <span className="font-medium text-gray-900">{formatCurrency(item.biaya_distribusi_kedua)}</span>
-                        </div>
-                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Distribusi Biaya Pertama</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.distribusi_biaya_pertama)}</span>
+                      </div>
+
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Distribusi Biaya Kedua</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(item.distribusi_biaya_kedua)}</span>
+                      </div>
                       
                       <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
-                        <span className="text-gray-600 font-medium">Total Biaya Unit</span>
-                        <span className="font-semibold text-gray-900">{formatCurrency(item.total_biaya_unit)}</span>
+                        <span className="text-gray-600 font-medium">Total Biaya</span>
+                        <span className="font-semibold text-gray-900">{formatCurrency(item.total_biaya)}</span>
                       </div>
                       
                       <div className="flex justify-between text-sm">

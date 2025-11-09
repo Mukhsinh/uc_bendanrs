@@ -232,7 +232,7 @@ const SkenarioTarifVisit = () => {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">📊 Ringkasan Tarif</CardTitle>
-                    <Button variant="outline" size="sm" onClick={handleOpenDialog}>
+                    <Button variant="edit" size="sm" onClick={handleOpenDialog}>
                       <Edit2 className="h-4 w-4 mr-2" />
                       Edit Tarif
                     </Button>

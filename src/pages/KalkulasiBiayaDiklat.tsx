@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -37,6 +36,7 @@ const KalkulasiBiayaDiklat: React.FC = () => {
   const [data, setData] = useState<KalkulasiDiklat[]>([]);
   const [loading, setLoading] = useState(false);
   const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [showFilters, setShowFilters] = useState(true);
 
   const jenisDiklatOptions = [
     { value: "basis_harian", label: "Basis Harian" }
@@ -158,111 +158,126 @@ const KalkulasiBiayaDiklat: React.FC = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Kalkulasi Biaya Diklat</h1>
           <p className="text-gray-600 mt-1">
             Data kalkulasi biaya diklat basis harian (otomatis dari sistem)
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleDownloadReport} variant="outline" size="sm">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters((prev) => !prev)}
+            className="border-slate-300 text-slate-700 hover:bg-slate-100"
+          >
+            Filter
+          </Button>
+          <Button
+            onClick={handleDownloadReport}
+            className="bg-red-500 text-white hover:bg-red-600"
+            disabled={loading || data.length === 0}
+          >
             <Download className="h-4 w-4 mr-2" />
             Unduh Laporan
+          </Button>
+          <Button
+            onClick={loadData}
+            size="icon"
+            className="bg-slate-100 text-slate-600 hover:bg-slate-200"
+            disabled={loading}
+          >
+            <RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           </Button>
         </div>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-none bg-blue-50 shadow-sm">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Total Jenis Diklat</p>
-                <p className="text-2xl font-bold mt-1">{stats.totalJenis}</p>
+                <p className="text-sm font-medium text-blue-700">Total Jenis Diklat</p>
+                <p className="mt-1 text-2xl font-bold text-blue-900">{stats.totalJenis}</p>
               </div>
-              <GraduationCap className="h-12 w-12 text-blue-600" />
+              <div className="rounded-full bg-white/80 p-3 text-blue-600">
+                <GraduationCap className="h-7 w-7" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
+        <Card className="border-none bg-emerald-50 shadow-sm">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Total Biaya</p>
-                <p className="text-2xl font-bold mt-1">Rp {stats.totalBiaya.toLocaleString()}</p>
+                <p className="text-sm font-medium text-emerald-700">Total Biaya</p>
+                <p className="mt-1 text-2xl font-bold text-emerald-900">Rp {stats.totalBiaya.toLocaleString()}</p>
               </div>
-              <Banknote className="h-12 w-12 text-green-600" />
+              <div className="rounded-full bg-white/80 p-3 text-emerald-600">
+                <Banknote className="h-7 w-7" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
+        <Card className="border-none bg-purple-50 shadow-sm">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Total Diklat</p>
-                <p className="text-2xl font-bold mt-1">{stats.totalDiklat}</p>
+                <p className="text-sm font-medium text-purple-700">Total Diklat</p>
+                <p className="mt-1 text-2xl font-bold text-purple-900">{stats.totalDiklat}</p>
               </div>
-              <Users className="h-12 w-12 text-purple-600" />
+              <div className="rounded-full bg-white/80 p-3 text-purple-600">
+                <Users className="h-7 w-7" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="pt-6">
+        <Card className="border-none bg-amber-50 shadow-sm">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 font-medium">Rata-rata Biaya/Hari</p>
-                <p className="text-2xl font-bold mt-1">Rp {stats.avgBiayaPerHari.toLocaleString()}</p>
+                <p className="text-sm font-medium text-amber-700">Rata-rata Biaya/Hari</p>
+                <p className="mt-1 text-2xl font-bold text-amber-900">Rp {stats.avgBiayaPerHari.toLocaleString()}</p>
               </div>
-              <TrendingUp className="h-12 w-12 text-orange-600" />
+              <div className="rounded-full bg-white/80 p-3 text-amber-600">
+                <TrendingUp className="h-7 w-7" />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Year Filter */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filter Data</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Label htmlFor="year">Tahun</Label>
-              <Select value={String(year)} onValueChange={(value) => setYear(Number(value))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[2024, 2025, 2026].map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {showFilters && (
+        <Card className="border-none bg-slate-50 shadow-sm">
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="w-full sm:max-w-xs">
+                <Select value={String(year)} onValueChange={(value) => setYear(Number(value))}>
+                  <SelectTrigger className="border-slate-200 bg-white text-slate-700">
+                    <SelectValue placeholder="Pilih Tahun" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[2024, 2025, 2026].map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <Button onClick={loadData} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Data Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Data Kalkulasi Biaya Diklat ({data.length} data)</CardTitle>
-          <CardDescription>
-            Data kalkulasi biaya diklat basis harian yang dihitung otomatis oleh sistem
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {loading ? (
             <div className="flex justify-center items-center py-12">
               <RefreshCw className="h-8 w-8 animate-spin text-teal-600" />
@@ -284,23 +299,23 @@ const KalkulasiBiayaDiklat: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Jenis Diklat</TableHead>
-                    <TableHead className="text-right">Lama Hari</TableHead>
-                    <TableHead className="text-right">Biaya Unit</TableHead>
-                    <TableHead className="text-right">Distribusi Kedua</TableHead>
-                    <TableHead className="text-right">Total Biaya Unit</TableHead>
-                    <TableHead className="text-right">Total Diklat</TableHead>
-                    <TableHead className="text-right">Biaya/Hari</TableHead>
-                    <TableHead className="text-right">Unit Cost</TableHead>
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                    <TableHead className="text-white">Jenis Diklat</TableHead>
+                    <TableHead className="text-right text-white">Lama Hari</TableHead>
+                    <TableHead className="text-right text-white">Biaya Unit</TableHead>
+                    <TableHead className="text-right text-white">Distribusi Kedua</TableHead>
+                    <TableHead className="text-right text-white">Total Biaya Unit</TableHead>
+                    <TableHead className="text-right text-white">Total Diklat</TableHead>
+                    <TableHead className="text-right text-white">Biaya/Hari</TableHead>
+                    <TableHead className="text-right text-white">Unit Cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <Badge variant="outline">
+                        <Badge className="bg-sky-100 text-sky-700">
                           {jenisDiklatOptions.find(opt => opt.value === item.jenis_diklat)?.label || item.jenis_diklat}
                         </Badge>
                       </TableCell>

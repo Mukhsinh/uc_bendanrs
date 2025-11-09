@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarNav } from "@/components/SidebarNav";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { SidebarToggleProvider } from "@/components/SidebarToggleContext";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,9 +27,9 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isMobile = useIsMobile();
   const [isSheetOpen, setIsSheetOpen] = React.useState(false);
-  const [user, setUser] = React.useState<any>(null);
   const navigate = useNavigate();
   const { settings: brandingSettings } = useBrandingSettings();
+  const { user, signOut, loading } = useAuth();
 
   const handleLinkClick = () => {
     if (isMobile) {
@@ -40,16 +40,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
   };
 
-  React.useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getUser();
-  }, []);
-
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    const error = await signOut();
     if (error) {
       toast.error("Gagal logout: " + error.message);
     } else {
@@ -61,9 +53,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       {/* Desktop Sidebar */}
-      <div className="hidden border-r bg-sidebar md:block will-change-transform">
+      <div className="hidden bg-sidebar md:block will-change-transform">
         <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <div className="flex h-14 items-center px-4 lg:h-[60px] lg:px-6">
             <Link to="/" className="flex items-center gap-2 font-semibold text-sidebar-foreground">
               <div className="flex items-center gap-2">
                 {brandingSettings.logo_url && (
@@ -83,10 +75,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </nav>
           </div>
           <div className="p-4">
-            <Button 
+            <Button
               variant="outline" 
               className="w-full justify-start bg-teal-600 text-white border-teal-600 hover:bg-teal-500 hover:text-white"
               onClick={handleLogout}
+              disabled={loading}
             >
               <LogOut className="mr-2 h-4 w-4" />
               Logout
@@ -127,10 +120,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <SidebarNav isMobile onLinkClick={handleLinkClick} />
               </nav>
               <div className="mt-auto pt-4">
-                <Button 
+                <Button
                   variant="outline" 
                   className="w-full justify-start bg-teal-600 text-white border-teal-600 hover:bg-teal-500 hover:text-white"
                   onClick={handleLogout}
+                  disabled={loading}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout
@@ -141,11 +135,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <Link to="/" className="flex items-center gap-2 font-semibold text-lg text-sidebar-foreground">
             <span className="font-bold">PINTAR UC</span>
           </Link>
-          <Button 
+          <Button
             variant="ghost" 
             size="icon"
             className="ml-auto text-white hover:bg-white/20"
             onClick={handleLogout}
+            disabled={loading}
           >
             <LogOut className="h-5 w-5" />
           </Button>
@@ -200,7 +195,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={handleLogout}
                   className="text-red-600 hover:text-red-700 hover:bg-red-50 focus:text-red-700 focus:bg-red-50"
                 >

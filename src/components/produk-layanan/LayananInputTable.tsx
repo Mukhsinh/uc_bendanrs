@@ -676,12 +676,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                     {formatCurrency(item.subtotal)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemove(index)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
+                    <Button variant="destructive" size="sm" onClick={() => handleRemove(index)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </TableCell>

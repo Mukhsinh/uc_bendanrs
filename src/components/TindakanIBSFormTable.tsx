@@ -253,14 +253,21 @@ const TindakanIBSFormTable: React.FC = () => {
       <ImportProgressModal 
         progress={uploadProgress}
       />
+
+      <div>
+        <h2 className="text-2xl font-bold">Manajemen Tindakan IBS</h2>
+      </div>
       
       <div className="flex flex-wrap gap-2">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => {
-              setEditing(null);
-              form.reset({ kode_tindakan: "", nama_tindakan: "" });
-            }}>
+            <Button
+              className="shadow-sm"
+              onClick={() => {
+                setEditing(null);
+                form.reset({ kode_tindakan: "", nama_tindakan: "" });
+              }}
+            >
               Tambah Data
             </Button>
           </DialogTrigger>
@@ -312,24 +319,25 @@ const TindakanIBSFormTable: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        <Button variant="outline" onClick={handleDownloadTemplate}>
+        <Button variant="template" className="shadow-sm" onClick={handleDownloadTemplate}>
           <Download className="mr-2 h-4 w-4" />
           Unduh Template
         </Button>
         
-        <label htmlFor="import-file" className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          <Upload className="mr-2 h-4 w-4" />
-          Import Data
-        </label>
-        <input
-          id="import-file"
-          type="file"
-          accept=".csv"
-          onChange={handleImportData}
-          className="hidden"
-        />
+        <Button variant="import" className="shadow-sm" asChild>
+          <label className="flex cursor-pointer items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Import Data
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleImportData}
+              className="hidden"
+            />
+          </label>
+        </Button>
         
-        <Button variant="outline" onClick={handleDownloadReport}>
+        <Button variant="report" className="shadow-sm" onClick={handleDownloadReport}>
           <FileText className="mr-2 h-4 w-4" />
           Unduh Laporan
         </Button>
@@ -346,10 +354,10 @@ const TindakanIBSFormTable: React.FC = () => {
         <div className="rounded-md border">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Kode Tindakan</TableHead>
-                <TableHead>Nama Tindakan</TableHead>
-                <TableHead className="w-[100px]">Aksi</TableHead>
+              <TableRow className="bg-teal-700">
+                <TableHead className="font-bold text-white">Kode Tindakan</TableHead>
+                <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
+                <TableHead className="w-[100px] font-bold text-white">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -370,9 +378,9 @@ const TindakanIBSFormTable: React.FC = () => {
                     <TableCell className="font-mono font-semibold bg-blue-50">{item.kode_tindakan}</TableCell>
                     <TableCell>{item.nama_tindakan}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      <div className="flex justify-start gap-2">
                         <Button
-                          variant="outline"
+                          variant="edit"
                           size="icon"
                           onClick={() => {
                             setEditing(item);
@@ -381,11 +389,7 @@ const TindakanIBSFormTable: React.FC = () => {
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => handleDelete(item.id)}
-                        >
+                        <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

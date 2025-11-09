@@ -32,22 +32,22 @@ BEGIN
     EXECUTE 'DROP TABLE public.distribusi_biaya_pertama';
   END IF;
 
-  -- Build dynamic column list: ukXYZ_slugified_name NUMERIC(15,2)
+  -- Build dynamic column list: ukXYZ_slugified_name BIGINT
   FOR rec IN (
     SELECT kode,
            lower(replace(regexp_replace(nama, '[^a-zA-Z0-9]+', '_', 'g'), '__', '_')) AS slug
     FROM public.unit_kerja
     ORDER BY kode
   ) LOOP
-    v_cols := v_cols || format(', %I NUMERIC(15,2) DEFAULT 0', lower(rec.kode) || '_' || rec.slug);
+    v_cols := v_cols || format(', %I BIGINT DEFAULT 0', lower(rec.kode) || '_' || rec.slug);
     v_insert_cols := v_insert_cols || format(', %I', lower(rec.kode) || '_' || rec.slug);
-    v_select_sum_cols := v_select_sum_cols || format(', SUM(CASE WHEN target_kode = %L THEN alokasi ELSE 0 END) AS %I', rec.kode, lower(rec.kode) || '_' || rec.slug);
+    v_select_sum_cols := v_select_sum_cols || format(', ROUND(SUM(CASE WHEN target_kode = %L THEN alokasi ELSE 0 END)::numeric, 0)::BIGINT AS %I', rec.kode, lower(rec.kode) || '_' || rec.slug);
   END LOOP;
 
   v_sql := 'CREATE TABLE public.distribusi_biaya_pertama (
     id BIGSERIAL PRIMARY KEY,
     unit_kerja_pusat_biaya TEXT NOT NULL,
-    biaya_tahunan NUMERIC(15,2) NOT NULL DEFAULT 0,
+    biaya_tahunan BIGINT NOT NULL DEFAULT 0,
     dasar_alokasi TEXT NOT NULL,
     tahun INT NOT NULL' || v_cols || ',
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -65,7 +65,7 @@ BEGIN
     )
     SELECT
       CONCAT(pusat_kode, '' - '', pusat_nama) AS unit_kerja_pusat_biaya,
-      ROUND(biaya_tahunan::numeric, 2) AS biaya_tahunan,
+      ROUND(biaya_tahunan::numeric, 0)::BIGINT AS biaya_tahunan,
       dasar_alokasi,
       tahun' || v_select_sum_cols || '
     FROM public.distribusi_biaya_pertama_norm

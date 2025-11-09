@@ -38,8 +38,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-}
-from "@/components/ui/table";
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -49,7 +48,25 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Loader2 } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  Upload,
+  Download,
+  FileText,
+  RefreshCw,
+  Loader2,
+  Building2,
+  Landmark,
+  BedDouble,
+  Stethoscope,
+  Briefcase,
+  Workflow,
+  PieChart,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { cn } from "@/lib/utils";
 
 // Helpers to map between DB codes and UI labels for 'jenis'
 const jenisCodeToLabel = (code: number | null | undefined): "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan" | undefined => {
@@ -238,6 +255,136 @@ const UnitKerjaFormTable: React.FC = () => {
       return 'UK001';
     }
   };
+
+  const iconMap: Record<string, React.ReactNode> = {
+    "Pusat Pendapatan": <Building2 className="h-5 w-5" />,
+    "Pusat Biaya": <Landmark className="h-5 w-5" />,
+    "Rawat Inap": <BedDouble className="h-5 w-5" />,
+    "Rawat Jalan": <Stethoscope className="h-5 w-5" />,
+    "Non Layanan": <Briefcase className="h-5 w-5" />,
+    Operatif: <Workflow className="h-5 w-5" />,
+  };
+
+  const iconBackgrounds: Record<string, string> = {
+    "Pusat Pendapatan": "bg-indigo-100 text-indigo-600",
+    "Pusat Biaya": "bg-emerald-100 text-emerald-600",
+    "Rawat Inap": "bg-orange-100 text-orange-500",
+    "Rawat Jalan": "bg-blue-100 text-blue-500",
+    "Non Layanan": "bg-slate-100 text-slate-500",
+    Operatif: "bg-rose-100 text-rose-500",
+  };
+
+  const slugify = (value?: string) =>
+    (value ?? "unknown")
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-]/g, "");
+
+  const RADIAN = Math.PI / 180;
+  const renderPieLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, value, name, payload } = props;
+    const color = payload?.borderColor ?? "#1f2937";
+    const radius = outerRadius + 16;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill={color}
+        fontSize={12}
+        fontWeight={600}
+        textAnchor={x > cx ? "start" : "end"}
+        dominantBaseline="central"
+      >
+        {`${name} (${value})`}
+      </text>
+    );
+  };
+
+  const categoryColors: Record<string, string> = {
+    "Pusat Pendapatan": "#EEF2FF",
+    "Pusat Biaya": "#ECFDF5",
+  };
+
+  const categoryBorderColors: Record<string, string> = {
+    "Pusat Pendapatan": "#6366F1",
+    "Pusat Biaya": "#10B981",
+  };
+
+  const typeColors: Record<string, string> = {
+    "Rawat Inap": "#FFF7ED",
+    "Rawat Jalan": "#EFF6FF",
+    Operatif: "#FEE2E2",
+    "Non Layanan": "#F4F4F5",
+  };
+
+  const typeBorderColors: Record<string, string> = {
+    "Rawat Inap": "#F97316",
+    "Rawat Jalan": "#3B82F6",
+    Operatif: "#F43F5E",
+    "Non Layanan": "#6B7280",
+  };
+
+  const metrics = React.useMemo(
+    () => [
+      { label: "Pusat Pendapatan", value: unitKerjaList.filter((u) => u.kategori === "Pusat Pendapatan").length },
+      { label: "Pusat Biaya", value: unitKerjaList.filter((u) => u.kategori === "Pusat Biaya").length },
+      { label: "Rawat Inap", value: unitKerjaList.filter((u) => u.jenis === "Rawat Inap").length },
+      { label: "Rawat Jalan", value: unitKerjaList.filter((u) => u.jenis === "Rawat Jalan").length },
+      { label: "Operatif", value: unitKerjaList.filter((u) => u.jenis === "Operatif").length },
+      { label: "Non Layanan", value: unitKerjaList.filter((u) => u.jenis === "Non Layanan").length },
+    ],
+    [unitKerjaList],
+  );
+
+  const categoryChartData = React.useMemo(
+    () =>
+      Object.entries(
+        unitKerjaList.reduce(
+          (acc, curr) => {
+            acc[curr.kategori] = (acc[curr.kategori] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>,
+        ),
+      ).map(([name, value]) => ({
+        name,
+        value,
+        color: categoryColors[name] || "#EEF2FF",
+        borderColor: categoryBorderColors[name] || "#6366F1",
+      })),
+    [unitKerjaList],
+  );
+
+  const typeChartData = React.useMemo(
+    () =>
+      Object.entries(
+        unitKerjaList.reduce(
+          (acc, curr) => {
+            const key = curr.jenis ?? "Tidak Ditetapkan";
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+          },
+          {} as Record<string, number>,
+        ),
+      ).map(([name, value]) => ({
+        name,
+        value,
+        color: typeColors[name] || "#EFF6FF",
+        borderColor: typeBorderColors[name] || "#3B82F6",
+      })),
+    [unitKerjaList],
+  );
+
+  const totalUnit = React.useMemo(
+    () => unitKerjaList.length || 1,
+    [unitKerjaList.length],
+  );
+
+  const formatPercentage = (value: number) =>
+    `${((value / totalUnit) * 100).toFixed(0)}%`;
 
   const generateBatchKodeUnitKerja = async (count: number) => {
     try {
@@ -497,15 +644,247 @@ const UnitKerjaFormTable: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 space-y-4">
         <h2 className="text-2xl font-bold">Manajemen Data Unit Kerja</h2>
-        <div className="flex gap-2">
-          <Button onClick={() => fetchUnitKerja()} variant="outline" size="icon">
-            <RefreshCw className="h-4 w-4" />
+
+        <div className="grid gap-3 xl:grid-cols-6 lg:grid-cols-3 sm:grid-cols-2">
+          {metrics.map((metric) => (
+            <Card
+              key={metric.label}
+              className={cn(
+                "border-none shadow-sm hover:shadow-md transition-shadow relative overflow-hidden",
+                metric.label === "Pusat Pendapatan" && "bg-indigo-50",
+                metric.label === "Pusat Biaya" && "bg-emerald-50",
+                metric.label === "Rawat Inap" && "bg-orange-50",
+                metric.label === "Rawat Jalan" && "bg-blue-50",
+                metric.label === "Operatif" && "bg-rose-50",
+                metric.label === "Non Layanan" && "bg-slate-50",
+              )}
+            >
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+                <CardTitle className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                  {metric.label}
+                </CardTitle>
+                <div
+                  className={cn(
+                    "rounded-full p-1.5 shadow-inner",
+                    iconBackgrounds[metric.label] ?? "bg-slate-100 text-slate-500",
+                  )}
+                >
+                  {iconMap[metric.label] ?? <Briefcase className="h-5 w-5" />}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl font-semibold text-slate-900">{metric.value}</div>
+                <p className="text-sm font-semibold text-slate-500">
+                  {metric.value === 0
+                    ? "Belum ada data"
+                    : `${formatPercentage(metric.value)} dari total`}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="border-none shadow-md bg-white/85 backdrop-blur-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold text-slate-800 uppercase tracking-wide">
+                  Distribusi Kategori
+                </CardTitle>
+                <PieChart className="h-5 w-5 text-indigo-500" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Proporsi unit kerja berdasarkan kategori
+              </p>
+            </CardHeader>
+            <CardContent className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsPieChart>
+                  <defs>
+                    <filter id="category-shadow" x="-20%" y="-20%" width="150%" height="150%">
+                      <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#94a3b8" floodOpacity="0.25" />
+                    </filter>
+                    {categoryChartData.map((entry) => (
+                      <linearGradient
+                        key={entry.name}
+                        id={`gradient-cat-${slugify(entry.name)}`}
+                        x1="0%"
+                        y1="0%"
+                        x2="0%"
+                        y2="100%"
+                      >
+                        <stop offset="10%" stopColor={entry.borderColor} stopOpacity={0.95} />
+                        <stop offset="100%" stopColor={entry.color} stopOpacity={1} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <Pie
+                    data={categoryChartData}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={38}
+                    outerRadius={72}
+                    paddingAngle={3}
+                    cornerRadius={12}
+                    strokeWidth={3}
+                    label={renderPieLabel}
+                    labelLine={false}
+                    startAngle={90}
+                    endAngle={-270}
+                    filter="url(#category-shadow)"
+                  >
+                    {categoryChartData.map((entry) => (
+                      <Cell
+                        key={entry.name}
+                        fill={`url(#gradient-cat-${slugify(entry.name)})`}
+                        stroke={entry.borderColor}
+                      />
+                    ))}
+                  </Pie>
+                  <Pie
+                    data={categoryChartData}
+                    dataKey="value"
+                    cx="50%"
+                    cy="52%"
+                    innerRadius={72}
+                    outerRadius={78}
+                    fill="#CBD5F5"
+                    opacity={0.25}
+                    isAnimationActive={false}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, padding: 12, borderColor: "#e5e7eb" }}
+                    formatter={(value: number, name: string) => [
+                      `${value} unit (${formatPercentage(value)})`,
+                      name,
+                    ]}
+                  />
+                </RechartsPieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-md bg-white/85 backdrop-blur-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold text-slate-800 uppercase tracking-wide">
+                  Distribusi Jenis
+                </CardTitle>
+                <PieChart className="h-5 w-5 text-emerald-500" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Proporsi unit kerja berdasarkan jenis layanan
+              </p>
+            </CardHeader>
+            <CardContent className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsPieChart>
+                  <defs>
+                    <filter id="type-shadow" x="-20%" y="-20%" width="150%" height="150%">
+                      <feDropShadow dx="0" dy="6" stdDeviation="6" floodColor="#94a3b8" floodOpacity="0.25" />
+                    </filter>
+                    {typeChartData.map((entry) => (
+                      <linearGradient
+                        key={entry.name}
+                        id={`gradient-type-${slugify(entry.name)}`}
+                        x1="0%"
+                        y1="0%"
+                        x2="0%"
+                        y2="100%"
+                      >
+                        <stop offset="10%" stopColor={entry.borderColor} stopOpacity={0.95} />
+                        <stop offset="100%" stopColor={entry.color} stopOpacity={1} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <Pie
+                    data={typeChartData}
+                    dataKey="value"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={38}
+                    outerRadius={72}
+                    paddingAngle={3}
+                    cornerRadius={12}
+                    strokeWidth={3}
+                    label={renderPieLabel}
+                    labelLine={false}
+                    startAngle={90}
+                    endAngle={-270}
+                    filter="url(#type-shadow)"
+                  >
+                    {typeChartData.map((entry) => (
+                      <Cell
+                        key={entry.name}
+                        fill={`url(#gradient-type-${slugify(entry.name)})`}
+                        stroke={entry.borderColor}
+                      />
+                    ))}
+                  </Pie>
+                  <Pie
+                    data={typeChartData}
+                    dataKey="value"
+                    cx="50%"
+                    cy="52%"
+                    innerRadius={72}
+                    outerRadius={78}
+                    fill="#CBD5F5"
+                    opacity={0.25}
+                    isAnimationActive={false}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, padding: 12, borderColor: "#e5e7eb" }}
+                    formatter={(value: number, name: string) => [
+                      `${value} unit (${formatPercentage(value)})`,
+                      name,
+                    ]}
+                  />
+                </RechartsPieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={handleDownloadTemplate}
+            variant="template"
+            className="shadow-sm"
+          >
+            <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
           </Button>
+
+          <label htmlFor="import-file" className="cursor-pointer">
+            <LoadingButton
+              loading={importing}
+              loadingText="Mengunggah Data..."
+              variant="import"
+              className="shadow-sm"
+              asChild
+            >
+              <span className="flex items-center gap-2 px-4 py-2">
+                <Upload className="h-4 w-4" />
+                Impor Data
+              </span>
+            </LoadingButton>
+            <Input
+              id="import-file"
+              type="file"
+              accept=".csv"
+              onChange={handleImportData}
+              className="sr-only"
+              disabled={importing}
+            />
+          </label>
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingUnitKerja(null)}>Tambah Data Unit Kerja</Button>
+              <Button onClick={() => setEditingUnitKerja(null)} className="shadow-sm">
+                Tambah Data Unit Kerja
+              </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
@@ -576,32 +955,32 @@ const UnitKerjaFormTable: React.FC = () => {
                       </FormItem>
                     )}
                   />
-              <FormField
-                control={form.control}
-                name="jenis"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Jenis</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih Jenis" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
-                        <SelectItem value="Rawat Inap">Rawat Inap</SelectItem>
-                        <SelectItem value="Operatif">Operatif</SelectItem>
-                        <SelectItem value="Non Layanan">Non Layanan</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  <FormField
+                    control={form.control}
+                    name="jenis"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Jenis</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih Jenis" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
+                            <SelectItem value="Rawat Inap">Rawat Inap</SelectItem>
+                            <SelectItem value="Operatif">Operatif</SelectItem>
+                            <SelectItem value="Non Layanan">Non Layanan</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <DialogFooter>
-                    <LoadingButton 
-                      type="submit" 
+                    <LoadingButton
+                      type="submit"
                       loading={saving}
                       loadingText={editingUnitKerja ? "Menyimpan perubahan..." : "Menyimpan..."}
                     >
@@ -612,37 +991,25 @@ const UnitKerjaFormTable: React.FC = () => {
               </Form>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-4 mb-6">
-        <Button onClick={handleDownloadTemplate} variant="outline">
-          <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
-        </Button>
-        <label htmlFor="import-file" className="cursor-pointer">
-          <LoadingButton
-            variant="outline"
-            loading={importing}
-            loadingText="Mengunggah Data..."
-            className="w-full"
-            asChild
+          <Button
+            onClick={handleDownloadReport}
+            variant="report"
+            className="shadow-sm"
           >
-            <span>
-              <Upload className="mr-2 h-4 w-4" />
-              Impor Data
-            </span>
-          </LoadingButton>
-          <Input 
-            id="import-file" 
-            type="file" 
-            accept=".csv" 
-            onChange={handleImportData} 
-            className="sr-only" 
-            disabled={importing}
-          />
-        </label>
-        <div className="flex items-center gap-2">
-          <Select onValueChange={(value: "all" | "Pusat Biaya" | "Pusat Pendapatan") => setReportFilter(value)} defaultValue={reportFilter}>
+            <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
+          </Button>
+
+          <Button onClick={() => fetchUnitKerja()} variant="outline" size="icon">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            onValueChange={(value: "all" | "Pusat Biaya" | "Pusat Pendapatan") => setReportFilter(value)}
+            defaultValue={reportFilter}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter Kategori" />
             </SelectTrigger>
@@ -652,7 +1019,10 @@ const UnitKerjaFormTable: React.FC = () => {
               <SelectItem value="Pusat Pendapatan">Pusat Pendapatan</SelectItem>
             </SelectContent>
           </Select>
-          <Select onValueChange={(value: "all" | "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan") => setJenisFilter(value)} defaultValue={jenisFilter}>
+          <Select
+            onValueChange={(value: "all" | "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan") => setJenisFilter(value)}
+            defaultValue={jenisFilter}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter Jenis" />
             </SelectTrigger>
@@ -664,23 +1034,20 @@ const UnitKerjaFormTable: React.FC = () => {
               <SelectItem value="Non Layanan">Non Layanan</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleDownloadReport} variant="outline">
-            <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
-          </Button>
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Kode Unit Kerja</TableHead>
-              <TableHead>Nama Unit Kerja</TableHead>
-              <TableHead>Lokasi Unit Kerja</TableHead>
-              <TableHead>Luas Ruangan (M2)</TableHead>
-              <TableHead>Jenis</TableHead>
-              <TableHead>Kategori</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+            <TableRow className="bg-teal-700">
+              <TableHead className="font-bold text-white">Kode Unit Kerja</TableHead>
+              <TableHead className="font-bold text-white">Nama Unit Kerja</TableHead>
+              <TableHead className="font-bold text-white">Lokasi Unit Kerja</TableHead>
+              <TableHead className="font-bold text-white">Luas Ruangan (M2)</TableHead>
+              <TableHead className="font-bold text-white">Jenis</TableHead>
+              <TableHead className="font-bold text-white">Kategori</TableHead>
+              <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -711,21 +1078,14 @@ const UnitKerjaFormTable: React.FC = () => {
                 <TableCell>{unitKerja.jenis ?? '-'}</TableCell>
                   <TableCell>{unitKerja.kategori}</TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(unitKerja)}
-                      className="mr-2"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(unitKerja.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="edit" size="icon" onClick={() => handleEdit(unitKerja)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(unitKerja.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
