@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { lazy } from "react";
+import { lazy, useEffect, useState } from "react";
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -81,10 +81,19 @@ const queryClient = new QueryClient();
 const LoadingScreen = () => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-cyan-50">
     <div className="text-center max-w-md mx-auto p-6">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-      <p className="text-teal-700 font-medium">Memuat Aplikasi...</p>
-      <p className="text-sm text-gray-500 mt-2">Jika loading terlalu lama, coba akses halaman test di bawah:</p>
-      <div className="mt-4 space-y-2">
+      <div className="relative mx-auto mb-6 h-16 w-16">
+        <div className="absolute inset-0 rounded-full border-4 border-teal-200"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-teal-500 animate-spin"></div>
+      </div>
+      <p className="text-teal-800 font-semibold tracking-wide">Memuat Aplikasi...</p>
+      <p className="text-sm text-gray-500 mt-2">Mohon tunggu, kami sedang menyiapkan sesi Anda.</p>
+      <div className="mt-6">
+        <div className="h-2 w-full bg-white/70 rounded-full overflow-hidden shadow-inner">
+          <div className="h-full w-1/2 bg-gradient-to-r from-teal-400 via-teal-500 to-cyan-500 animate-loading-bar"></div>
+        </div>
+        <p className="text-xs text-gray-400 mt-2">Menjalankan pengecekan keamanan dan konfigurasi awal...</p>
+      </div>
+      <div className="mt-6 space-y-2">
         <a href="/login" className="block px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors">
           Halaman Login
         </a>
@@ -110,8 +119,35 @@ const LoadingScreen = () => (
 const AppContent = () => {
   const { session, initializing } = useAuth();
 
+  const [showLoading, setShowLoading] = useState(false);
+
+  useEffect(() => {
+    let timeout: number | undefined;
+
+    if (initializing) {
+      timeout = window.setTimeout(() => setShowLoading(true), 280);
+    } else {
+      setShowLoading(false);
+    }
+
+    return () => {
+      if (timeout !== undefined) {
+        window.clearTimeout(timeout);
+      }
+    };
+  }, [initializing]);
+
+  useEffect(() => {
+    if (initializing && showLoading) {
+      console.log("App.tsx - Showing loading screen");
+    }
+  }, [initializing, showLoading]);
+
+  if (initializing && !showLoading) {
+    return null;
+  }
+
   if (initializing) {
-    console.log('App.tsx - Showing loading screen');
     return <LoadingScreen />;
   }
 
