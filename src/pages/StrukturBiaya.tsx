@@ -97,6 +97,17 @@ const tableLabels: Record<TableOptionKey, string> = {
   penunjang: 'Tabel Penunjang',
 };
 
+const jenisKonfigurasi: Array<{ key: "Rawat Inap" | "Rawat Jalan" | "Penunjang"; color: string }> = [
+  { key: "Rawat Inap", color: "#10B981" },
+  { key: "Rawat Jalan", color: "#6366F1" },
+  { key: "Penunjang", color: "#F97316" },
+];
+
+const jenisColorMap = jenisKonfigurasi.reduce((acc, item) => {
+  acc[item.key] = item.color;
+  return acc;
+}, {} as Record<"Rawat Inap" | "Rawat Jalan" | "Penunjang", string>);
+
 const StrukturBiaya: React.FC = () => {
   const [strukturBiayaList, setStrukturBiayaList] = useState<StrukturBiayaRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -120,6 +131,25 @@ const StrukturBiaya: React.FC = () => {
       penunjang: true,
     },
   });
+
+  const getSoftBackgroundColor = (hex: string, alpha = 0.12) => {
+    const sanitized = (hex || '').replace('#', '');
+    if (sanitized.length !== 6) {
+      return `rgba(15, 118, 110, ${alpha})`;
+    }
+    const bigint = parseInt(sanitized, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+
+  const normalizeJenisLayanan = (jenis?: string | null): "Rawat Inap" | "Rawat Jalan" | "Penunjang" => {
+    const normalized = (jenis || '').trim().toLowerCase();
+    if (normalized === 'rawat inap') return 'Rawat Inap';
+    if (normalized === 'rawat jalan') return 'Rawat Jalan';
+    return 'Penunjang';
+  };
   const parseNumber = (value: any, defaultValue = 0) => {
     if (value === null || value === undefined || value === '') {
       return defaultValue;
@@ -300,7 +330,7 @@ const StrukturBiaya: React.FC = () => {
       .filter(item => {
         const yearMatch = item.tahun === selectedYear;
         const unitMatch = selectedUnitIds.length === 0 || selectedUnitIds.includes(item.kode_unit_kerja);
-        const jenisValue = item.jenis_layanan || 'Penunjang';
+        const jenisValue = normalizeJenisLayanan(item.jenis_layanan);
         const jenisMatch = selectedJenisKegiatan === "all" || jenisValue === selectedJenisKegiatan;
         const searchMatch =
           !searchLower ||
@@ -356,14 +386,8 @@ const StrukturBiaya: React.FC = () => {
   }, [filteredStrukturList]);
 
   const averageRevenueCostByJenis = useMemo(() => {
-    const jenisKonfigurasi: Array<{ key: "Rawat Inap" | "Rawat Jalan" | "Penunjang"; color: string }> = [
-      { key: "Rawat Inap", color: "#10B981" },
-      { key: "Rawat Jalan", color: "#6366F1" },
-      { key: "Penunjang", color: "#F97316" },
-    ];
-
     return jenisKonfigurasi.map(({ key, color }) => {
-      const records = filteredStrukturList.filter(item => (item.jenis_layanan || "Penunjang") === key);
+      const records = filteredStrukturList.filter(item => normalizeJenisLayanan(item.jenis_layanan) === key);
       const average = records.length > 0
         ? records.reduce((sum, item) => sum + (item.revenue_to_cost_percentage || 0), 0) / records.length
         : 0;
@@ -374,6 +398,33 @@ const StrukturBiaya: React.FC = () => {
         average: Number(average.toFixed(2)),
       };
     });
+  }, [filteredStrukturList]);
+
+  const biayaByJenisData = useMemo(() => {
+    const totals: Record<"Rawat Inap" | "Rawat Jalan" | "Penunjang", number> = {
+      "Rawat Inap": 0,
+      "Rawat Jalan": 0,
+      Penunjang: 0,
+    };
+
+    filteredStrukturList.forEach(item => {
+      const jenis = normalizeJenisLayanan(item.jenis_layanan);
+      totals[jenis] += item.total_biaya_dengan_jp || 0;
+    });
+
+    const totalKeseluruhan = Object.values(totals).reduce((sum, value) => sum + value, 0);
+    if (totalKeseluruhan === 0) {
+      return [];
+    }
+
+    return (Object.entries(totals) as Array<[ "Rawat Inap" | "Rawat Jalan" | "Penunjang", number]>)
+      .filter(([, nilai]) => nilai > 0)
+      .map(([jenis, nilai]) => ({
+        kategori: jenis,
+        nilai,
+        persentase: Number(((nilai / totalKeseluruhan) * 100).toFixed(2)),
+        warna: jenisColorMap[jenis],
+      }));
   }, [filteredStrukturList]);
 
   // Perbandingan revenue to cost
@@ -958,14 +1009,18 @@ const StrukturBiaya: React.FC = () => {
           {/* Average Revenue to Cost by Jenis */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
             {averageRevenueCostByJenis.map(({ jenis, color, average }) => (
-              <Card key={jenis} className="border-none bg-white shadow-sm">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="w-32 h-24">
+              <Card
+                key={jenis}
+                className="border-none shadow-sm"
+                style={{ backgroundColor: getSoftBackgroundColor(color, 0.18) }}
+              >
+                <CardContent className="p-6 flex items-center gap-5">
+                  <div className="w-32 h-24 flex items-center justify-center">
                     <RadialBarChart
-                      width={128}
-                      height={96}
-                      innerRadius={40}
-                      outerRadius={60}
+                      width={140}
+                      height={100}
+                      innerRadius={45}
+                      outerRadius={70}
                       startAngle={180}
                       endAngle={0}
                       data={[{ name: jenis, value: average }]}
@@ -976,17 +1031,17 @@ const StrukturBiaya: React.FC = () => {
                         cornerRadius={8}
                         dataKey="value"
                         fill={color}
-                        background={{ fill: "#E5E7EB" }}
+                        background={{ fill: "rgba(255,255,255,0.55)" }}
                       />
                     </RadialBarChart>
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <Gauge className="h-4 w-4 text-gray-400" />
+                    <div className="flex items-center gap-2 text-base font-semibold text-gray-600">
+                      <Gauge className="h-5 w-5 text-gray-500" />
                       <span>Avg Revenue/Cost %</span>
                     </div>
-                    <div className="text-lg font-semibold text-gray-900">{average.toFixed(2)}%</div>
-                    <div className="text-sm text-gray-500">{jenis}</div>
+                    <div className="text-3xl font-bold text-gray-900 mt-2">{average.toFixed(2)}%</div>
+                    <div className="text-base font-semibold text-gray-700">{jenis}</div>
                   </div>
                 </CardContent>
               </Card>
@@ -1003,8 +1058,8 @@ const StrukturBiaya: React.FC = () => {
             </CardHeader>
             <CardContent>
               {strukturBiayaData.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4">
-                  <div className="h-[28rem]">
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(320px,360px)_minmax(0,1fr)] gap-6 lg:items-start xl:gap-8">
+                  <div className="h-[26rem]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsPieChart>
                         <defs>
@@ -1032,6 +1087,7 @@ const StrukturBiaya: React.FC = () => {
                           paddingAngle={2}
                           label={({ kategori, persentase }) => `${kategori}: ${persentase}%`}
                           dataKey="nilai"
+                          nameKey="kategori"
                           stroke="#f8fafc"
                           strokeWidth={2}
                         >
@@ -1039,31 +1095,83 @@ const StrukturBiaya: React.FC = () => {
                             <Cell key={`cell-${index}`} fill={`url(#pieGradient-${index})`} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => [formatCurrency(Number(value)), 'Nilai']} />
+                        <Tooltip
+                          formatter={(value, _name, entry: any) => {
+                            const kategori = entry?.payload?.kategori ?? '';
+                            const persentase = entry?.payload?.persentase ?? 0;
+                            return [
+                              formatCurrency(Number(value)),
+                              `${kategori} (${Number(persentase).toFixed(2)}%)`,
+                            ];
+                          }}
+                        />
                         <Legend />
                       </RechartsPieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-                    <h4 className="font-semibold">Detail Struktur Biaya:</h4>
-                    {strukturBiayaData.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-emerald-50 rounded">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-4 h-4 rounded" 
-                            style={{ backgroundColor: item.warna }}
-                          />
-                          <span className="text-sm font-medium">{item.kategori}</span>
+                  <div className="flex flex-col xl:flex-row gap-6 xl:gap-10 items-start w-full">
+                    <div className="flex-1 space-y-2 w-full xl:max-w-2xl">
+                      <h4 className="font-semibold">Detail Struktur Biaya:</h4>
+                      {strukturBiayaData.map((item, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-emerald-50 rounded">
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-4 h-4 rounded" 
+                              style={{ backgroundColor: item.warna }}
+                            />
+                            <span className="text-sm font-medium">{item.kategori}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold">{formatCurrency(item.nilai)}</div>
+                            <div className="text-xs text-muted-foreground">{item.persentase}%</div>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm font-bold">{formatCurrency(item.nilai)}</div>
-                          <div className="text-xs text-muted-foreground">{item.persentase}%</div>
+                      ))}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        BTL termasuk di dalamnya komponen JP untuk unit kerja pusat biaya.
+                      </p>
+                    </div>
+                    {biayaByJenisData.length > 0 && (
+                      <div className="w-full xl:w-[360px] xl:flex-1 rounded-lg border border-emerald-100 bg-white shadow-sm p-5">
+                        <h4 className="font-semibold text-emerald-700 mb-4 text-lg">
+                          Perbandingan Biaya per Jenis Layanan
+                        </h4>
+                        <div className="h-72">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                              <Pie
+                                data={biayaByJenisData}
+                                dataKey="nilai"
+                                nameKey="kategori"
+                                cx="45%"
+                                cy="48%"
+                                innerRadius={70}
+                                outerRadius={130}
+                                paddingAngle={4}
+                                stroke="#f8fafc"
+                                strokeWidth={2}
+                                label={({ kategori, persentase }) => `${kategori}: ${persentase}%`}
+                              >
+                                {biayaByJenisData.map((entry, index) => (
+                                  <Cell key={`jenis-cell-${index}`} fill={entry.warna} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(value, _name, entry: any) => {
+                                  const kategori = entry?.payload?.kategori ?? '';
+                                  const persentase = entry?.payload?.persentase ?? 0;
+                                  return [
+                                    formatCurrency(Number(value)),
+                                    `${kategori} (${Number(persentase).toFixed(2)}%)`,
+                                  ];
+                                }}
+                              />
+                              <Legend />
+                            </RechartsPieChart>
+                          </ResponsiveContainer>
                         </div>
                       </div>
-                    ))}
-                    <p className="text-xs text-muted-foreground mt-2">
-                      BTL termasuk di dalamnya komponen JP untuk unit kerja pusat biaya.
-                    </p>
+                    )}
                   </div>
                 </div>
               ) : (
