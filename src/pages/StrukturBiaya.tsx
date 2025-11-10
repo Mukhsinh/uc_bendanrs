@@ -972,9 +972,8 @@ const StrukturBiaya: React.FC = () => {
                     >
                       <PolarAngleAxis type="number" domain={[0, 200]} tick={false} />
                       <RadialBar
-                        minAngle={15}
+                        minPointSize={15}
                         cornerRadius={8}
-                        clockWise
                         dataKey="value"
                         fill={color}
                         background={{ fill: "#E5E7EB" }}
