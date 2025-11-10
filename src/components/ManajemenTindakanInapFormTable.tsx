@@ -316,7 +316,7 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
           <p className="text-muted-foreground">Kelola jenis tindakan untuk unit kerja rawat inap</p>
       </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 flex-1 min-w-[240px] max-w-xl">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -337,25 +337,6 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                 <X className="h-4 w-4" />
               </Button>
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={fetchAll}
-              variant="outline"
-              className="flex items-center gap-2 text-sky-700 border-sky-200 hover:bg-sky-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-              Perbarui
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => handleOpenDialog(unitKerjaList[0])}
-              className="bg-sky-600 hover:bg-sky-700 text-white flex items-center gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Tambah Tindakan
-            </Button>
           </div>
         </div>
       </div>

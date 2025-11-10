@@ -4,51 +4,51 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Download, Search, Filter, PieChart, BarChart3, TrendingUp } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Download, Search, Filter, PieChart, BarChart3, TrendingUp, Layers, Wallet, Coins, Scale, Gauge } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie, ComposedChart, Line, LineChart } from "recharts";
+import { PieChart as RechartsPieChart, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Pie, ComposedChart, Line, LineChart, RadialBarChart, RadialBar, PolarAngleAxis } from "recharts";
 
-interface Biaya {
+interface StrukturBiayaRow {
   id: string;
   tahun: number;
-  unit_kerja?: {
-    id: string;
-    kode: string;
-    nama: string;
-    kategori: string;
-  };
+  unit_kerja_id?: string;
+  kode_unit_kerja: string;
+  nama_unit_kerja: string;
+  kategori_unit?: string | null;
+  jenis_layanan?: string | null;
   biaya_bahan: number;
   biaya_pegawai: number;
   biaya_jasa_pelayanan: number;
+  biaya_pegawai_net: number;
   biaya_daya: number;
   biaya_pemeliharaan: number;
   biaya_penyusutan: number;
   biaya_operasional_lainnya: number;
-  total_biaya: number;
-  total_biaya_tanpa_jp: number;
-}
-
-interface Pendapatan {
-  id: string;
-  tahun: number;
-  unit_kerja?: {
-    id: string;
-    kode: string;
-    nama: string;
-    kategori: string;
-  };
+  btl_terdistribusi: number;
+  total_biaya_dengan_jp: number;
   total_pendapatan: number;
-}
-
-interface Kegiatan {
-  id: number;
-  tahun: number;
-  Kode_UK: string;
-  Nama_Unit_Kerja: string;
-  Total_Kunjungan_Pasien: number;
-  Jumlah_Hari_Rawat: number;
-  Jenis: string; // 'Rawat Jalan', 'Rawat Inap', 'Operatif', 'Non Layanan'
+  total_kunjungan: number;
+  jumlah_hari_rawat: number;
+  total_pemeriksaan: number;
+  pendapatan_per_kunjungan?: number;
+  pendapatan_per_hari_rawat?: number;
+  biaya_per_kunjungan?: number;
+  biaya_per_hari_rawat?: number;
+  biaya_per_pemeriksaan?: number;
+  revenue_to_cost_ratio?: number;
+  revenue_to_cost_percentage?: number;
+  selisih_revenue_cost?: number;
+  persentase_biaya_bahan?: number;
+  persentase_biaya_pegawai_net?: number;
+  persentase_biaya_jasa_pelayanan?: number;
+  persentase_biaya_daya?: number;
+  persentase_biaya_pemeliharaan?: number;
+  persentase_biaya_penyusutan?: number;
+  persentase_biaya_operasional_lainnya?: number;
+  persentase_btl_terdistribusi?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface StrukturBiayaData {
@@ -58,99 +58,190 @@ interface StrukturBiayaData {
   warna: string;
 }
 
+interface CalculationItem {
+  unit: string;
+  kode: string;
+  totalBiaya: number;
+  totalPendapatan: number;
+  btlTerdistribusi: number;
+  totalKunjungan: number;
+  totalHariRawat: number;
+  totalPemeriksaan: number;
+  pendapatanPerKunjungan: number;
+  pendapatanPerHariRawat: number;
+  biayaPerKunjungan: number;
+  biayaPerHariRawat: number;
+  biayaPerPemeriksaan: number;
+  revenueToCostPercentage: number;
+}
+
+type ChartOptionKey = 'strukturBiaya' | 'analisisKomprehensif' | 'kegiatan' | 'kombinasi';
+type TableOptionKey = 'rawatInap' | 'rawatJalan' | 'penunjang';
+
+interface DownloadSelection {
+  includeSummary: boolean;
+  charts: Record<ChartOptionKey, boolean>;
+  tables: Record<TableOptionKey, boolean>;
+}
+
+const chartLabels: Record<ChartOptionKey, string> = {
+  strukturBiaya: 'Grafik Struktur Biaya',
+  analisisKomprehensif: 'Grafik Analisis Komprehensif',
+  kegiatan: 'Grafik Analisis Kegiatan',
+  kombinasi: 'Grafik Analisis Pembagian',
+};
+
+const tableLabels: Record<TableOptionKey, string> = {
+  rawatInap: 'Tabel Rawat Inap',
+  rawatJalan: 'Tabel Rawat Jalan',
+  penunjang: 'Tabel Penunjang',
+};
+
 const StrukturBiaya: React.FC = () => {
-  const [biayaList, setBiayaList] = useState<Biaya[]>([]);
-  const [pendapatanList, setPendapatanList] = useState<Pendapatan[]>([]);
-  const [kegiatanList, setKegiatanList] = useState<Kegiatan[]>([]);
+  const [strukturBiayaList, setStrukturBiayaList] = useState<StrukturBiayaRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedYear, setSelectedYear] = useState<number>(2025);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedJenisKegiatan, setSelectedJenisKegiatan] = useState<string>("all");
   const [unitKerjaList, setUnitKerjaList] = useState<any[]>([]);
-  const [kalkulasiBiayaList, setKalkulasiBiayaList] = useState<any[]>([]);
-
-  // Fetch data biaya
-  useEffect(() => {
-    fetchBiayaData();
-    fetchPendapatanData();
-    fetchKegiatanData();
-    fetchUnitKerjaData();
-    fetchKalkulasiBiayaData();
-  }, []);
-
-  const fetchBiayaData = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('data_biaya')
-        .select(`
-          *,
-          unit_kerja (
-            id,
-            kode,
-            nama,
-            kategori
-          )
-        `)
-        .eq('unit_kerja.kategori', 'Pusat Pendapatan')
-        .order('tahun', { ascending: false });
-
-      if (error) throw error;
-      console.log('📊 Data Biaya fetched:', data?.length || 0, 'records');
-      setBiayaList(data || []);
-    } catch (error) {
-      console.error('Error fetching biaya data:', error);
-    } finally {
-      setLoading(false);
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState<boolean>(false);
+  const [downloadSelection, setDownloadSelection] = useState<DownloadSelection>({
+    includeSummary: true,
+    charts: {
+      strukturBiaya: true,
+      analisisKomprehensif: true,
+      kegiatan: true,
+      kombinasi: true,
+    },
+    tables: {
+      rawatInap: true,
+      rawatJalan: true,
+      penunjang: true,
+    },
+  });
+  const parseNumber = (value: any, defaultValue = 0) => {
+    if (value === null || value === undefined || value === '') {
+      return defaultValue;
     }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : defaultValue;
   };
 
-  const fetchPendapatanData = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('data_pendapatan')
-        .select(`
-          *,
-          unit_kerja (
-            id,
-            kode,
-            nama,
-            kategori
-          )
-        `)
-        .eq('unit_kerja.kategori', 'Pusat Pendapatan')
-        .order('tahun', { ascending: false });
-
-      if (error) throw error;
-      console.log('💰 Data Pendapatan fetched:', data?.length || 0, 'records');
-      setPendapatanList(data || []);
-    } catch (error) {
-      console.error('Error fetching pendapatan data:', error);
+  const parseOptionalNumber = (value: any) => {
+    if (value === null || value === undefined || value === '') {
+      return undefined;
     }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
   };
 
-  const fetchKegiatanData = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('data_kegiatan')
-        .select(`
-          id,
-          tahun,
-          "Kode_UK",
-          "Nama_Unit_Kerja",
-          "Total_Kunjungan_Pasien",
-          "Jumlah_Hari_Rawat",
-          "Jenis"
-        `)
-        .in('Kode_UK', ['UK038', 'UK039', 'UK040', 'UK041', 'UK042', 'UK043', 'UK044', 'UK045', 'UK046', 'UK047', 'UK048', 'UK049', 'UK050', 'UK051', 'UK052', 'UK053', 'UK054', 'UK055', 'UK056', 'UK057', 'UK058', 'UK059', 'UK060', 'UK061', 'UK062', 'UK063', 'UK064', 'UK065', 'UK066', 'UK067', 'UK068', 'UK069', 'UK070', 'UK071', 'UK072', 'UK073', 'UK074', 'UK075', 'UK076', 'UK077'])
-        .order('tahun', { ascending: false });
+  const toggleChartOption = (key: ChartOptionKey) => {
+    setDownloadSelection(prev => ({
+      ...prev,
+      charts: {
+        ...prev.charts,
+        [key]: !prev.charts[key],
+      },
+    }));
+  };
 
-      if (error) throw error;
-      console.log('📈 Data Kegiatan fetched:', data?.length || 0, 'records');
-      setKegiatanList(data || []);
-    } catch (error) {
-      console.error('Error fetching kegiatan data:', error);
+  const toggleTableOption = (key: TableOptionKey) => {
+    setDownloadSelection(prev => ({
+      ...prev,
+      tables: {
+        ...prev.tables,
+        [key]: !prev.tables[key],
+      },
+    }));
+  };
+
+  const toggleIncludeSummary = () => {
+    setDownloadSelection(prev => ({
+      ...prev,
+      includeSummary: !prev.includeSummary,
+    }));
+  };
+
+  const handleSelectAllDownloads = (value: boolean) => {
+    setDownloadSelection({
+      includeSummary: value,
+      charts: {
+        strukturBiaya: value,
+        analisisKomprehensif: value,
+        kegiatan: value,
+        kombinasi: value,
+      },
+      tables: {
+        rawatInap: value,
+        rawatJalan: value,
+        penunjang: value,
+      },
+    });
+  };
+
+  const fetchStrukturBiayaData = async () => {
+    const { data, error } = await supabase
+      .from('struktur_biaya')
+      .select('*')
+      .order('tahun', { ascending: false })
+      .order('kode_unit_kerja');
+
+    if (error) throw error;
+
+    const numericFields: (keyof StrukturBiayaRow)[] = [
+      'biaya_bahan',
+      'biaya_pegawai',
+      'biaya_jasa_pelayanan',
+      'biaya_pegawai_net',
+      'biaya_daya',
+      'biaya_pemeliharaan',
+      'biaya_penyusutan',
+      'biaya_operasional_lainnya',
+      'btl_terdistribusi',
+      'total_biaya_dengan_jp',
+      'total_pendapatan',
+      'total_kunjungan',
+      'jumlah_hari_rawat',
+      'total_pemeriksaan',
+      'selisih_revenue_cost',
+    ];
+
+    const optionalNumericFields: (keyof StrukturBiayaRow)[] = [
+      'pendapatan_per_kunjungan',
+      'pendapatan_per_hari_rawat',
+      'biaya_per_kunjungan',
+      'biaya_per_hari_rawat',
+      'biaya_per_pemeriksaan',
+      'revenue_to_cost_ratio',
+      'revenue_to_cost_percentage',
+      'persentase_biaya_bahan',
+      'persentase_biaya_pegawai_net',
+      'persentase_biaya_jasa_pelayanan',
+      'persentase_biaya_daya',
+      'persentase_biaya_pemeliharaan',
+      'persentase_biaya_penyusutan',
+      'persentase_biaya_operasional_lainnya',
+      'persentase_btl_terdistribusi',
+    ];
+
+    const normalized = (data || []).map((item) => {
+      const normalizedItem: any = { ...item };
+      normalizedItem.tahun = parseNumber((item as any).tahun);
+      numericFields.forEach((field) => {
+        normalizedItem[field] = parseNumber((item as any)[field]);
+      });
+      optionalNumericFields.forEach((field) => {
+        normalizedItem[field] = parseOptionalNumber((item as any)[field]);
+      });
+      return normalizedItem as StrukturBiayaRow;
+    });
+
+    setStrukturBiayaList(normalized);
+
+    if (normalized.length > 0) {
+      const latestYear = normalized.reduce((max, row) => Math.max(max, row.tahun), normalized[0].tahun);
+      setSelectedYear((prev) => (normalized.some((row) => row.tahun === prev) ? prev : latestYear));
     }
   };
 
@@ -170,150 +261,75 @@ const StrukturBiaya: React.FC = () => {
     }
   };
 
-  const fetchKalkulasiBiayaData = async () => {
-    try {
-      // Fetch from all kalkulasi tables
-      const [labResult, radResult, bdrsResult, operatifResult, cathlabResult] = await Promise.all([
-        supabase
-          .from('kalkulasi_biaya_laboratorium')
-          .select('kode_unit_kerja, jumlah')
-          .eq('tahun', selectedYear),
-        supabase
-          .from('kalkulasi_biaya_radiologi')
-          .select('kode_unit_kerja, jumlah')
-          .eq('tahun', selectedYear),
-        supabase
-          .from('kalkulasi_bdrs')
-          .select('kode_unit_kerja, jumlah')
-          .eq('tahun', selectedYear),
-        supabase
-          .from('kalkulasi_biaya_operatif')
-          .select('kode_unit_kerja, jumlah')
-          .eq('tahun', selectedYear),
-        supabase
-          .from('kalkulasi_biaya_cathlab')
-          .select('kode_unit_kerja, jumlah')
-          .eq('tahun', selectedYear)
-      ]);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([fetchStrukturBiayaData(), fetchUnitKerjaData()]);
+      } catch (error) {
+        console.error('Error loading struktur biaya data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      // Combine all results
-      const allData = [
-        ...(labResult.data || []),
-        ...(radResult.data || []),
-        ...(bdrsResult.data || []),
-        ...(operatifResult.data || []),
-        ...(cathlabResult.data || [])
-      ];
+    loadData();
+  }, []);
 
-      // Group by unit kerja and sum the jumlah
-      const unitDataMap = new Map();
-      allData.forEach(item => {
-        const kode = item.kode_unit_kerja;
-        if (!unitDataMap.has(kode)) {
-          unitDataMap.set(kode, {
-            kode_unit_kerja: kode,
-            total_pemeriksaan: 0
-          });
-        }
-        unitDataMap.get(kode).total_pemeriksaan += item.jumlah || 0;
-      });
-
-      console.log('💰 Data Kalkulasi Biaya fetched:', Array.from(unitDataMap.values()).length, 'units');
-      setKalkulasiBiayaList(Array.from(unitDataMap.values()));
-    } catch (error) {
-      console.error('Error fetching kalkulasi biaya data:', error);
+  useEffect(() => {
+    if (strukturBiayaList.length === 0) {
+      return;
     }
-  };
+    if (!strukturBiayaList.some((item) => item.tahun === selectedYear)) {
+      const latestYear = strukturBiayaList.reduce((max, row) => Math.max(max, row.tahun), strukturBiayaList[0].tahun);
+      setSelectedYear(latestYear);
+    }
+  }, [strukturBiayaList, selectedYear]);
 
-  // Filter data berdasarkan tahun, unit kerja, dan search term
-  const filteredBiayaList = useMemo(() => {
-    return biayaList
-      .filter(biaya => {
-        const yearMatch = biaya.tahun === selectedYear;
-        const unitMatch = selectedUnitIds.length === 0 || selectedUnitIds.includes(biaya.unit_kerja?.kode || '');
-        const searchMatch = !searchTerm || 
-          biaya.unit_kerja?.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          biaya.unit_kerja?.kode.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        return yearMatch && unitMatch && searchMatch;
-      })
-      .sort((a, b) => {
-        const aKode = a.unit_kerja?.kode || '';
-        const bKode = b.unit_kerja?.kode || '';
-        return aKode.localeCompare(bKode);
-      });
-  }, [biayaList, selectedYear, selectedUnitIds, searchTerm]);
+  const availableYears = useMemo(() => {
+    const years = Array.from(new Set(strukturBiayaList.map(item => item.tahun))).sort((a, b) => b - a);
+    return years;
+  }, [strukturBiayaList]);
 
-  const filteredPendapatanList = useMemo(() => {
-    return pendapatanList
-      .filter(pendapatan => {
-        const yearMatch = pendapatan.tahun === selectedYear;
-        const unitMatch = selectedUnitIds.length === 0 || selectedUnitIds.includes(pendapatan.unit_kerja?.kode || '');
-        const searchMatch = !searchTerm || 
-          pendapatan.unit_kerja?.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          pendapatan.unit_kerja?.kode.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        return yearMatch && unitMatch && searchMatch;
-      })
-      .sort((a, b) => {
-        const aKode = a.unit_kerja?.kode || '';
-        const bKode = b.unit_kerja?.kode || '';
-        return aKode.localeCompare(bKode);
-      });
-  }, [pendapatanList, selectedYear, selectedUnitIds, searchTerm]);
+  const yearOptions = availableYears.length > 0 ? availableYears : [selectedYear];
 
-  const filteredKegiatanList = useMemo(() => {
-    return kegiatanList
-      .filter(kegiatan => {
-        const yearMatch = kegiatan.tahun === selectedYear;
-        const unitMatch = selectedUnitIds.length === 0 || selectedUnitIds.includes(kegiatan.Kode_UK);
-        const jenisMatch = selectedJenisKegiatan === "all" || kegiatan.Jenis === selectedJenisKegiatan;
-        const searchMatch = !searchTerm || 
-          kegiatan.Nama_Unit_Kerja.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          kegiatan.Kode_UK.toLowerCase().includes(searchTerm.toLowerCase());
-        
+  const filteredStrukturList = useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+
+    return strukturBiayaList
+      .filter(item => {
+        const yearMatch = item.tahun === selectedYear;
+        const unitMatch = selectedUnitIds.length === 0 || selectedUnitIds.includes(item.kode_unit_kerja);
+        const jenisValue = item.jenis_layanan || 'Penunjang';
+        const jenisMatch = selectedJenisKegiatan === "all" || jenisValue === selectedJenisKegiatan;
+        const searchMatch =
+          !searchLower ||
+          item.nama_unit_kerja.toLowerCase().includes(searchLower) ||
+          item.kode_unit_kerja.toLowerCase().includes(searchLower);
+
         return yearMatch && unitMatch && jenisMatch && searchMatch;
       })
-      .sort((a, b) => {
-        const aKode = a.Kode_UK || '';
-        const bKode = b.Kode_UK || '';
-        return aKode.localeCompare(bKode);
-      });
-  }, [kegiatanList, selectedYear, selectedUnitIds, selectedJenisKegiatan, searchTerm]);
+      .sort((a, b) => a.kode_unit_kerja.localeCompare(b.kode_unit_kerja));
+  }, [strukturBiayaList, selectedYear, selectedUnitIds, selectedJenisKegiatan, searchTerm]);
 
-  // Hitung struktur biaya berdasarkan total biaya per kategori
   const strukturBiayaData = useMemo(() => {
-    console.log('🔍 Filtered Biaya List:', filteredBiayaList.length, 'records');
-    const totalBiaya = filteredBiayaList.reduce((sum, biaya) => sum + (biaya.total_biaya || 0), 0);
-    console.log('💰 Total Biaya:', totalBiaya);
-    
+    const totalBiaya = filteredStrukturList.reduce((sum, item) => sum + (item.total_biaya_dengan_jp || 0), 0);
+
     if (totalBiaya === 0) return [];
 
     const categories = [
       { key: 'biaya_bahan', label: 'Biaya Bahan', color: '#3B82F6' },
-      { key: 'biaya_pegawai', label: 'Biaya Pegawai', color: '#10B981' },
+      { key: 'biaya_pegawai_net', label: 'Biaya Pegawai (Tanpa JP)', color: '#10B981' },
       { key: 'biaya_jasa_pelayanan', label: 'Jasa Pelayanan', color: '#F59E0B' },
       { key: 'biaya_daya', label: 'Biaya Daya', color: '#EF4444' },
       { key: 'biaya_pemeliharaan', label: 'Pemeliharaan', color: '#8B5CF6' },
       { key: 'biaya_penyusutan', label: 'Penyusutan', color: '#06B6D4' },
       { key: 'biaya_operasional_lainnya', label: 'Operasional Lainnya', color: '#84CC16' },
+      { key: 'btl_terdistribusi', label: 'BTL Terdistribusi', color: '#0EA5E9' },
     ];
 
     return categories.map(category => {
-      let total = 0;
-      
-      if (category.key === 'biaya_pegawai') {
-        // Untuk biaya pegawai, kurangi dengan jasa pelayanan
-        total = filteredBiayaList.reduce((sum, biaya) => {
-          const biayaPegawai = biaya.biaya_pegawai || 0;
-          const jasaPelayanan = biaya.biaya_jasa_pelayanan || 0;
-          return sum + Math.max(0, biayaPegawai - jasaPelayanan);
-        }, 0);
-      } else {
-        total = filteredBiayaList.reduce((sum, biaya) => 
-          sum + (biaya[category.key as keyof Biaya] as number || 0), 0);
-      }
-      
+      const total = filteredStrukturList.reduce((sum, item) => sum + (item[category.key as keyof StrukturBiayaRow] as number || 0), 0);
       const persentase = totalBiaya > 0 ? (total / totalBiaya) * 100 : 0;
       
       return {
@@ -323,17 +339,42 @@ const StrukturBiaya: React.FC = () => {
         warna: category.color,
       };
     }).filter(item => item.nilai > 0);
-  }, [filteredBiayaList]);
+  }, [filteredStrukturList]);
 
   // Hitung total pendapatan
   const totalPendapatan = useMemo(() => {
-    return filteredPendapatanList.reduce((sum, pendapatan) => sum + (pendapatan.total_pendapatan || 0), 0);
-  }, [filteredPendapatanList]);
+    return filteredStrukturList.reduce((sum, item) => sum + (item.total_pendapatan || 0), 0);
+  }, [filteredStrukturList]);
 
   // Hitung total biaya dengan JP
   const totalBiayaDenganJP = useMemo(() => {
-    return filteredBiayaList.reduce((sum, biaya) => sum + (biaya.total_biaya || 0), 0);
-  }, [filteredBiayaList]);
+    return filteredStrukturList.reduce((sum, item) => sum + (item.total_biaya_dengan_jp || 0), 0);
+  }, [filteredStrukturList]);
+
+  const totalBTL = useMemo(() => {
+    return filteredStrukturList.reduce((sum, item) => sum + (item.btl_terdistribusi || 0), 0);
+  }, [filteredStrukturList]);
+
+  const averageRevenueCostByJenis = useMemo(() => {
+    const jenisKonfigurasi: Array<{ key: "Rawat Inap" | "Rawat Jalan" | "Penunjang"; color: string }> = [
+      { key: "Rawat Inap", color: "#10B981" },
+      { key: "Rawat Jalan", color: "#6366F1" },
+      { key: "Penunjang", color: "#F97316" },
+    ];
+
+    return jenisKonfigurasi.map(({ key, color }) => {
+      const records = filteredStrukturList.filter(item => (item.jenis_layanan || "Penunjang") === key);
+      const average = records.length > 0
+        ? records.reduce((sum, item) => sum + (item.revenue_to_cost_percentage || 0), 0) / records.length
+        : 0;
+
+      return {
+        jenis: key,
+        color,
+        average: Number(average.toFixed(2)),
+      };
+    });
+  }, [filteredStrukturList]);
 
   // Perbandingan revenue to cost
   const perbandinganRevenueToCost = useMemo(() => {
@@ -346,253 +387,148 @@ const StrukturBiaya: React.FC = () => {
     return {
       biaya,
       pendapatan,
-      ratio: Math.round(ratio * 100) / 100,
-      persentase: Math.round(persentase * 100) / 100,
+      ratio: Number(ratio.toFixed(2)),
+      persentase: Number(persentase.toFixed(2)),
       isEfficient,
       selisih: pendapatan - biaya
     };
   }, [totalBiayaDenganJP, totalPendapatan]);
 
+  const hasDownloadSelection = useMemo(() => {
+    const chartSelected = Object.values(downloadSelection.charts).some(Boolean);
+    const tableSelected = Object.values(downloadSelection.tables).some(Boolean);
+    return downloadSelection.includeSummary || chartSelected || tableSelected;
+  }, [downloadSelection]);
+
   // Data untuk bar chart dengan pendapatan dan kegiatan
   const barChartData = useMemo(() => {
-    console.log('📊 Creating bar chart data...');
-    console.log('🔍 Filtered Biaya:', filteredBiayaList.length);
-    console.log('🔍 Filtered Pendapatan:', filteredPendapatanList.length);
-    console.log('🔍 Filtered Kegiatan:', filteredKegiatanList.length);
-    
-    // Gabungkan data biaya, pendapatan, dan kegiatan per unit kerja
-    const unitDataMap = new Map();
-    
-    // Tambahkan data biaya (hanya yang memiliki unit kerja valid)
-    filteredBiayaList.forEach(biaya => {
-      const unitId = biaya.unit_kerja?.kode;
-      const unitName = biaya.unit_kerja?.nama;
-      
-      // Skip jika tidak ada unit kerja yang valid
-      if (!unitId || !unitName) return;
-      
-      if (!unitDataMap.has(unitId)) {
-        unitDataMap.set(unitId, {
-          unit: unitName,
-          kode: unitId,
-          totalBiaya: 0,
-          totalPendapatan: 0,
-          totalKunjungan: 0,
-          jumlahHariRawat: 0,
-        });
-      }
-      unitDataMap.get(unitId).totalBiaya += biaya.total_biaya || 0;
-    });
-    
-    // Tambahkan data pendapatan (hanya yang memiliki unit kerja valid)
-    filteredPendapatanList.forEach(pendapatan => {
-      const unitId = pendapatan.unit_kerja?.kode;
-      const unitName = pendapatan.unit_kerja?.nama;
-      
-      // Skip jika tidak ada unit kerja yang valid
-      if (!unitId || !unitName) return;
-      
-      if (!unitDataMap.has(unitId)) {
-        unitDataMap.set(unitId, {
-          unit: unitName,
-          kode: unitId,
-          totalBiaya: 0,
-          totalPendapatan: 0,
-          totalKunjungan: 0,
-          jumlahHariRawat: 0,
-        });
-      }
-      unitDataMap.get(unitId).totalPendapatan += pendapatan.total_pendapatan || 0;
-    });
-    
-    // Tambahkan data kegiatan (hanya yang memiliki unit kerja valid)
-    filteredKegiatanList.forEach(kegiatan => {
-      const unitId = kegiatan.Kode_UK;
-      const unitName = kegiatan.Nama_Unit_Kerja;
-      
-      // Skip jika tidak ada unit kerja yang valid
-      if (!unitId || !unitName) return;
-      
-      if (!unitDataMap.has(unitId)) {
-        unitDataMap.set(unitId, {
-          unit: unitName,
-          kode: unitId,
-          totalBiaya: 0,
-          totalPendapatan: 0,
-          totalKunjungan: 0,
-          jumlahHariRawat: 0,
-        });
-      }
-      unitDataMap.get(unitId).totalKunjungan += kegiatan.Total_Kunjungan_Pasien || 0;
-      unitDataMap.get(unitId).jumlahHariRawat += kegiatan.Jumlah_Hari_Rawat || 0;
-    });
-    
-    return Array.from(unitDataMap.values()).sort((a, b) => a.kode.localeCompare(b.kode));
-  }, [filteredBiayaList, filteredPendapatanList, filteredKegiatanList]);
+    return filteredStrukturList.map(item => {
+      const totalBiaya = item.total_biaya_dengan_jp || 0;
+      const totalPendapatan = item.total_pendapatan || 0;
+      const totalKunjungan = item.total_kunjungan || 0;
+      const jumlahHariRawat = item.jumlah_hari_rawat || 0;
+      const totalPemeriksaan = item.total_pemeriksaan || 0;
+
+      const pendapatanPerKunjungan = item.pendapatan_per_kunjungan ?? (totalKunjungan > 0 ? totalPendapatan / totalKunjungan : 0);
+      const pendapatanPerHariRawat = item.pendapatan_per_hari_rawat ?? (jumlahHariRawat > 0 ? totalPendapatan / jumlahHariRawat : 0);
+      const biayaPerKunjungan = item.biaya_per_kunjungan ?? (totalKunjungan > 0 ? totalBiaya / totalKunjungan : 0);
+      const biayaPerHariRawat = item.biaya_per_hari_rawat ?? (jumlahHariRawat > 0 ? totalBiaya / jumlahHariRawat : 0);
+      const biayaPerPemeriksaan = item.biaya_per_pemeriksaan ?? (totalPemeriksaan > 0 ? totalBiaya / totalPemeriksaan : 0);
+      const revenueToCostPercentage = item.revenue_to_cost_percentage ?? (totalBiaya > 0 ? (totalPendapatan / totalBiaya) * 100 : 0);
+
+      return {
+        unit: item.nama_unit_kerja,
+        kode: item.kode_unit_kerja,
+        totalBiaya,
+        totalPendapatan,
+        btlTerdistribusi: item.btl_terdistribusi || 0,
+        totalKunjungan,
+        jumlahHariRawat,
+        totalPemeriksaan,
+        pendapatanPerKunjungan,
+        pendapatanPerHariRawat,
+        biayaPerKunjungan,
+        biayaPerHariRawat,
+        biayaPerPemeriksaan,
+        revenueToCostPercentage,
+      };
+    }).sort((a, b) => a.kode.localeCompare(b.kode));
+  }, [filteredStrukturList]);
 
   // Data untuk grafik kombinasi dengan perhitungan pembagian
   const combinedChartData = useMemo(() => {
-    return barChartData.map(item => {
-      const pendapatanPerKunjungan = item.totalKunjungan > 0 ? item.totalPendapatan / item.totalKunjungan : 0;
-      const pendapatanPerHariRawat = item.jumlahHariRawat > 0 ? item.totalPendapatan / item.jumlahHariRawat : 0;
-      const biayaPerKunjungan = item.totalKunjungan > 0 ? item.totalBiaya / item.totalKunjungan : 0;
-      const biayaPerHariRawat = item.jumlahHariRawat > 0 ? item.totalBiaya / item.jumlahHariRawat : 0;
-      
-      return {
-        ...item,
-        pendapatanPerKunjungan: Math.round(pendapatanPerKunjungan),
-        pendapatanPerHariRawat: Math.round(pendapatanPerHariRawat),
-        biayaPerKunjungan: Math.round(biayaPerKunjungan),
-        biayaPerHariRawat: Math.round(biayaPerHariRawat),
-      };
-    });
+    return barChartData.map(item => ({
+      ...item,
+      pendapatanPerKunjungan: Number(item.pendapatanPerKunjungan?.toFixed(2) || 0),
+      pendapatanPerHariRawat: Number(item.pendapatanPerHariRawat?.toFixed(2) || 0),
+      biayaPerKunjungan: Number(item.biayaPerKunjungan?.toFixed(2) || 0),
+      biayaPerHariRawat: Number(item.biayaPerHariRawat?.toFixed(2) || 0),
+      biayaPerPemeriksaan: Number(item.biayaPerPemeriksaan?.toFixed(2) || 0),
+      revenueToCostPercentage: Number(item.revenueToCostPercentage?.toFixed(2) || 0),
+    }));
   }, [barChartData]);
 
   // Data untuk tabel perhitungan yang dipecah menjadi 3 kategori
   const calculationTablesData = useMemo(() => {
-    const rawatInapData: any[] = [];
-    const rawatJalanData: any[] = [];
-    const penunjangData: any[] = [];
+    const rawatInapCodes = new Set<string>([
+      'UK046','UK047','UK048','UK049','UK050','UK051','UK052','UK053','UK054','UK055'
+    ]);
+    const rawatJalanCodes = new Set<string>([
+      'UK056','UK057','UK058','UK059','UK060','UK061','UK062','UK063',
+      'UK064','UK065','UK066','UK067','UK068','UK069','UK070','UK071','UK072','UK073'
+    ]);
 
-    // Gabungkan data biaya, pendapatan, dan kegiatan per unit kerja
-    const unitDataMap = new Map();
-    
-    // Tambahkan data biaya (hanya yang memiliki unit kerja valid)
-    filteredBiayaList.forEach(biaya => {
-      const unitKode = biaya.unit_kerja?.kode;
-      const unitName = biaya.unit_kerja?.nama;
-      
-      // Skip jika tidak ada unit kerja yang valid
-      if (!unitKode || !unitName) return;
-      
-      if (!unitDataMap.has(unitKode)) {
-        unitDataMap.set(unitKode, {
-          unit: unitName,
-          kode: unitKode,
-          totalBiaya: 0,
-          totalPendapatan: 0,
-          totalKunjungan: 0,
-          totalHariRawat: 0,
-          totalPemeriksaan: 0,
-        });
-      }
-      unitDataMap.get(unitKode).totalBiaya += biaya.total_biaya || 0;
-    });
-    
-    // Tambahkan data pendapatan (hanya yang memiliki unit kerja valid)
-    filteredPendapatanList.forEach(pendapatan => {
-      const unitKode = pendapatan.unit_kerja?.kode;
-      const unitName = pendapatan.unit_kerja?.nama;
-      
-      // Skip jika tidak ada unit kerja yang valid
-      if (!unitKode || !unitName) return;
-      
-      if (!unitDataMap.has(unitKode)) {
-        unitDataMap.set(unitKode, {
-          unit: unitName,
-          kode: unitKode,
-          totalBiaya: 0,
-          totalPendapatan: 0,
-          totalKunjungan: 0,
-          totalHariRawat: 0,
-          totalPemeriksaan: 0,
-        });
-      }
-      unitDataMap.get(unitKode).totalPendapatan += pendapatan.total_pendapatan || 0;
-    });
-    
-    // Tambahkan data kegiatan (hanya yang memiliki unit kerja valid)
-    filteredKegiatanList.forEach(kegiatan => {
-      const unitKode = kegiatan.Kode_UK;
-      const unitName = kegiatan.Nama_Unit_Kerja;
-      
-      // Skip jika tidak ada unit kerja yang valid
-      if (!unitKode || !unitName) return;
-      
-      if (!unitDataMap.has(unitKode)) {
-        unitDataMap.set(unitKode, {
-          unit: unitName,
-          kode: unitKode,
-          totalBiaya: 0,
-          totalPendapatan: 0,
-          totalKunjungan: 0,
-          totalHariRawat: 0,
-          totalPemeriksaan: 0,
-        });
-      }
-      unitDataMap.get(unitKode).totalKunjungan += kegiatan.Total_Kunjungan_Pasien || 0;
-      unitDataMap.get(unitKode).totalHariRawat += kegiatan.Jumlah_Hari_Rawat || 0;
-    });
+    const rawatInapData: CalculationItem[] = [];
+    const rawatJalanData: CalculationItem[] = [];
+    const penunjangData: CalculationItem[] = [];
 
-    // Tambahkan data kalkulasi biaya untuk total pemeriksaan
-    kalkulasiBiayaList.forEach(kalkulasi => {
-      const unitKode = kalkulasi.kode_unit_kerja || '';
-      if (unitDataMap.has(unitKode)) {
-        unitDataMap.get(unitKode).totalPemeriksaan += kalkulasi.total_pemeriksaan || 0;
-      }
-    });
+    filteredStrukturList.forEach(item => {
+      const totalBiaya = item.total_biaya_dengan_jp || 0;
+      const totalPendapatan = item.total_pendapatan || 0;
+      const totalKunjungan = item.total_kunjungan || 0;
+      const totalHariRawat = item.jumlah_hari_rawat || 0;
+      const totalPemeriksaan = item.total_pemeriksaan || 0;
 
-    // Hitung perhitungan pembagian untuk setiap unit
-    Array.from(unitDataMap.values()).forEach(item => {
-      // Debug logging untuk unit kerja "Unknown"
-      if (item.unit === 'Unknown' || item.kode === '') {
-        console.warn('⚠️ Unit kerja dengan data tidak lengkap:', {
-          unit: item.unit,
-          kode: item.kode,
-          totalBiaya: item.totalBiaya,
-          totalPendapatan: item.totalPendapatan,
-          totalKunjungan: item.totalKunjungan
-        });
-      }
+      const pendapatanPerKunjungan = item.pendapatan_per_kunjungan ?? (totalKunjungan > 0 ? totalPendapatan / totalKunjungan : 0);
+      const pendapatanPerHariRawat = item.pendapatan_per_hari_rawat ?? (totalHariRawat > 0 ? totalPendapatan / totalHariRawat : 0);
+      const biayaPerKunjungan = item.biaya_per_kunjungan ?? (totalKunjungan > 0 ? totalBiaya / totalKunjungan : 0);
+      const biayaPerHariRawat = item.biaya_per_hari_rawat ?? (totalHariRawat > 0 ? totalBiaya / totalHariRawat : 0);
+      const biayaPerPemeriksaan = item.biaya_per_pemeriksaan ?? (totalPemeriksaan > 0 ? totalBiaya / totalPemeriksaan : 0);
+      const revenueToCostPercentage = item.revenue_to_cost_percentage ?? (totalBiaya > 0 ? (totalPendapatan / totalBiaya) * 100 : 0);
 
-      const pendapatanPerKunjungan = item.totalKunjungan > 0 ? item.totalPendapatan / item.totalKunjungan : 0;
-      const pendapatanPerHariRawat = item.totalHariRawat > 0 ? item.totalPendapatan / item.totalHariRawat : 0;
-      const biayaPerKunjungan = item.totalKunjungan > 0 ? item.totalBiaya / item.totalKunjungan : 0;
-      const biayaPerHariRawat = item.totalHariRawat > 0 ? item.totalBiaya / item.totalHariRawat : 0;
-      const biayaPerPemeriksaan = item.totalPemeriksaan > 0 ? item.totalBiaya / item.totalPemeriksaan : 0;
-
-      const enhancedItem = {
-        ...item,
-        pendapatanPerKunjungan: Math.round(pendapatanPerKunjungan),
-        pendapatanPerHariRawat: Math.round(pendapatanPerHariRawat),
-        biayaPerKunjungan: Math.round(biayaPerKunjungan),
-        biayaPerHariRawat: Math.round(biayaPerHariRawat),
-        biayaPerPemeriksaan: Math.round(biayaPerPemeriksaan),
+      const enhancedItem: CalculationItem = {
+        unit: item.nama_unit_kerja,
+        kode: item.kode_unit_kerja,
+        totalBiaya,
+        totalPendapatan,
+        btlTerdistribusi: item.btl_terdistribusi || 0,
+        totalKunjungan,
+        totalHariRawat,
+        totalPemeriksaan,
+        pendapatanPerKunjungan: Number(pendapatanPerKunjungan.toFixed(2)),
+        pendapatanPerHariRawat: Number(pendapatanPerHariRawat.toFixed(2)),
+        biayaPerKunjungan: Number(biayaPerKunjungan.toFixed(2)),
+        biayaPerHariRawat: Number(biayaPerHariRawat.toFixed(2)),
+        biayaPerPemeriksaan: Number(biayaPerPemeriksaan.toFixed(2)),
+        revenueToCostPercentage: Number(revenueToCostPercentage.toFixed(2)),
       };
 
-      // Kategorikan berdasarkan jenis layanan yang sebenarnya
-      const unitKode = item.kode;
-      const unitName = item.unit.toLowerCase();
-      
-      // Rawat Inap: Unit yang melayani pasien rawat inap
-      if (unitKode === 'UK046' || unitKode === 'UK047' || unitKode === 'UK048' || unitKode === 'UK049' || 
-          unitKode === 'UK050' || unitKode === 'UK051' || unitKode === 'UK052' || unitKode === 'UK053' || 
-          unitKode === 'UK054' || unitName.includes('vip') || unitName.includes('rawat inap') || 
-          unitName.includes('icu') || unitName.includes('nicu') || unitName.includes('picu') || 
-          unitName.includes('nifas') || unitName.includes('perinatologi') || unitName.includes('buketan')) {
+      const kode = (item.kode_unit_kerja || '').toUpperCase();
+      const jenisData = (item.jenis_layanan || '').trim();
+
+      let jenis: 'Rawat Inap' | 'Rawat Jalan' | 'Penunjang';
+      if (jenisData === 'Rawat Inap' || rawatInapCodes.has(kode)) {
+        jenis = 'Rawat Inap';
+      } else if (jenisData === 'Rawat Jalan' || rawatJalanCodes.has(kode)) {
+        jenis = 'Rawat Jalan';
+      } else if (jenisData === 'Penunjang') {
+        jenis = 'Penunjang';
+      } else {
+        jenis = rawatInapCodes.has(kode)
+          ? 'Rawat Inap'
+          : rawatJalanCodes.has(kode)
+            ? 'Rawat Jalan'
+            : 'Penunjang';
+      }
+
+      if (jenis === 'Rawat Inap') {
         rawatInapData.push(enhancedItem);
-      } 
-      // Rawat Jalan: Unit yang melayani pasien rawat jalan
-      else if (unitKode === 'UK056' || unitKode === 'UK057' || unitKode === 'UK058' || unitKode === 'UK059' || 
-               unitKode === 'UK060' || unitKode === 'UK061' || unitKode === 'UK062' || unitKode === 'UK063' || 
-               unitKode === 'UK064' || unitKode === 'UK065' || unitKode === 'UK066' || unitKode === 'UK067' || 
-               unitKode === 'UK068' || unitKode === 'UK069' || unitKode === 'UK070' || unitKode === 'UK071' || 
-               unitKode === 'UK072' || unitKode === 'UK073' || unitName.includes('klinik') || 
-               unitName.includes('rawat jalan')) {
+      } else if (jenis === 'Rawat Jalan') {
         rawatJalanData.push(enhancedItem);
-      } 
-      // Penunjang: Unit penunjang medis dan non-medis
-      else {
+      } else if (jenis === 'Penunjang') {
         penunjangData.push(enhancedItem);
       }
     });
 
+    const sortByKode = (data: CalculationItem[]) =>
+      data.sort((a, b) => a.kode.localeCompare(b.kode));
+
     return {
-      rawatInap: rawatInapData.sort((a, b) => a.kode.localeCompare(b.kode)),
-      rawatJalan: rawatJalanData.sort((a, b) => a.kode.localeCompare(b.kode)),
-      penunjang: penunjangData.sort((a, b) => a.kode.localeCompare(b.kode)),
+      rawatInap: sortByKode(rawatInapData),
+      rawatJalan: sortByKode(rawatJalanData),
+      penunjang: sortByKode(penunjangData),
     };
-  }, [filteredBiayaList, filteredPendapatanList, filteredKegiatanList, kalkulasiBiayaList, selectedYear, selectedUnitIds, searchTerm]);
+  }, [filteredStrukturList]);
 
   const handleUnitKerjaToggle = (unitKode: string) => {
     setSelectedUnitIds(prev => {
@@ -612,38 +548,127 @@ const StrukturBiaya: React.FC = () => {
     setSelectedUnitIds([]);
   };
 
-  const handleDownloadReport = () => {
-    // Generate report content
-    const reportContent = `
-ANALISIS STRUKTUR BIAYA
-Tahun: ${selectedYear}
-Unit Kerja: ${selectedUnitIds.length === 0 ? "Semua Unit" : selectedUnitIds.map(kode => unitKerjaList.find(u => u.kode === kode)?.nama || kode).join(", ")}
-Jenis Kegiatan: ${selectedJenisKegiatan === "all" ? "Semua Jenis" : selectedJenisKegiatan}
+  const generateReportContent = (selection: DownloadSelection) => {
+    const lines: string[] = [];
+    const selectedUnitNames = selectedUnitIds.length === 0
+      ? 'Semua Unit'
+      : selectedUnitIds
+          .map(kode => unitKerjaList.find(u => u.kode === kode)?.nama || kode)
+          .join(', ');
 
-STRUKTUR BIAYA:
-${strukturBiayaData.map(item => 
-  `${item.kategori}: ${formatCurrency(item.nilai)} (${item.persentase}%)`
-).join('\n')}
+    lines.push('ANALISIS STRUKTUR BIAYA');
+    lines.push(`Tahun: ${selectedYear}`);
+    lines.push(`Unit Kerja: ${selectedUnitNames}`);
+    lines.push(`Jenis Layanan: ${selectedJenisKegiatan === 'all' ? 'Semua Jenis' : selectedJenisKegiatan}`);
 
-RINGKASAN FINANSIAL:
-- Total Biaya dengan JP: ${formatCurrency(totalBiayaDenganJP)}
-- Total Pendapatan: ${formatCurrency(totalPendapatan)}
-- Perbandingan: ${perbandinganRevenueToCost.persentase}% (${perbandinganRevenueToCost.isEfficient ? 'Profit' : 'Loss'})
-- Selisih: ${formatCurrency(Math.abs(perbandinganRevenueToCost.selisih))}
+    if (selection.includeSummary) {
+      lines.push('');
+      lines.push('RINGKASAN UTAMA:');
+      lines.push(`- Total Unit Kerja: ${barChartData.length}`);
+      lines.push(`- Total BTL Terdistribusi: ${formatCurrency(totalBTL)}`);
+      lines.push(`- Total Biaya dengan JP: ${formatCurrency(totalBiayaDenganJP)}`);
+      lines.push(`- Total Pendapatan: ${formatCurrency(totalPendapatan)}`);
+      lines.push(`- Revenue to Cost Ratio: ${perbandinganRevenueToCost.ratio.toFixed(2)} (${perbandinganRevenueToCost.isEfficient ? 'Profit' : 'Loss'})`);
+      lines.push(`- Revenue to Cost Percentage: ${perbandinganRevenueToCost.persentase.toFixed(2)}%`);
+      lines.push(`- Selisih Revenue - Cost: ${formatCurrency(perbandinganRevenueToCost.selisih)}`);
+    }
 
-DETAIL PER UNIT KERJA:
-${barChartData.map(item => 
-  `${item.kode} - ${item.unit}:
-  - Total Biaya: ${formatCurrency(item.totalBiaya)}
-  - Total Pendapatan: ${formatCurrency(item.totalPendapatan)}
-  - Total Kunjungan: ${item.totalKunjungan.toLocaleString()}
-  - Jumlah Hari Rawat: ${item.jumlahHariRawat.toLocaleString()}`
-).join('\n\n')}
+    if (selection.charts.strukturBiaya && strukturBiayaData.length > 0) {
+      lines.push('');
+      lines.push('GRAFIK: Struktur Biaya');
+      strukturBiayaData.forEach(item => {
+        lines.push(`- ${item.kategori}: ${formatCurrency(item.nilai)} (${item.persentase}%)`);
+      });
+    }
 
-Generated on: ${new Date().toLocaleString()}
-    `;
+    if (selection.charts.analisisKomprehensif && barChartData.length > 0) {
+      lines.push('');
+      lines.push('GRAFIK: Analisis Komprehensif (Top 5 berdasarkan total biaya)');
+      barChartData
+        .slice(0, 5)
+        .forEach(item => {
+          lines.push(`${item.kode} - ${item.unit}`);
+          lines.push(`  • BTL Terdistribusi: ${formatCurrency(filteredStrukturList.find(row => row.kode_unit_kerja === item.kode)?.btl_terdistribusi || 0)}`);
+          lines.push(`  • Total Biaya dengan JP: ${formatCurrency(item.totalBiaya)}`);
+          lines.push(`  • Total Pendapatan: ${formatCurrency(item.totalPendapatan)}`);
+        });
+    }
 
-    // Create and download file
+    if (selection.charts.kegiatan && barChartData.length > 0) {
+      lines.push('');
+      lines.push('GRAFIK: Analisis Kegiatan (Top 5 berdasarkan kunjungan)');
+      [...barChartData]
+        .sort((a, b) => b.totalKunjungan - a.totalKunjungan)
+        .slice(0, 5)
+        .forEach(item => {
+          lines.push(`${item.kode} - ${item.unit}`);
+          lines.push(`  • Total Kunjungan: ${item.totalKunjungan.toLocaleString('id-ID')}`);
+          lines.push(`  • Jumlah Hari Rawat: ${item.jumlahHariRawat.toLocaleString('id-ID')}`);
+        });
+    }
+
+    if (selection.charts.kombinasi && combinedChartData.length > 0) {
+      lines.push('');
+      lines.push('GRAFIK: Analisis Pembagian (Biaya & Pendapatan per Aktivitas)');
+      combinedChartData
+        .slice(0, 5)
+        .forEach(item => {
+          lines.push(`${item.kode} - ${item.unit}`);
+          lines.push(`  • Pendapatan per Kunjungan: ${formatCurrency(item.pendapatanPerKunjungan)}`);
+          lines.push(`  • Biaya per Kunjungan: ${formatCurrency(item.biayaPerKunjungan)}`);
+          lines.push(`  • Biaya per Pemeriksaan: ${formatCurrency(item.biayaPerPemeriksaan)}`);
+        });
+    }
+
+    const appendTableSection = (title: string, data: CalculationItem[], includeHariRawat = false, includePemeriksaan = false) => {
+      if (data.length === 0) return;
+      lines.push('');
+      lines.push(`TABEL: ${title}`);
+      data.forEach(item => {
+        lines.push(`${item.kode} - ${item.unit}`);
+        lines.push(`  • BTL Terdistribusi: ${formatCurrency(item.btlTerdistribusi)}`);
+        lines.push(`  • Total Biaya dengan JP: ${formatCurrency(item.totalBiaya)}`);
+        lines.push(`  • Total Pendapatan: ${formatCurrency(item.totalPendapatan)}`);
+        lines.push(`  • Total Kunjungan: ${item.totalKunjungan.toLocaleString('id-ID')}`);
+        if (includeHariRawat) {
+          lines.push(`  • Total Hari Rawat: ${item.totalHariRawat.toLocaleString('id-ID')}`);
+          lines.push(`  • Pendapatan per Hari Rawat: ${formatCurrency(item.pendapatanPerHariRawat)}`);
+          lines.push(`  • Biaya per Hari Rawat: ${formatCurrency(item.biayaPerHariRawat)}`);
+        }
+        if (includePemeriksaan) {
+          lines.push(`  • Total Pemeriksaan: ${item.totalPemeriksaan.toLocaleString('id-ID')}`);
+          lines.push(`  • Biaya per Pemeriksaan: ${formatCurrency(item.biayaPerPemeriksaan)}`);
+        }
+        lines.push(`  • Pendapatan per Kunjungan: ${formatCurrency(item.pendapatanPerKunjungan)}`);
+        lines.push(`  • Biaya per Kunjungan: ${formatCurrency(item.biayaPerKunjungan)}`);
+        lines.push(`  • Revenue/Cost %: ${item.revenueToCostPercentage.toFixed(2)}%`);
+      });
+    };
+
+    if (selection.tables.rawatInap) {
+      appendTableSection(tableLabels.rawatInap, calculationTablesData.rawatInap, true, false);
+    }
+
+    if (selection.tables.rawatJalan) {
+      appendTableSection(tableLabels.rawatJalan, calculationTablesData.rawatJalan, false, false);
+    }
+
+    if (selection.tables.penunjang) {
+      appendTableSection(tableLabels.penunjang, calculationTablesData.penunjang, false, true);
+    }
+
+    lines.push('');
+    lines.push(`Laporan dibuat: ${new Date().toLocaleString('id-ID')}`);
+
+    return lines.join('\n');
+  };
+
+  const handleDownloadReport = (selection: DownloadSelection) => {
+    const reportContent = generateReportContent(selection);
+    if (!reportContent.trim()) {
+      return;
+    }
+
     const blob = new Blob([reportContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -653,6 +678,14 @@ Generated on: ${new Date().toLocaleString()}
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleConfirmDownload = () => {
+    if (!hasDownloadSelection) {
+      return;
+    }
+    handleDownloadReport(downloadSelection);
+    setDownloadDialogOpen(false);
   };
 
   const formatCurrency = (value: number) => {
@@ -699,7 +732,7 @@ Generated on: ${new Date().toLocaleString()}
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                  {yearOptions.map(year => (
                     <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                   ))}
                 </SelectContent>
@@ -762,6 +795,7 @@ Generated on: ${new Date().toLocaleString()}
                   <SelectItem value="all">Semua Jenis</SelectItem>
                   <SelectItem value="Rawat Inap">Rawat Inap</SelectItem>
                   <SelectItem value="Rawat Jalan">Rawat Jalan</SelectItem>
+                  <SelectItem value="Penunjang">Penunjang</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -776,53 +810,188 @@ Generated on: ${new Date().toLocaleString()}
               />
             </div>
 
-            <Button onClick={handleDownloadReport} className="ml-auto">
-              <Download className="h-4 w-4 mr-2" />
-              Unduh Laporan
-            </Button>
+            <Dialog open={downloadDialogOpen} onOpenChange={setDownloadDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="ml-auto">
+                  <Download className="h-4 w-4 mr-2" />
+                  Unduh Laporan
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Pilih Bagian Laporan</DialogTitle>
+                  <DialogDescription>Pilih grafik dan tabel yang ingin disertakan dalam laporan unduhan.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="download-summary"
+                        checked={downloadSelection.includeSummary}
+                        onCheckedChange={toggleIncludeSummary}
+                      />
+                      <label htmlFor="download-summary" className="text-sm font-medium cursor-pointer">
+                        Ringkasan Utama
+                      </label>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleSelectAllDownloads(true)}>
+                        Pilih Semua
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleSelectAllDownloads(false)}>
+                        Kosongkan
+                      </Button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Grafik</p>
+                    <div className="space-y-2">
+                      {(Object.keys(chartLabels) as ChartOptionKey[]).map(key => (
+                        <div key={key} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`chart-${key}`}
+                            checked={downloadSelection.charts[key]}
+                            onCheckedChange={() => toggleChartOption(key)}
+                          />
+                          <label htmlFor={`chart-${key}`} className="text-sm cursor-pointer">
+                            {chartLabels[key]}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold mb-2">Tabel</p>
+                    <div className="space-y-2">
+                      {(Object.keys(tableLabels) as TableOptionKey[]).map(key => (
+                        <div key={key} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`table-${key}`}
+                            checked={downloadSelection.tables[key]}
+                            onCheckedChange={() => toggleTableOption(key)}
+                          />
+                          <label htmlFor={`table-${key}`} className="text-sm cursor-pointer">
+                            {tableLabels[key]}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDownloadDialogOpen(false)}>
+                    Batal
+                  </Button>
+                  <Button onClick={handleConfirmDownload} disabled={!hasDownloadSelection}>
+                    Unduh
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Total Unit Kerja Pusat Pendapatan</div>
-                <div className="text-2xl font-bold">{barChartData.length}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Total Biaya</div>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(totalBiayaDenganJP)}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
+            <Card className="border-none bg-emerald-50 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-emerald-700 font-medium">Total Unit Kerja</div>
+                  <div className="text-2xl font-bold text-emerald-900">{barChartData.length}</div>
+                </div>
+                <div className="p-3 rounded-full bg-emerald-200/70 text-emerald-700">
+                  <Layers className="h-5 w-5" />
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Total Pendapatan</div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(totalPendapatan)}
+            <Card className="border-none bg-sky-50 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-sky-700 font-medium">Total BTL Terdistribusi</div>
+                  <div className="text-2xl font-bold text-sky-900">{formatCurrency(totalBTL)}</div>
+                </div>
+                <div className="p-3 rounded-full bg-sky-200/70 text-sky-700">
+                  <Wallet className="h-5 w-5" />
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm text-muted-foreground">Perbandingan Revenue to Cost</div>
-                <div className="text-2xl font-bold">
-                  <Badge 
-                    variant={perbandinganRevenueToCost.isEfficient ? "default" : "destructive"}
-                    className={perbandinganRevenueToCost.isEfficient ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
-                  >
-                    {perbandinganRevenueToCost.ratio}
-                  </Badge>
+            <Card className="border-none bg-amber-50 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-amber-700 font-medium">Total Biaya dengan JP</div>
+                  <div className="text-2xl font-bold text-amber-900">{formatCurrency(totalBiayaDenganJP)}</div>
                 </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {perbandinganRevenueToCost.isEfficient ? 'Efficient' : 'Inefficient'} 
-                  ({perbandinganRevenueToCost.persentase}%)
+                <div className="p-3 rounded-full bg-amber-200/70 text-amber-700">
+                  <Coins className="h-5 w-5" />
                 </div>
               </CardContent>
             </Card>
+            <Card className="border-none bg-indigo-50 shadow-sm">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-indigo-700 font-medium">Total Pendapatan</div>
+                  <div className="text-2xl font-bold text-indigo-900">{formatCurrency(totalPendapatan)}</div>
+                </div>
+                <div className="p-3 rounded-full bg-indigo-200/70 text-indigo-700">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none bg-rose-50 shadow-sm">
+              <CardContent className="p-4 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-rose-700 font-medium">Revenue vs Cost</div>
+                  <div className="p-3 rounded-full bg-rose-200/70 text-rose-700">
+                    <Scale className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-rose-900">{perbandinganRevenueToCost.ratio.toFixed(2)}</div>
+                <div className="text-xs text-rose-700">
+                  {perbandinganRevenueToCost.persentase.toFixed(2)}% · {perbandinganRevenueToCost.isEfficient ? 'Profit' : 'Loss'}
+                </div>
+                <div className="text-xs text-rose-700">
+                  Selisih: {formatCurrency(perbandinganRevenueToCost.selisih)}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Average Revenue to Cost by Jenis */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            {averageRevenueCostByJenis.map(({ jenis, color, average }) => (
+              <Card key={jenis} className="border-none bg-white shadow-sm">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="w-32 h-24">
+                    <RadialBarChart
+                      width={128}
+                      height={96}
+                      innerRadius={40}
+                      outerRadius={60}
+                      startAngle={180}
+                      endAngle={0}
+                      data={[{ name: jenis, value: average }]}
+                    >
+                      <PolarAngleAxis type="number" domain={[0, 200]} tick={false} />
+                      <RadialBar
+                        minAngle={15}
+                        cornerRadius={8}
+                        clockWise
+                        dataKey="value"
+                        fill={color}
+                        background={{ fill: "#E5E7EB" }}
+                      />
+                    </RadialBarChart>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Gauge className="h-4 w-4 text-gray-400" />
+                      <span>Avg Revenue/Cost %</span>
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900">{average.toFixed(2)}%</div>
+                    <div className="text-sm text-gray-500">{jenis}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
 
           {/* Pie Chart */}
@@ -835,22 +1004,40 @@ Generated on: ${new Date().toLocaleString()}
             </CardHeader>
             <CardContent>
               {strukturBiayaData.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="h-96">
+                <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4">
+                  <div className="h-[28rem]">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsPieChart>
+                        <defs>
+                          {strukturBiayaData.map((entry, index) => (
+                            <linearGradient
+                              key={`grad-${index}`}
+                              id={`pieGradient-${index}`}
+                              x1="0"
+                              y1="0"
+                              x2="0"
+                              y2="1"
+                            >
+                              <stop offset="5%" stopColor={entry.warna} stopOpacity={0.95} />
+                              <stop offset="95%" stopColor={entry.warna} stopOpacity={0.55} />
+                            </linearGradient>
+                          ))}
+                        </defs>
                         <Pie
                           data={strukturBiayaData}
                           cx="50%"
                           cy="50%"
+                          innerRadius={80}
+                          outerRadius={150}
                           labelLine={false}
+                          paddingAngle={2}
                           label={({ kategori, persentase }) => `${kategori}: ${persentase}%`}
-                          outerRadius={120}
-                          fill="#8884d8"
                           dataKey="nilai"
+                          stroke="#f8fafc"
+                          strokeWidth={2}
                         >
                           {strukturBiayaData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.warna} />
+                            <Cell key={`cell-${index}`} fill={`url(#pieGradient-${index})`} />
                           ))}
                         </Pie>
                         <Tooltip formatter={(value) => [formatCurrency(Number(value)), 'Nilai']} />
@@ -858,10 +1045,10 @@ Generated on: ${new Date().toLocaleString()}
                       </RechartsPieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
                     <h4 className="font-semibold">Detail Struktur Biaya:</h4>
                     {strukturBiayaData.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div key={index} className="flex items-center justify-between p-2 bg-emerald-50 rounded">
                         <div className="flex items-center gap-2">
                           <div 
                             className="w-4 h-4 rounded" 
@@ -875,6 +1062,9 @@ Generated on: ${new Date().toLocaleString()}
                         </div>
                       </div>
                     ))}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      BTL termasuk di dalamnya komponen JP untuk unit kerja pusat biaya.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -886,7 +1076,7 @@ Generated on: ${new Date().toLocaleString()}
           </Card>
 
           {/* Bar Chart */}
-          <Card>
+          <Card className="overflow-x-auto">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <BarChart3 className="h-5 w-5" />
@@ -908,8 +1098,9 @@ Generated on: ${new Date().toLocaleString()}
                       <YAxis tickFormatter={(value) => formatCurrency(value)} />
                       <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                       <Legend />
-                      <Bar dataKey="totalBiaya" fill="#EF4444" name="Total Biaya dengan JP" />
-                      <Bar dataKey="totalPendapatan" fill="#10B981" name="Total Pendapatan" />
+                      <Bar dataKey="btlTerdistribusi" fill="#0EA5E9" name="BTL Terdistribusi" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalBiaya" fill="#EF4444" name="Total Biaya dengan JP" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalPendapatan" fill="#10B981" name="Total Pendapatan" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -984,8 +1175,9 @@ Generated on: ${new Date().toLocaleString()}
                           <YAxis tickFormatter={(value) => formatCurrency(value)} />
                           <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                           <Legend />
-                          <Bar dataKey="totalBiaya" fill="#EF4444" name="Total Biaya dengan JP" />
-                          <Bar dataKey="totalPendapatan" fill="#10B981" name="Total Pendapatan" />
+                      <Bar dataKey="btlTerdistribusi" fill="#0EA5E9" name="BTL Terdistribusi" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalBiaya" fill="#EF4444" name="Total Biaya dengan JP" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="totalPendapatan" fill="#10B981" name="Total Pendapatan" radius={[4, 4, 0, 0]} />
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
@@ -1027,13 +1219,20 @@ Generated on: ${new Date().toLocaleString()}
                             textAnchor="end"
                             height={100}
                           />
-                          <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                          <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
+                          <YAxis yAxisId="left" tickFormatter={(value) => formatCurrency(value)} />
+                          <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${Number(value).toFixed(0)}%`} />
+                          <Tooltip formatter={(value, name) => {
+                            if (name === 'Revenue/Cost %') {
+                              return [`${Number(value).toFixed(2)}%`, name];
+                            }
+                            return [formatCurrency(Number(value)), name];
+                          }} />
                           <Legend />
-                          <Line type="monotone" dataKey="pendapatanPerKunjungan" stroke="#10B981" strokeWidth={3} name="Pendapatan per Kunjungan" />
-                          <Line type="monotone" dataKey="pendapatanPerHariRawat" stroke="#3B82F6" strokeWidth={3} name="Pendapatan per Hari Rawat" />
-                          <Line type="monotone" dataKey="biayaPerKunjungan" stroke="#EF4444" strokeWidth={3} name="Biaya per Kunjungan" />
-                          <Line type="monotone" dataKey="biayaPerHariRawat" stroke="#F59E0B" strokeWidth={3} name="Biaya per Hari Rawat" />
+                          <Line yAxisId="left" type="monotone" dataKey="pendapatanPerKunjungan" stroke="#10B981" strokeWidth={3} name="Pendapatan per Kunjungan" />
+                          <Line yAxisId="left" type="monotone" dataKey="pendapatanPerHariRawat" stroke="#3B82F6" strokeWidth={3} name="Pendapatan per Hari Rawat" />
+                          <Line yAxisId="left" type="monotone" dataKey="biayaPerKunjungan" stroke="#EF4444" strokeWidth={3} name="Biaya per Kunjungan" />
+                          <Line yAxisId="left" type="monotone" dataKey="biayaPerHariRawat" stroke="#F59E0B" strokeWidth={3} name="Biaya per Hari Rawat" />
+                          <Line yAxisId="right" type="monotone" dataKey="revenueToCostPercentage" stroke="#6366F1" strokeWidth={3} name="Revenue/Cost %" />
                         </ComposedChart>
                       </ResponsiveContainer>
                     </div>
@@ -1045,8 +1244,9 @@ Generated on: ${new Date().toLocaleString()}
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse border border-gray-300">
                         <thead>
-                          <tr className="bg-blue-50">
+                          <tr className="bg-emerald-600 text-white">
                             <th className="border border-gray-300 px-4 py-2 text-left">Unit Kerja</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right">BTL Terdistribusi</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Biaya dengan JP</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Pendapatan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Kunjungan</th>
@@ -1055,12 +1255,14 @@ Generated on: ${new Date().toLocaleString()}
                             <th className="border border-gray-300 px-4 py-2 text-right">Pendapatan/Hari Rawat</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Biaya/Kunjungan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Biaya/Hari Rawat</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right">Revenue/Cost %</th>
                           </tr>
                         </thead>
                         <tbody>
                           {calculationTablesData.rawatInap.map((item, index) => (
                             <tr key={index}>
                               <td className="border border-gray-300 px-4 py-2 font-medium">{item.unit}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.btlTerdistribusi)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.totalBiaya)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.totalPendapatan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{item.totalKunjungan.toLocaleString()}</td>
@@ -1069,6 +1271,7 @@ Generated on: ${new Date().toLocaleString()}
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.pendapatanPerHariRawat)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.biayaPerKunjungan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.biayaPerHariRawat)}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{item.revenueToCostPercentage.toFixed(2)}%</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1082,24 +1285,28 @@ Generated on: ${new Date().toLocaleString()}
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse border border-gray-300">
                         <thead>
-                          <tr className="bg-green-50">
+                          <tr className="bg-emerald-600 text-white">
                             <th className="border border-gray-300 px-4 py-2 text-left">Unit Kerja</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right">BTL Terdistribusi</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Biaya dengan JP</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Pendapatan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Kunjungan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Pendapatan/Kunjungan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Biaya/Kunjungan</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right">Revenue/Cost %</th>
                           </tr>
                         </thead>
                         <tbody>
                           {calculationTablesData.rawatJalan.map((item, index) => (
                             <tr key={index}>
                               <td className="border border-gray-300 px-4 py-2 font-medium">{item.unit}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.btlTerdistribusi)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.totalBiaya)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.totalPendapatan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{item.totalKunjungan.toLocaleString()}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.pendapatanPerKunjungan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.biayaPerKunjungan)}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{item.revenueToCostPercentage.toFixed(2)}%</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1113,8 +1320,9 @@ Generated on: ${new Date().toLocaleString()}
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse border border-gray-300">
                         <thead>
-                          <tr className="bg-yellow-50">
+                          <tr className="bg-emerald-600 text-white">
                             <th className="border border-gray-300 px-4 py-2 text-left">Unit Kerja</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right">BTL Terdistribusi</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Biaya dengan JP</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Pendapatan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Total Kunjungan</th>
@@ -1122,12 +1330,14 @@ Generated on: ${new Date().toLocaleString()}
                             <th className="border border-gray-300 px-4 py-2 text-right">Pendapatan/Kunjungan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Biaya/Kunjungan</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Biaya/Pemeriksaan</th>
+                            <th className="border border-gray-300 px-4 py-2 text-right">Revenue/Cost %</th>
                           </tr>
                         </thead>
                         <tbody>
                           {calculationTablesData.penunjang.map((item, index) => (
                             <tr key={index}>
                               <td className="border border-gray-300 px-4 py-2 font-medium">{item.unit}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.btlTerdistribusi)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.totalBiaya)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.totalPendapatan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{item.totalKunjungan.toLocaleString()}</td>
@@ -1135,6 +1345,7 @@ Generated on: ${new Date().toLocaleString()}
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.pendapatanPerKunjungan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.biayaPerKunjungan)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCurrency(item.biayaPerPemeriksaan)}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{item.revenueToCostPercentage.toFixed(2)}%</td>
                             </tr>
                           ))}
                         </tbody>

@@ -58,6 +58,7 @@ const DistribusiBiayaPertama = lazy(() => import("./pages/DistribusiBiayaPertama
 const DistribusiBiayaKedua = lazy(() => import("./pages/DistribusiBiayaKedua"));
 const DistribusiBiayaRekap = lazy(() => import("./pages/DistribusiBiayaRekap"));
 const CostRecovery = lazy(() => import("./pages/CostRecovery"));
+const TotalBiayaDenganJP = lazy(() => import("./pages/TotalBiayaDenganJP"));
 const StrukturBiaya = lazy(() => import("./pages/StrukturBiaya"));
 const ProyeksiPendapatanLayanan = lazy(() => import("./pages/ProyeksiPendapatanLayanan"));
 const TestDasarAlokasi = lazy(() => import("./pages/TestDasarAlokasi"));
@@ -426,6 +427,11 @@ const AppContent = () => {
           <Route path="/distribusi-biaya-rekap" element={
             <SessionGuard>
               <DistribusiBiayaRekap />
+            </SessionGuard>
+          } />
+          <Route path="/analisis-revenue-cost/total-biaya-jp" element={
+            <SessionGuard>
+              <TotalBiayaDenganJP />
             </SessionGuard>
           } />
           <Route path="/cost-recovery" element={

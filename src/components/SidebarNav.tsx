@@ -34,6 +34,7 @@ import {
   ShoppingCart,
   BookOpenCheck,
   Shield,
+  RefreshCw,
 } from "lucide-react";
 import {
   Accordion,
@@ -161,6 +162,7 @@ const navItems: NavItem[] = [
     icon: PieChart,
     allowedRoles: ["Super Admin", "Admin", "Manager", "Viewer"], // Menu laporan bisa diakses oleh Manager dan Viewer
     subItems: [
+      { title: "Total Biaya dengan JP", href: "/analisis-revenue-cost/total-biaya-jp", icon: RefreshCw },
       { title: "Cost Recovery", href: "/cost-recovery", icon: PieChart },
       { title: "Struktur Biaya", href: "/analisis-revenue-cost/struktur-biaya", icon: BarChart3 },
       { title: "Proyeksi Pendapatan Layanan", href: "/analisis-revenue-cost/proyeksi-pendapatan", icon: TrendingUp },
