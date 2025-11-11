@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
+const COPYRIGHT_TEXT = 'Copyright © 2024 Mukhsin Hadi. Hak Cipta Dilindungi Undang-Undang';
+const HERO_TITLE_TEXT = 'Saatnya Rumah Sakit Anda Naik Kelas!';
+
 const Login = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [heroTitle, setHeroTitle] = useState('');
   const { session, initializing, signInWithPassword, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -16,6 +20,26 @@ const Login = () => {
       navigate('/');
     }
   }, [navigate, session, initializing]);
+
+  useEffect(() => {
+    let currentIndex = 0;
+    setHeroTitle('');
+    const interval = window.setInterval(() => {
+      currentIndex += 1;
+      if (currentIndex >= HERO_TITLE_TEXT.length) {
+        currentIndex = HERO_TITLE_TEXT.length;
+        window.clearInterval(interval);
+      }
+      setHeroTitle(HERO_TITLE_TEXT.slice(0, currentIndex));
+    }, 60);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const heroTitleWithoutExclamation = heroTitle.endsWith('!')
+    ? heroTitle.slice(0, heroTitle.length - 1)
+    : heroTitle;
+  const shouldShowExclamation = heroTitle.includes('!');
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -45,10 +69,18 @@ const Login = () => {
             </div>
 
             <div className="relative z-10 max-w-md">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#2f4373] mb-4 leading-tight">
-                Saatnya Rumah Sakit Anda Naik Kelas<span className="text-[#2dc6a7]">!</span>
+              <h1
+                className="text-2xl md:text-3xl font-bold text-[#2f4373] mb-4 leading-tight"
+                aria-live="polite"
+              >
+                {heroTitleWithoutExclamation}
+                {shouldShowExclamation && <span className="text-[#2dc6a7]">!</span>}
+                <span
+                  className="ml-1 inline-block h-5 w-0.5 bg-[#2f4373] align-middle animate-pulse"
+                  aria-hidden="true"
+                />
               </h1>
-              <p className="text-[#5c6c90] text-base md:text-lg leading-snug">
+              <p className="text-[#5c6c90] text-base md:text-lg leading-normal">
                 "Sering kali kita berbicara tentang mutu, efisiensi, dan kemandirian, tetapi... seberapa dalam kita memahami biaya di balik setiap tindakan?"
               </p>
             </div>
@@ -70,6 +102,9 @@ const Login = () => {
                 />
               </div>
             </div>
+            <p className="relative z-10 mt-6 text-center text-sm text-[#4c5f8b]">
+              {COPYRIGHT_TEXT}
+            </p>
           </div>
 
           <div className="p-10 md:p-16 bg-white flex flex-col justify-center">
