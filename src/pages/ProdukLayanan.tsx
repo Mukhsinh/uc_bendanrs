@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, Edit, Plus, Upload, Download } from "lucide-react";
+import { Trash2, Edit, Plus, Upload, Download, RefreshCcw } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -87,6 +87,8 @@ const ProdukLayanan = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tahun, setTahun] = useState(2025);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const [formData, setFormData] = useState<Partial<ProdukLayanan>>({
     tahun: 2025,
     jenis: "rawat jalan",
@@ -139,6 +141,36 @@ const ProdukLayanan = () => {
   useEffect(() => {
     fetchData();
   }, [tahun]);
+
+  const handleRefreshData = async () => {
+    try {
+      setRefreshing(true);
+      const { data, error } = await supabase.rpc("populate_skenario_tarif_from_rekapitulasi", {
+        p_user_id: null,
+        p_tahun: tahun,
+        p_prosentase_jasa_pelayanan: 0,
+        p_prosentase_profit: 0,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Berhasil",
+        description: `Data layanan berhasil diperbarui (${data ?? 0} entri).`,
+      });
+
+      setRefreshKey((prev) => prev + 1);
+      await fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Gagal memperbarui",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -572,10 +604,36 @@ const ProdukLayanan = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Button
+              variant="template"
+              onClick={handleDownloadTemplate}
+              className="shadow-sm"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Unduh Template Impor
+            </Button>
+
+            <label className="cursor-pointer">
+              <Button asChild variant="import" className="shadow-sm">
+                <span className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Impor Data
+                </span>
+              </Button>
+              <input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleImport}
+              />
+            </label>
+
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button
+                  variant="destructive"
+                  className="shadow-sm"
                   onClick={() => {
                     setEditingId(null);
                     setFormData({
@@ -597,9 +655,6 @@ const ProdukLayanan = () => {
                   Tambah Data
                 </Button>
               </DialogTrigger>
-              <Button variant="outline" onClick={handleDownloadTemplate}>
-                Unduh Template
-              </Button>
               <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
@@ -781,6 +836,7 @@ const ProdukLayanan = () => {
                       tahun={tahun}
                       filterType="tindakan"
                       jenisProduk={formData.jenis}
+                      refreshKey={refreshKey}
                     />
 
                     <LayananInputTable
@@ -790,6 +846,7 @@ const ProdukLayanan = () => {
                       tahun={tahun}
                       filterType="ibs"
                       spesialisasiDokter={formData.spesialisasi_dokter || undefined}
+                      refreshKey={refreshKey}
                     />
 
                     <LayananInputTable
@@ -798,6 +855,7 @@ const ProdukLayanan = () => {
                       onChange={(value) => setFormData({ ...formData, laboratorium: value })}
                       tahun={tahun}
                       filterType="laboratorium"
+                      refreshKey={refreshKey}
                     />
 
                     <LayananInputTable
@@ -806,6 +864,7 @@ const ProdukLayanan = () => {
                       onChange={(value) => setFormData({ ...formData, radiologi: value })}
                       tahun={tahun}
                       filterType="radiologi"
+                      refreshKey={refreshKey}
                     />
 
                     <div className="space-y-2">
@@ -828,6 +887,7 @@ const ProdukLayanan = () => {
                       label="Farmasi"
                       value={formData.farmasi || []}
                       onChange={(value) => setFormData({ ...formData, farmasi: value })}
+                      refreshKey={refreshKey}
                     />
 
                     <LayananInputTable
@@ -836,6 +896,7 @@ const ProdukLayanan = () => {
                       onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
                       tahun={tahun}
                       filterType="akomodasi"
+                      refreshKey={refreshKey}
                     />
 
                     <LayananInputTable
@@ -844,6 +905,7 @@ const ProdukLayanan = () => {
                       onChange={(value) => setFormData({ ...formData, visite: value })}
                       tahun={tahun}
                       filterType="visite"
+                      refreshKey={refreshKey}
                     />
 
                     <LayananInputTable
@@ -852,6 +914,7 @@ const ProdukLayanan = () => {
                       onChange={(value) => setFormData({ ...formData, konsultasi: value })}
                       tahun={tahun}
                       filterType="konsultasi"
+                      refreshKey={refreshKey}
                     />
                   </TabsContent>
                 </Tabs>
@@ -865,22 +928,19 @@ const ProdukLayanan = () => {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" onClick={handleExport}>
+            <Button variant="report" onClick={handleExport} className="shadow-sm">
               <Download className="h-4 w-4 mr-2" />
               Unduh Laporan
             </Button>
 
-            <Button variant="outline" asChild>
-              <label className="cursor-pointer">
-                <Upload className="h-4 w-4 mr-2" />
-                Import Data
-                <input
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={handleImport}
-                />
-              </label>
+            <Button
+              variant="outline"
+              onClick={handleRefreshData}
+              disabled={refreshing}
+              className="shadow-sm"
+            >
+              <RefreshCcw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Memperbarui…" : "Perbarui Data"}
             </Button>
           </div>
 
@@ -894,25 +954,25 @@ const ProdukLayanan = () => {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Jenis</TableHead>
-                    <TableHead>Deskripsi INA-CBG</TableHead>
-                    <TableHead>LOS</TableHead>
-                    <TableHead>Dokter</TableHead>
-                    <TableHead className="text-right">Tarif INA-CBGs</TableHead>
-                    <TableHead className="text-right">Total Biaya</TableHead>
-                    <TableHead className="text-right">JP Tindakan</TableHead>
-                    <TableHead className="text-right">JP IBS</TableHead>
-                    <TableHead className="text-right">JP Lab</TableHead>
-                    <TableHead className="text-right">JP Radiologi</TableHead>
-                    <TableHead className="text-right">JP Farmasi</TableHead>
-                    <TableHead className="text-right">JP Kamar</TableHead>
-                    <TableHead className="text-right">JP Visite</TableHead>
-                    <TableHead className="text-right">JP Konsultasi</TableHead>
-                    <TableHead className="text-right font-bold">Total JP</TableHead>
-                    <TableHead className="text-right">Saldo Distribusi</TableHead>
-                    <TableHead className="text-center">% Saldo</TableHead>
-                    <TableHead className="text-right">Aksi</TableHead>
+                  <TableRow className="bg-teal-700">
+                    <TableHead className="text-white font-bold">Jenis</TableHead>
+                    <TableHead className="text-white font-bold">Deskripsi INA-CBG</TableHead>
+                    <TableHead className="text-white font-bold">LOS</TableHead>
+                    <TableHead className="text-white font-bold">Dokter</TableHead>
+                    <TableHead className="text-right text-white font-bold">Tarif INA-CBGs</TableHead>
+                    <TableHead className="text-right text-white font-bold">Total Biaya</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Tindakan</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP IBS</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Lab</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Radiologi</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Farmasi</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Kamar</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Visite</TableHead>
+                    <TableHead className="text-right text-white font-bold">JP Konsultasi</TableHead>
+                    <TableHead className="text-right text-white font-bold">Total JP</TableHead>
+                    <TableHead className="text-right text-white font-bold">Saldo Distribusi</TableHead>
+                    <TableHead className="text-center text-white font-bold">% Saldo</TableHead>
+                    <TableHead className="text-right text-white font-bold">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

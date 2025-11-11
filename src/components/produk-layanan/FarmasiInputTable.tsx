@@ -36,12 +36,14 @@ interface FarmasiInputTableProps {
   label: string;
   value: FarmasiItem[];
   onChange: (value: FarmasiItem[]) => void;
+  refreshKey: number;
 }
 
 const FarmasiInputTable: React.FC<FarmasiInputTableProps> = ({
   label,
   value,
   onChange,
+  refreshKey,
 }) => {
   const { toast } = useToast();
   const [availableItems, setAvailableItems] = useState<any[]>([]);
@@ -50,22 +52,55 @@ const FarmasiInputTable: React.FC<FarmasiInputTableProps> = ({
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const getTimestamp = (item: any) => {
+    const updated = item?.updated_at ? new Date(item.updated_at).getTime() : 0;
+    const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
+    return Math.max(updated, created);
+  };
+
+  const dedupeByKodeBarang = (items: any[]) => {
+    const map = new Map<string, any>();
+    items.forEach((item) => {
+      const kode = item?.kode_barang || item?.id;
+      if (!kode) return;
+
+      const key = String(kode);
+      const existing = map.get(key);
+      if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
+        map.set(key, item);
+      }
+    });
+    return Array.from(map.values());
+  };
+
+  const applyUserScope = (query: any, userId: string | null) => {
+    if (userId) {
+      return query.or(`user_id.is.null,user_id.eq.${userId}`);
+    }
+    return query.is("user_id", null);
+  };
+
   const fetchItems = async () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) return;
+      const userId = user?.id ?? null;
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("data_barang_farmasi")
-        .select("id, kode_barang, nama_barang, satuan, harga")
-        .eq("user_id", user.id)
-        .order("nama_barang");
+        .select("id, kode_barang, nama_barang, satuan, harga, created_at, updated_at");
+      query = applyUserScope(query, userId).order("nama_barang");
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      setAvailableItems(data || []);
+      const normalized = dedupeByKodeBarang(data || []).sort((a, b) =>
+        (a?.nama_barang || "").localeCompare(b?.nama_barang || "", "id", {
+          sensitivity: "base",
+        })
+      );
+
+      setAvailableItems(normalized);
     } catch (error: any) {
       toast({
         title: "Error fetching data",
@@ -79,7 +114,7 @@ const FarmasiInputTable: React.FC<FarmasiInputTableProps> = ({
 
   useEffect(() => {
     fetchItems();
-  }, []);
+  }, [refreshKey]);
 
   // Filter items berdasarkan search query
   const filteredItems = availableItems.filter((item) => {

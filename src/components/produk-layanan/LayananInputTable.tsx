@@ -43,6 +43,7 @@ interface LayananInputTableProps {
   filterType: string;
   jenisProduk?: string;
   spesialisasiDokter?: string;
+  refreshKey: number;
 }
 
 const LayananInputTable: React.FC<LayananInputTableProps> = ({
@@ -53,6 +54,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   filterType,
   jenisProduk,
   spesialisasiDokter,
+  refreshKey,
 }) => {
   const { toast } = useToast();
   const [availableServices, setAvailableServices] = useState<any[]>([]);
@@ -133,12 +135,39 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   const badge = getBadgeConfig();
   const IconComponent = badge.icon;
 
+  const getTimestamp = (item: any) => {
+    const updated = item?.updated_at ? new Date(item.updated_at).getTime() : 0;
+    const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
+    return Math.max(updated, created);
+  };
+
+  const dedupeByKodeTindakan = (items: any[]) => {
+    const map = new Map<string, any>();
+    items.forEach((item) => {
+      const kode = item?.kode_tindakan || item?.id;
+      if (!kode) return;
+
+      const key = String(kode);
+      const existing = map.get(key);
+      if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
+        map.set(key, item);
+      }
+    });
+    return Array.from(map.values());
+  };
+
+  const applyUserScope = (query: any, userId: string | null) => {
+    if (userId) {
+      return query.or(`user_id.is.null,user_id.eq.${userId}`);
+    }
+    return query.is("user_id", null);
+  };
+
   const fetchServices = async () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) return;
+      const userId = user?.id ?? null;
 
       let data: any[] = [];
       let error: any = null;
@@ -152,14 +181,13 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         }
 
         if (sumberTabel) {
-          const result = await supabase
+          let query = supabase
             .from("skenario_tarif")
             .select("*")
-            .eq("user_id", user.id)
             .eq("tahun", tahun)
-            .eq("sumber_tabel", sumberTabel)
-            .order("nama_tindakan");
-          
+            .eq("sumber_tabel", sumberTabel);
+          query = applyUserScope(query, userId);
+          const result = await query.order("nama_tindakan");
           data = result.data || [];
           error = result.error;
         }
@@ -167,46 +195,43 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         let query = supabase
           .from("skenario_tarif")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
           .eq("sumber_tabel", "kalkulasi_tindakan_operatif");
 
         if (spesialisasiDokter) {
           query = query.eq("nama_operator", spesialisasiDokter);
         }
-
+        query = applyUserScope(query, userId);
         const result = await query.order("nama_tindakan");
         data = result.data || [];
         error = result.error;
       } else if (filterType === "laboratorium") {
-        const result = await supabase
+        let query = supabase
           .from("skenario_tarif")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
-          .eq("sumber_tabel", "kalkulasi_biaya_laboratorium")
-          .order("nama_tindakan");
-        
+          .eq("sumber_tabel", "kalkulasi_biaya_laboratorium");
+        query = applyUserScope(query, userId).order("nama_tindakan");
+        const result = await query;
         data = result.data || [];
         error = result.error;
       } else if (filterType === "radiologi") {
-        const result = await supabase
+        let query = supabase
           .from("skenario_tarif")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
-          .eq("sumber_tabel", "kalkulasi_biaya_radiologi")
-          .order("nama_tindakan");
-        
+          .eq("sumber_tabel", "kalkulasi_biaya_radiologi");
+        query = applyUserScope(query, userId).order("nama_tindakan");
+        const result = await query;
         data = result.data || [];
         error = result.error;
       } else if (filterType === "akomodasi") {
-        const result = await supabase
+        let query = supabase
           .from("skenario_tarif_akomodasi")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun);
-        
+        query = applyUserScope(query, userId);
+        const result = await query;
         if (result.data && result.data.length > 0) {
           const tarif = result.data[0];
           data = [
@@ -244,13 +269,13 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         }
         error = result.error;
       } else if (filterType === "visite") {
-        const result = await supabase
+        let query = supabase
           .from("skenario_tarif_visit")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
-          .maybeSingle();
-        
+          .limit(1);
+        query = applyUserScope(query, userId);
+        const result = await query.maybeSingle();
         if (result.data) {
           const tarif = result.data;
           data = [
@@ -282,13 +307,13 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         }
         error = result.error;
       } else if (filterType === "konsultasi") {
-        const result = await supabase
+        let query = supabase
           .from("skenario_tarif_visit")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
-          .maybeSingle();
-        
+          .limit(1);
+        query = applyUserScope(query, userId);
+        const result = await query.maybeSingle();
         if (result.data) {
           const tarif = result.data;
           data = [
@@ -315,7 +340,16 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
 
       if (error) throw error;
 
-      setAvailableServices(data || []);
+      const normalizedData =
+        filterType === "akomodasi" || filterType === "visite" || filterType === "konsultasi"
+          ? data || []
+          : dedupeByKodeTindakan(data || []).sort((a, b) =>
+              (a?.nama_tindakan || "").localeCompare(b?.nama_tindakan || "", "id", {
+                sensitivity: "base",
+              })
+            );
+
+      setAvailableServices(normalizedData);
     } catch (error: any) {
       toast({
         title: "Error fetching services",
@@ -329,7 +363,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
 
   useEffect(() => {
     fetchServices();
-  }, [tahun, jenisProduk, spesialisasiDokter]);
+  }, [tahun, jenisProduk, spesialisasiDokter, refreshKey]);
 
   const filteredServices = availableServices.filter((service) => {
     if (!searchQuery) return true;

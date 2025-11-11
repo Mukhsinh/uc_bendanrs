@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Search, Filter } from "lucide-react";
+import { Download, Search, Coins, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -204,6 +204,49 @@ const PolaRemunerasi = () => {
   const maxJP = Math.max(...filteredData.map(item => item.total_jp), 0);
   const minJP = Math.min(...filteredData.map(item => item.total_jp), 0);
 
+  const statsCards = [
+    {
+      title: "Total JP",
+      value: totalJP,
+      icon: Coins,
+      bg: "bg-emerald-50",
+      border: "border-emerald-200",
+      iconBg: "bg-emerald-100",
+      iconColor: "text-emerald-600",
+      textColor: "text-emerald-700",
+    },
+    {
+      title: "Rata-rata JP",
+      value: avgJP,
+      icon: BarChart3,
+      bg: "bg-sky-50",
+      border: "border-sky-200",
+      iconBg: "bg-sky-100",
+      iconColor: "text-sky-600",
+      textColor: "text-sky-700",
+    },
+    {
+      title: "JP Tertinggi",
+      value: maxJP,
+      icon: TrendingUp,
+      bg: "bg-amber-50",
+      border: "border-amber-200",
+      iconBg: "bg-amber-100",
+      iconColor: "text-amber-600",
+      textColor: "text-amber-700",
+    },
+    {
+      title: "JP Terendah",
+      value: minJP,
+      icon: TrendingDown,
+      bg: "bg-rose-50",
+      border: "border-rose-200",
+      iconBg: "bg-rose-100",
+      iconColor: "text-rose-600",
+      textColor: "text-rose-700",
+    },
+  ];
+
   return (
     <div className="container mx-auto py-10">
       <Card>
@@ -284,30 +327,31 @@ const PolaRemunerasi = () => {
 
           {/* Statistik */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-muted-foreground">Total JP</div>
-                <div className="text-2xl font-bold">{formatCurrency(totalJP)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-muted-foreground">Rata-rata JP</div>
-                <div className="text-2xl font-bold">{formatCurrency(avgJP)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-muted-foreground">JP Tertinggi</div>
-                <div className="text-2xl font-bold">{formatCurrency(maxJP)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <div className="text-sm font-medium text-muted-foreground">JP Terendah</div>
-                <div className="text-2xl font-bold">{formatCurrency(minJP)}</div>
-              </CardContent>
-            </Card>
+            {statsCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Card
+                  key={card.title}
+                  className={`shadow-none border ${card.border} ${card.bg}`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-muted-foreground">
+                          {card.title}
+                        </div>
+                        <div className={`text-2xl font-bold ${card.textColor}`}>
+                          {formatCurrency(card.value)}
+                        </div>
+                      </div>
+                      <div className={`rounded-full p-3 ${card.iconBg}`}>
+                        <Icon className={`h-6 w-6 ${card.iconColor}`} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
 
           {/* Tabel Data */}
