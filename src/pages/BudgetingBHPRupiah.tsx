@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, FileDown, TrendingUp, CreditCard, Package, RefreshCw } from "lucide-react";
+import { Loader2, FileDown, TrendingUp, CreditCard, Package, RefreshCw, Users, BedDouble, Stethoscope, FlaskConical } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useToast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
@@ -36,6 +37,16 @@ interface RasioPerUnit {
   rasio: number;
 }
 
+type CategoryKey = "rawatInap" | "rawatJalan" | "penunjang";
+
+interface CategoryStatCard {
+  key: CategoryKey;
+  label: string;
+  totalBudgeting: number;
+  totalPendapatan: number;
+  rasio: number;
+}
+
 const BudgetingBHPRupiah = () => {
   const [data, setData] = useState<BudgetingData[]>([]);
   const [filteredData, setFilteredData] = useState<BudgetingData[]>([]);
@@ -45,20 +56,34 @@ const BudgetingBHPRupiah = () => {
   const [selectedUnit, setSelectedUnit] = useState<string>("all");
   const [unitKerjaList, setUnitKerjaList] = useState<string[]>([]);
   const { toast } = useToast();
+  const penunjangSources = new Set([
+    "kalkulasi_biaya_laboratorium",
+    "kalkulasi_biaya_radiologi",
+    "kalkulasi_bdrs",
+    "kalkulasi_biaya_cathlab",
+    "kalkulasi_biaya_operatif",
+  ]);
+
+  const getCategoryKey = (sumber: string): CategoryKey | null => {
+    if (sumber === "kalkulasi_tindakan_inap") return "rawatInap";
+    if (sumber === "kalkulasi_tindakan_rawat_jalan") return "rawatJalan";
+    if (penunjangSources.has(sumber)) return "penunjang";
+    return null;
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session?.user.id) {
+      const userId = session.session?.user.id;
+
+      if (!userId) {
         throw new Error("User tidak terautentikasi");
       }
 
       const { data: budgetingData, error } = await supabase
-        .from("budgeting_bhp_farmasi")
+        .from("budgeting_bhp_farmasi_public")
         .select("*")
-        .eq("user_id", session.session.user.id)
         .eq("tahun", 2025)
         .order("total_budgeting_bhp", { ascending: false });
 
@@ -117,17 +142,25 @@ const BudgetingBHPRupiah = () => {
     try {
       setRefreshing(true);
       const { data: session } = await supabase.auth.getSession();
-      
-      if (!session.session?.user.id) {
+      const userId = session.session?.user.id;
+
+      if (!userId) {
         throw new Error("User tidak terautentikasi");
       }
 
       const { error } = await supabase.rpc("populate_budgeting_bhp_farmasi", {
-        p_user_id: session.session.user.id,
+        p_user_id: userId,
         p_tahun: 2025,
       });
 
       if (error) throw error;
+
+      const { error: rincianError } = await supabase.rpc("populate_rincian_budgeting_bhp", {
+        p_user_id: userId,
+        p_tahun: 2025,
+      });
+
+      if (rincianError) throw rincianError;
 
       toast({
         title: "Berhasil",
@@ -172,8 +205,13 @@ const BudgetingBHPRupiah = () => {
     return new Intl.NumberFormat("id-ID").format(value);
   };
 
-  const exportToExcel = () => {
-      const exportData = filteredData.map((item, index) => ({
+  const exportToExcel = (category: "all" | CategoryKey) => {
+    const dataset =
+      category === "all"
+        ? filteredData
+        : filteredData.filter((item) => getCategoryKey(item.sumber_tabel) === category);
+
+    const exportData = dataset.map((item, index) => ({
       No: index + 1,
       "Unit Kerja": item.nama_unit_kerja,
       "Kode Tindakan": item.kode_tindakan,
@@ -182,16 +220,22 @@ const BudgetingBHPRupiah = () => {
       "Biaya Bahan": item.biaya_bahan,
       "Jumlah Tindakan": item.jumlah_tindakan,
       "Total Budgeting BHP": item.total_budgeting_bhp,
-        "Total Pendapatan": item.pendapatan,
-      "Rasio BHP Pendapatan (%)": item.rasio_bhp_pendapatan,
-      "Sumber": item.sumber_tabel,
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Budgeting BHP");
-    
-    const fileName = `Budgeting_BHP_Rupiah_${selectedUnit}_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    const label =
+      category === "all"
+        ? "Semua"
+        : category === "rawatInap"
+        ? "Rawat_Inap"
+        : category === "rawatJalan"
+        ? "Rawat_Jalan"
+        : "Penunjang";
+
+    const fileName = `Budgeting_BHP_Rupiah_${label}_${new Date().toISOString().split("T")[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
 
     toast({
@@ -201,6 +245,41 @@ const BudgetingBHPRupiah = () => {
   };
 
   // Calculate statistics
+  const pendapatanByUnit = new Map<string, number>();
+  filteredData.forEach(item => {
+    if (!pendapatanByUnit.has(item.kode_unit_kerja)) {
+      pendapatanByUnit.set(item.kode_unit_kerja, item.pendapatan);
+    }
+  });
+
+  const pendapatanTracker = new Set<string>();
+  const categoryAccumulator: Record<CategoryKey, { budgeting: number; pendapatan: number }> = {
+    rawatInap: { budgeting: 0, pendapatan: 0 },
+    rawatJalan: { budgeting: 0, pendapatan: 0 },
+    penunjang: { budgeting: 0, pendapatan: 0 },
+  };
+
+  filteredData.forEach(item => {
+    const category = getCategoryKey(item.sumber_tabel);
+    if (!category) return;
+
+    categoryAccumulator[category].budgeting += item.total_budgeting_bhp;
+
+    const trackerKey = `${category}-${item.kode_unit_kerja}`;
+    if (!pendapatanTracker.has(trackerKey)) {
+      categoryAccumulator[category].pendapatan += item.pendapatan;
+      pendapatanTracker.add(trackerKey);
+    }
+  });
+
+  const categoryStats: CategoryStatCard[] = (Object.entries(categoryAccumulator) as [CategoryKey, { budgeting: number; pendapatan: number }][]).map(([key, value]) => ({
+    key,
+    label: key === "rawatInap" ? "Rawat Inap" : key === "rawatJalan" ? "Rawat Jalan" : "Penunjang",
+    totalBudgeting: value.budgeting,
+    totalPendapatan: value.pendapatan,
+    rasio: value.pendapatan > 0 ? (value.budgeting / value.pendapatan) * 100 : 0,
+  }));
+
   const topVolume = filteredData.length > 0 
     ? filteredData.reduce((prev, current) => prev.jumlah_tindakan > current.jumlah_tindakan ? prev : current)
     : null;
@@ -211,7 +290,8 @@ const BudgetingBHPRupiah = () => {
 
   const totalBudgeting = filteredData.reduce((sum, item) => sum + item.total_budgeting_bhp, 0);
   const totalTindakan = filteredData.reduce((sum, item) => sum + item.jumlah_tindakan, 0);
-  const totalPendapatan = filteredData.reduce((sum, item) => sum + item.pendapatan, 0);
+  const totalPendapatan = Array.from(pendapatanByUnit.values()).reduce((sum, value) => sum + value, 0);
+  const totalUnitKerjaAvailable = unitKerjaList.length;
   const pieData = [
     { name: 'Budgeting BHP', value: totalBudgeting },
     { name: 'Pendapatan', value: Math.max(totalPendapatan - totalBudgeting, 0) },
@@ -229,48 +309,21 @@ const BudgetingBHPRupiah = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Budgeting BHP (Rupiah)</h1>
-          <p className="text-gray-600 mt-1">
-            Total budgeting BHP berdasarkan biaya bahan dan jumlah tindakan
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            onClick={refreshData}
-            disabled={refreshing}
-            variant="outline"
-            className="border-teal-600 text-teal-600 hover:bg-teal-50"
-          >
-            {refreshing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Memperbarui...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Perbarui
-              </>
-            )}
-          </Button>
-          <Button
-            onClick={exportToExcel}
-            disabled={filteredData.length === 0}
-            className="bg-red-600 hover:bg-red-700 text-white"
-          >
-            <FileDown className="mr-2 h-4 w-4" />
-            Unduh Laporan
-          </Button>
-        </div>
+      <div className="flex items-start flex-col gap-2">
+        <h1 className="text-3xl font-bold text-gray-900">Budgeting BHP (Rupiah)</h1>
+        <p className="text-gray-600">
+          Total budgeting BHP berdasarkan biaya bahan dan jumlah tindakan
+        </p>
       </div>
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-teal-500">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Items</CardTitle>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-teal-600" />
+              <CardTitle className="text-sm font-medium text-gray-600">Total Items</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-gray-900">{formatNumber(filteredData.length)}</p>
@@ -280,7 +333,10 @@ const BudgetingBHPRupiah = () => {
 
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Tindakan</CardTitle>
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-medium text-gray-600">Total Tindakan</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-gray-900">{formatNumber(totalTindakan)}</p>
@@ -290,7 +346,10 @@ const BudgetingBHPRupiah = () => {
 
         <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Budgeting</CardTitle>
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-purple-600" />
+              <CardTitle className="text-sm font-medium text-gray-600">Total Budgeting</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalBudgeting)}</p>
@@ -300,15 +359,53 @@ const BudgetingBHPRupiah = () => {
 
         <Card className="border-l-4 border-l-orange-500">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Avg per Tindakan</CardTitle>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-orange-500" />
+              <CardTitle className="text-sm font-medium text-gray-600">Total Unit Kerja</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-900">
-              {totalTindakan > 0 ? formatCurrency(totalBudgeting / totalTindakan) : "Rp 0"}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Rata-rata biaya</p>
+            <p className="text-2xl font-bold text-gray-900">{formatNumber(totalUnitKerjaAvailable)}</p>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Category Ratio Scorecards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {categoryStats.map((stat) => {
+          const IconComponent = stat.key === "rawatInap" ? BedDouble : stat.key === "rawatJalan" ? Stethoscope : FlaskConical;
+          const iconColor = stat.key === "rawatInap" ? "text-emerald-600" : stat.key === "rawatJalan" ? "text-sky-600" : "text-purple-600";
+          return (
+            <Card key={stat.key} className="border-t-4 border-t-teal-600">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <IconComponent className={`h-5 w-5 ${iconColor}`} />
+                  <CardTitle className="text-base font-semibold text-gray-700">
+                    {stat.label}
+                  </CardTitle>
+                </div>
+                <CardDescription>Rasio BHP vs Pendapatan</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-teal-700">{stat.rasio.toFixed(2)}%</p>
+                <div className="mt-4 space-y-2 text-sm text-gray-600">
+                  <div>
+                    <p className="uppercase tracking-wide text-xs text-gray-500">Total Budgeting BHP</p>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {formatCurrency(stat.totalBudgeting)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="uppercase tracking-wide text-xs text-gray-500">Total Pendapatan</p>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {formatCurrency(stat.totalPendapatan)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Badges */}
@@ -421,96 +518,91 @@ const BudgetingBHPRupiah = () => {
             </Card>
           )}
 
-          {/* Total Keseluruhan */}
-          {rasioPerUnit.length > 0 && (
-            <Card className="mt-4 bg-gradient-to-r from-teal-50 to-teal-100 border-teal-300">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-teal-900">Total Keseluruhan Unit Kerja</p>
-                    <p className="text-xs text-teal-700 mt-1">{rasioPerUnit.length} unit kerja</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-teal-700">Total Budgeting BHP</p>
-                    <p className="text-xl font-bold text-teal-900">
-                      {formatCurrency(rasioPerUnit.reduce((sum, u) => sum + u.total_budgeting, 0))}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-teal-700">Total Pendapatan</p>
-                    <p className="text-xl font-bold text-teal-900">
-                      {formatCurrency(rasioPerUnit.reduce((sum, u) => sum + u.pendapatan, 0))}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-teal-700">Rasio Total</p>
-                    <Badge className="bg-teal-700 text-white text-lg font-bold px-4 py-2 min-w-[100px] justify-center">
-                      {(
-                        rasioPerUnit.reduce((sum, u) => sum + u.pendapatan, 0) > 0
-                          ? (rasioPerUnit.reduce((sum, u) => sum + u.total_budgeting, 0) / 
-                             rasioPerUnit.reduce((sum, u) => sum + u.pendapatan, 0) * 100)
-                          : 0
-                      ).toFixed(2)}%
-                    </Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </CardContent>
-      </Card>
-
-      {/* Filter */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Filter Data</CardTitle>
-            <Select value={selectedUnit} onValueChange={setSelectedUnit}>
-              <SelectTrigger className="w-[300px]">
-                <SelectValue placeholder="Pilih unit kerja" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Semua Unit Kerja</SelectItem>
-                {unitKerjaList.map((unit) => (
-                  <SelectItem key={unit} value={unit}>
-                    {unit}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
       </Card>
 
       {/* Data Table */}
       <Card>
-        <CardHeader>
-          <CardTitle>Data Budgeting BHP</CardTitle>
-          <CardDescription>
-            Menampilkan {filteredData.length} dari {data.length} total tindakan
-          </CardDescription>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col md:flex-row md:items-center md:gap-3 gap-2 md:justify-start">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    disabled={filteredData.length === 0}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Unduh Laporan
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>Pilih Data</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => exportToExcel("all")}>
+                    Keseluruhan
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportToExcel("rawatJalan")}>
+                    Rawat Jalan
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportToExcel("rawatInap")}>
+                    Rawat Inap
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportToExcel("penunjang")}>
+                    Penunjang
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                onClick={refreshData}
+                disabled={refreshing}
+                className={`flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 ${refreshing ? "opacity-80" : ""}`}
+              >
+                {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              </Button>
+              <Select value={selectedUnit} onValueChange={setSelectedUnit}>
+                <SelectTrigger className="md:w-[240px] w-full">
+                  <SelectValue placeholder="Pilih unit kerja" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Unit Kerja</SelectItem>
+                  {unitKerjaList.map((unit) => (
+                    <SelectItem key={unit} value={unit}>
+                      {unit}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2">
+            <div>
+              <CardTitle>Data Budgeting BHP</CardTitle>
+              <CardDescription>
+                Menampilkan {filteredData.length} dari {data.length} total tindakan
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">No</TableHead>
-                  <TableHead>Unit Kerja</TableHead>
-                  <TableHead>Kode</TableHead>
-                  <TableHead>Nama Tindakan</TableHead>
-                  <TableHead>Operator</TableHead>
-                  <TableHead className="text-right">Biaya Bahan</TableHead>
-                  <TableHead className="text-right">Jumlah</TableHead>
-                  <TableHead className="text-right">Total Budgeting BHP</TableHead>
-                  <TableHead className="text-right">Total Pendapatan</TableHead>
-                  <TableHead className="text-right">Rasio %</TableHead>
+                <TableRow className="bg-teal-700">
+                  <TableHead className="w-[50px] text-white">No</TableHead>
+                  <TableHead className="text-white">Unit Kerja</TableHead>
+                  <TableHead className="text-white">Kode</TableHead>
+                  <TableHead className="text-white">Nama Tindakan</TableHead>
+                  <TableHead className="text-white">Operator</TableHead>
+                  <TableHead className="text-right text-white">Biaya Bahan</TableHead>
+                  <TableHead className="text-right text-white">Jumlah</TableHead>
+                  <TableHead className="text-right text-white">Total Budgeting BHP</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       <Package className="h-12 w-12 mx-auto mb-2 text-gray-400" />
                       <p>Belum ada data budgeting BHP</p>
                     </TableCell>
@@ -544,24 +636,6 @@ const BudgetingBHPRupiah = () => {
                       </TableCell>
                       <TableCell className="text-right font-bold text-teal-600">
                         {formatCurrency(item.total_budgeting_bhp)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-gray-700">
-                        {formatCurrency(item.pendapatan)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge 
-                          className={`font-bold px-2 py-1 min-w-[70px] justify-center ${
-                            item.rasio_bhp_pendapatan > 10 
-                              ? "bg-red-600 text-white" 
-                              : item.rasio_bhp_pendapatan > 5 
-                              ? "bg-orange-600 text-white"
-                              : item.rasio_bhp_pendapatan > 0
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-400 text-white"
-                          }`}
-                        >
-                          {item.rasio_bhp_pendapatan.toFixed(2)}%
-                        </Badge>
                       </TableCell>
                     </TableRow>
                   ))
