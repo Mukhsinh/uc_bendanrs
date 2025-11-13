@@ -172,7 +172,7 @@ const BarangGiziFormTable: React.FC = () => {
         setBarangGiziList([]);
         throw error;
       }
-    }, { showLoadingToast: false });
+    }, { showLoadingToast: false, showSuccessToast: false });
   };
 
   const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {

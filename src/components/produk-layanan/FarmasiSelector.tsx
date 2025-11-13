@@ -59,22 +59,84 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const getTimestamp = (item: any) => {
+    const updated = item?.updated_at ? new Date(item.updated_at).getTime() : 0;
+    const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
+    return Math.max(updated, created);
+  };
+
+  const dedupeAndNormalize = (items: any[]) => {
+    const map = new Map<string, any>();
+
+    items.forEach((item) => {
+      if (!item) return;
+
+      const kode = String(item?.kode_barang || item?.id || "")
+        .trim()
+        .toUpperCase();
+      if (!kode) return;
+
+      const normalized = {
+        ...item,
+        id: item.id,
+        kode_barang: kode,
+        nama_barang: (item?.nama_barang || "").trim(),
+        satuan: (item?.satuan || "").trim(),
+        harga:
+          typeof item?.harga === "string"
+            ? parseFloat(item.harga) || 0
+            : item?.harga ?? 0,
+      };
+
+      const existing = map.get(kode);
+      if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
+        map.set(kode, normalized);
+      }
+    });
+
+    return Array.from(map.values());
+  };
+
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) return;
 
-      const { data, error } = await supabase
-        .from("data_barang_farmasi")
-        .select("id, kode_barang, nama_barang, satuan, harga")
-        .eq("user_id", user.id)
-        .order("nama_barang");
+      const batchSize = 1000;
+      let page = 0;
+      let fetchedAll = false;
+      const allRows: any[] = [];
 
-      if (error) throw error;
+      while (!fetchedAll) {
+        const from = page * batchSize;
+        const to = from + batchSize - 1;
 
-      setAvailableItems(data || []);
+        const { data, error } = await supabase
+          .from("data_barang_farmasi")
+          .select("id, kode_barang, nama_barang, satuan, harga, created_at, updated_at, gudang")
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .range(from, to);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allRows.push(...data);
+          if (data.length < batchSize) {
+            fetchedAll = true;
+          } else {
+            page += 1;
+          }
+        } else {
+          fetchedAll = true;
+        }
+      }
+
+      const normalized = dedupeAndNormalize(allRows).sort((a, b) =>
+        (a?.nama_barang || "").localeCompare(b?.nama_barang || "", "id", {
+          sensitivity: "base",
+        })
+      );
+
+      setAvailableItems(normalized);
     } catch (error: any) {
       toast({
         title: "Error fetching data",

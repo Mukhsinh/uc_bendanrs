@@ -70,6 +70,43 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const getTimestamp = (item: any) => {
+    const updated = item?.updated_at ? new Date(item.updated_at).getTime() : 0;
+    const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
+    return Math.max(updated, created);
+  };
+
+  const dedupeFarmasiItems = (items: any[]) => {
+    const map = new Map<string, any>();
+
+    items.forEach((item) => {
+      if (!item) return;
+
+      const kode = String(item?.kode_barang || item?.id || "")
+        .trim()
+        .toUpperCase();
+      if (!kode) return;
+
+      const normalized = {
+        ...item,
+        kode_barang: kode,
+        nama_barang: (item?.nama_barang || "").trim(),
+        satuan: (item?.satuan || "").trim(),
+        harga:
+          typeof item?.harga === "string"
+            ? parseFloat(item.harga) || 0
+            : item?.harga ?? 0,
+      };
+
+      const existing = map.get(kode);
+      if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
+        map.set(kode, normalized);
+      }
+    });
+
+    return Array.from(map.values());
+  };
+
   const fetchServices = async () => {
     try {
       setLoading(true);
@@ -145,23 +182,54 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         data = result.data || [];
         error = result.error;
       } else if (filterType === "farmasi") {
-        // Ambil dari data_barang_farmasi
-        const result = await supabase
-          .from("data_barang_farmasi")
-          .select("id, kode_barang, nama_barang, satuan, harga")
-          .eq("user_id", user.id)
-          .order("nama_barang");
-        
-        // Transform ke format yang sesuai
-        data = (result.data || []).map((item: any) => ({
-          id: item.id,
-          kode_tindakan: item.kode_barang,
-          nama_tindakan: item.nama_barang,
-          jasa_sarana: 0,
-          biaya_bahan: item.harga || 0,
-          satuan: item.satuan,
-        }));
-        error = result.error;
+        const batchSize = 1000;
+        let page = 0;
+        let fetchedAll = false;
+        const allRows: any[] = [];
+
+        while (!fetchedAll) {
+          const from = page * batchSize;
+          const to = from + batchSize - 1;
+
+          const { data: farmasiData, error: farmasiError } = await supabase
+            .from("data_barang_farmasi")
+            .select("id, kode_barang, nama_barang, satuan, harga, created_at, updated_at, gudang")
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .range(from, to);
+
+          if (farmasiError) {
+            error = farmasiError;
+            break;
+          }
+
+          if (farmasiData && farmasiData.length > 0) {
+            allRows.push(...farmasiData);
+            if (farmasiData.length < batchSize) {
+              fetchedAll = true;
+            } else {
+              page += 1;
+            }
+          } else {
+            fetchedAll = true;
+          }
+        }
+
+        if (!error) {
+          const normalized = dedupeFarmasiItems(allRows).sort((a, b) =>
+            (a?.nama_barang || "").localeCompare(b?.nama_barang || "", "id", {
+              sensitivity: "base",
+            })
+          );
+
+          data = normalized.map((item: any) => ({
+            id: item.id,
+            kode_tindakan: item.kode_barang,
+            nama_tindakan: item.nama_barang,
+            jasa_sarana: 0,
+            biaya_bahan: item.harga || 0,
+            satuan: item.satuan,
+          }));
+        }
       } else if (filterType === "akomodasi") {
         // Ambil dari skenario_tarif_akomodasi
         const result = await supabase

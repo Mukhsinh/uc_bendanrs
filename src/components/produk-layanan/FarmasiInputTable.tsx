@@ -58,43 +58,69 @@ const FarmasiInputTable: React.FC<FarmasiInputTableProps> = ({
     return Math.max(updated, created);
   };
 
-  const dedupeByKodeBarang = (items: any[]) => {
-    const map = new Map<string, any>();
-    items.forEach((item) => {
-      const kode = item?.kode_barang || item?.id;
-      if (!kode) return;
+const dedupeByKodeBarang = (items: any[]) => {
+  const map = new Map<string, any>();
+  items.forEach((item) => {
+    if (!item) return;
 
-      const key = String(kode);
-      const existing = map.get(key);
-      if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
-        map.set(key, item);
-      }
-    });
-    return Array.from(map.values());
-  };
+    const kode = String(item?.kode_barang || item?.id || "")
+      .trim()
+      .toUpperCase();
+    if (!kode) return;
 
-  const applyUserScope = (query: any, userId: string | null) => {
-    if (userId) {
-      return query.or(`user_id.is.null,user_id.eq.${userId}`);
+    const normalized = {
+      ...item,
+      id: item.id,
+      kode_barang: kode,
+      nama_barang: (item?.nama_barang || "").trim(),
+      satuan: (item?.satuan || "").trim(),
+      harga:
+        typeof item?.harga === "string"
+          ? parseFloat(item.harga) || 0
+          : item?.harga ?? 0,
+    };
+
+    const existing = map.get(kode);
+    if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
+      map.set(kode, normalized);
     }
-    return query.is("user_id", null);
-  };
+  });
+  return Array.from(map.values());
+};
 
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id ?? null;
+      const batchSize = 1000;
+      let page = 0;
+      let fetchedAll = false;
+      const allRows: any[] = [];
 
-      let query = supabase
-        .from("data_barang_farmasi")
-        .select("id, kode_barang, nama_barang, satuan, harga, created_at, updated_at");
-      query = applyUserScope(query, userId).order("nama_barang");
-      const { data, error } = await query;
+      while (!fetchedAll) {
+        const from = page * batchSize;
+        const to = from + batchSize - 1;
 
-      if (error) throw error;
+        const { data, error } = await supabase
+          .from("data_barang_farmasi")
+          .select("id, kode_barang, nama_barang, satuan, harga, created_at, updated_at, gudang")
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .range(from, to);
 
-      const normalized = dedupeByKodeBarang(data || []).sort((a, b) =>
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allRows.push(...data);
+          if (data.length < batchSize) {
+            fetchedAll = true;
+          } else {
+            page += 1;
+          }
+        } else {
+          fetchedAll = true;
+        }
+      }
+
+      const normalized = dedupeByKodeBarang(allRows).sort((a, b) =>
         (a?.nama_barang || "").localeCompare(b?.nama_barang || "", "id", {
           sensitivity: "base",
         })

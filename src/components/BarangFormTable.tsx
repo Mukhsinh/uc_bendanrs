@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
-import { showError } from "@/utils/notifications";
+import { showError, showInfo } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { safeCRUDOperation, handleDatabaseError } from "@/utils/database-operations";
 import Papa from "papaparse";
@@ -85,19 +85,6 @@ const BarangFormTable: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Use upload progress hook
-  const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
-  
-  // Use form operations hook
-  const { loading, saving, loadData, saveData, deleteData } = useFormOperations({
-    entityName: "Barang",
-    onSuccess: () => {
-      setEditingBarang(null);
-      setIsDialogOpen(false);
-      form.reset();
-    }
-  });
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -109,37 +96,154 @@ const BarangFormTable: React.FC = () => {
     },
   });
 
+  const handleOperationSuccess = useCallback(() => {
+    setEditingBarang(null);
+    setIsDialogOpen(false);
+    form.reset();
+  }, [form]);
+
+  const formOperationsOptions = useMemo(
+    () => ({
+      entityName: "Barang",
+      onSuccess: handleOperationSuccess,
+    }),
+    [handleOperationSuccess]
+  );
+
+  // Use upload progress hook
+  const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
+  
+  // Use form operations hook
+  const { loading, saving, loadData, saveData, deleteData } = useFormOperations(formOperationsOptions);
+
+  const normalizeGudang = (value: any): "obat" | "bhp" => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "bhp") return "bhp";
+    return "obat";
+  };
+
+  const getRecordTimestamp = (item: any) => {
+    const updated = item?.updated_at ? new Date(item.updated_at).getTime() : 0;
+    const created = item?.created_at ? new Date(item.created_at).getTime() : 0;
+    return Math.max(updated, created);
+  };
+
+  const normalizeBarangRecord = (item: any): Barang => ({
+    id: item.id,
+    user_id: item.user_id,
+    kode_barang: item.kode_barang?.trim().toUpperCase() || "",
+    nama_barang: item.nama_barang?.trim() || "",
+    satuan: item.satuan?.trim() || "",
+    harga: typeof item.harga === "string" ? parseFloat(item.harga) || 0 : item.harga ?? 0,
+    gudang: normalizeGudang(item.gudang),
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+  });
+
+  const fetchBarang = useCallback(async () => {
+    await loadData(async () => {
+      try {
+        console.log("=== FETCHING BARANG DATA (global scope) ===");
+
+        const batchSize = 1000;
+        let page = 0;
+        let fetchedAll = false;
+        const allRows: any[] = [];
+
+        while (!fetchedAll) {
+          const from = page * batchSize;
+          const to = from + batchSize - 1;
+
+          const { data, error } = await supabase
+            .from("data_barang_farmasi")
+            .select("*")
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .range(from, to);
+
+          if (error) {
+            console.error("Error fetching barang data:", error);
+            throw error;
+          }
+
+          if (data && data.length > 0) {
+            allRows.push(...data);
+            if (data.length < batchSize) {
+              fetchedAll = true;
+            } else {
+              page += 1;
+            }
+          } else {
+            fetchedAll = true;
+          }
+        }
+
+        console.log("Total raw rows fetched:", allRows.length);
+
+        const latestByKodeGudang = new Map<string, { record: Barang; timestamp: number }>();
+        allRows.forEach((row) => {
+          const normalized = normalizeBarangRecord(row);
+          if (!normalized.kode_barang) {
+            return;
+          }
+
+          const timestamp = getRecordTimestamp(row);
+          const dedupeKey = `${normalized.kode_barang}__${normalized.gudang}`;
+          const existing = latestByKodeGudang.get(dedupeKey);
+
+          if (!existing || timestamp >= existing.timestamp) {
+            latestByKodeGudang.set(dedupeKey, {
+              record: normalized,
+              timestamp,
+            });
+          }
+        });
+
+        const processedData = Array.from(latestByKodeGudang.values())
+          .map((entry) => entry.record)
+          .sort((a, b) => {
+            const kodeCompare = a.kode_barang.localeCompare(b.kode_barang, "id");
+            if (kodeCompare !== 0) return kodeCompare;
+            return a.gudang.localeCompare(b.gudang, "id");
+          });
+
+        console.log("Processed data (deduped) length:", processedData.length);
+        setBarangList(processedData);
+      } catch (error) {
+        console.error("Error in fetchBarang:", error);
+        setBarangList([]);
+        throw error;
+      }
+    }, { showLoadingToast: false, showSuccessToast: false });
+  }, [loadData]);
+
   useEffect(() => {
-    const fetchUser = async () => {
+    const init = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('Current session:', session);
         if (session?.user) {
-          console.log('User authenticated:', session.user.id);
+          console.log("User authenticated:", session.user.id);
           setUserId(session.user.id);
-          fetchBarang(session.user.id);
         } else {
-          console.log('No user session found, fetching all data for debugging');
+          console.log("No user session found, continuing with global data scope");
           setUserId(null);
-          fetchBarang(null);
         }
       } catch (error) {
-        console.error('Error fetching user session:', error);
-        // Fallback: try to fetch data anyway
+        console.error("Error fetching user session:", error);
         setUserId(null);
-        fetchBarang(null);
+      } finally {
+        await fetchBarang();
       }
     };
-    
-    fetchUser();
-  }, []);
+
+    init();
+  }, [fetchBarang]);
 
   useEffect(() => {
     if (editingBarang) {
       form.reset({
-        kode_barang: editingBarang.kode_barang,
-        nama_barang: editingBarang.nama_barang,
-        satuan: editingBarang.satuan,
+        kode_barang: editingBarang.kode_barang?.trim() || "",
+        nama_barang: editingBarang.nama_barang?.trim() || "",
+        satuan: editingBarang.satuan?.trim() || "",
         harga: editingBarang.harga,
         gudang: editingBarang.gudang,
       });
@@ -154,96 +258,21 @@ const BarangFormTable: React.FC = () => {
     }
   }, [editingBarang, form]);
 
-  const fetchBarang = async (currentUserId: string | null) => {
-    await loadData(async () => {
-      try {
-        console.log('=== FETCHING BARANG DATA ===');
-        console.log('Current user ID:', currentUserId);
-        
-        // Fetch all data with explicit limit to ensure we get all records
-        // Default Supabase limit is 1000, but we have 1256+ records
-        const { data, error } = await supabase
-          .from('data_barang_farmasi')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(2000); // Set higher limit to get all data
-
-        if (error) {
-          console.error('Error fetching barang data:', error);
-          throw error;
-        }
-
-        console.log('Raw data from Supabase:', data?.length, 'items');
-        console.log('Expected: 1256+ items, Got:', data?.length);
-        
-        if (data && data.length < 1200) {
-          console.warn('Warning: Got fewer items than expected. May need pagination.');
-        }
-        
-        // Log data by gudang type
-        if (data && data.length > 0) {
-          const gudangCounts = data.reduce((acc, item) => {
-            acc[item.gudang] = (acc[item.gudang] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>);
-          console.log('Data by gudang type:', gudangCounts);
-          
-          // Check specifically for bhp items
-          const bhpItems = data.filter(item => item.gudang === 'bhp');
-          console.log('BHP items found:', bhpItems.length);
-          if (bhpItems.length > 0) {
-            console.log('Sample BHP items:', bhpItems.slice(0, 3));
-          } else {
-            console.log('NO BHP ITEMS FOUND!');
-            console.log('All gudang values:', [...new Set(data.map(item => item.gudang))]);
-          }
-        }
-        
-        // Convert harga from string to number if needed
-        const processedData = (data || []).map(item => ({
-          ...item,
-          harga: typeof item.harga === 'string' ? parseFloat(item.harga) || 0 : item.harga
-        }));
-        
-        console.log('Processed data length:', processedData.length);
-        setBarangList(processedData);
-        
-        // Additional debugging after setting state
-        console.log('Data set in state, length:', processedData.length);
-        if (processedData.length > 0) {
-          const bhpCount = processedData.filter(item => item.gudang === 'bhp').length;
-          console.log('BHP count after setting state:', bhpCount);
-          
-          // Log all unique gudang values
-          const uniqueGudangs = [...new Set(processedData.map(item => item.gudang))];
-          console.log('All unique gudang values:', uniqueGudangs);
-        }
-        console.log('=== FETCHING COMPLETE ===');
-      } catch (error) {
-        console.error('Error in fetchBarang:', error);
-        // Set empty array on error to prevent undefined state
-        setBarangList([]);
-        throw error;
-      }
-    }, { showLoadingToast: false });
-  };
-
-
-  const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {
+  const checkKodeExists = async (kode: string, excludeId?: string): Promise<any | null> => {
+    const normalizedKode = kode.trim().toUpperCase();
     let query = supabase
       .from('data_barang_farmasi')
-      .select('id')
-      .eq('kode_barang', kode)
-      .eq('user_id', currentUserId);
+      .select('id, kode_barang, nama_barang, satuan, harga, gudang, user_id')
+      .ilike('kode_barang', normalizedKode);
       
     if (excludeId) {
       query = query.neq('id', excludeId);
     }
     
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await query.limit(1).maybeSingle();
     
-    if (error) throw error;
-    return !!data;
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -253,30 +282,53 @@ const BarangFormTable: React.FC = () => {
     }
 
     await saveData(async () => {
-      // Check if kode already exists
-      const isKodeExists = await checkKodeExists(
-        values.kode_barang, 
-        userId, 
+      const normalizedValues = {
+        ...values,
+        kode_barang: values.kode_barang.trim().toUpperCase(),
+        nama_barang: values.nama_barang.trim(),
+        satuan: values.satuan.trim(),
+      };
+      
+      // Check jika kode sudah ada
+      const existingBarangRaw = await checkKodeExists(
+        normalizedValues.kode_barang,
         editingBarang?.id
       );
+      const existingBarang = existingBarangRaw
+        ? {
+            ...existingBarangRaw,
+            kode_barang: existingBarangRaw.kode_barang?.trim().toUpperCase() || "",
+            nama_barang: existingBarangRaw.nama_barang?.trim() || "",
+            satuan: existingBarangRaw.satuan?.trim() || "",
+            harga: typeof existingBarangRaw.harga === "string" ? parseFloat(existingBarangRaw.harga) || 0 : existingBarangRaw.harga,
+          }
+        : null;
       
-      if (isKodeExists) {
+      if (existingBarang && !editingBarang) {
+        const existingGudangLabel = existingBarang.gudang ? existingBarang.gudang.toUpperCase() : "TIDAK DIKETAHUI";
+        setSearchTerm(existingBarang.kode_barang);
+        setReportFilter("all");
+        setEditingBarang(existingBarang);
+        setIsDialogOpen(true);
+        showInfo(`Kode Barang sudah digunakan untuk "${existingBarang.nama_barang}" di gudang ${existingGudangLabel}. Form dialihkan ke mode edit data tersebut.`);
+        return;
+      } else if (existingBarang && editingBarang) {
         throw new Error("Kode Barang sudah digunakan. Silakan gunakan kode yang lain.");
       }
 
       if (editingBarang) {
         await safeCRUDOperation('UPDATE', 'data_barang_farmasi', editingBarang.id, {
-          ...values, 
+          ...normalizedValues,
           user_id: userId || null
         });
       } else {
         await safeCRUDOperation('INSERT', 'data_barang_farmasi', undefined, {
-          ...values,
+          ...normalizedValues,
           user_id: userId || null
         });
       }
       
-      await fetchBarang(userId);
+      await fetchBarang();
     }, {
       loadingMessage: editingBarang ? "Memperbarui barang farmasi..." : "Menyimpan barang farmasi...",
       successMessage: editingBarang ? "Barang farmasi berhasil diperbarui" : "Barang farmasi berhasil ditambahkan"
@@ -291,7 +343,7 @@ const BarangFormTable: React.FC = () => {
   const handleDelete = async (id: string) => {
     await deleteData(async () => {
       await safeCRUDOperation('DELETE', 'data_barang_farmasi', id);
-      if (userId) await fetchBarang(userId);
+      await fetchBarang();
     });
   };
 
@@ -346,8 +398,7 @@ const BarangFormTable: React.FC = () => {
               console.log("Fetching existing data for user:", userId);
               const { data: existingData, error: fetchError } = await supabase
                 .from('data_barang_farmasi')
-                .select('kode_barang')
-                .eq('user_id', userId);
+                .select('kode_barang');
               
               console.log("Existing data fetch result:", { existingData, fetchError });
               if (fetchError) throw fetchError;
@@ -520,7 +571,7 @@ const BarangFormTable: React.FC = () => {
               }
               
               // Refresh data
-              if (userId) await fetchBarang(userId);
+              await fetchBarang();
             } catch (error: any) {
               console.error(error);
               showUploadError(`Gagal mengimpor data: ${error.message}`);
@@ -739,7 +790,7 @@ const BarangFormTable: React.FC = () => {
         <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
-        <Button onClick={() => fetchBarang(userId)} variant="outline" size="icon" title="Refresh Data">
+        <Button onClick={() => fetchBarang()} variant="outline" size="icon" title="Refresh Data">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
