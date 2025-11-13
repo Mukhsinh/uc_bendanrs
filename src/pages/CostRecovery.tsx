@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { FileDown, LineChart, TrendingUp } from "lucide-react";
 import jsPDF from "jspdf";
 import { useReportDownload } from "@/components/report";
+import { toast } from "sonner";
 
 type CostRecoveryRow = {
   unit_kerja_id: string;

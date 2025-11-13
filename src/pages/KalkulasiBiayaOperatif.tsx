@@ -565,12 +565,11 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
       const allRows = latestData || [];
       const filteredRows = allRows.filter((row) => {
-        if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
-          return row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan;
+        if (reportFilter.type === 'operator' && reportFilter.value) {
+          return row.kode_operator_spesialistik === reportFilter.value;
         }
-        if (reportFilter.type === 'selected') {
-          if (selectedJenisFilters.length === 0) return true;
-          return selectedJenisFilters.includes(row.jenis_pemeriksaan);
+        if (reportFilter.type === 'tindakan' && reportFilter.value) {
+          return row.kode === reportFilter.value || row.jenis_pemeriksaan === reportFilter.value;
         }
         return true;
       });
@@ -621,19 +620,22 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       }));
 
       let filename = `laporan_kalkulasi_operatif_${year}`;
-      if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
-        filename += `_${reportFilter.jenisPemeriksaan.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      } else if (reportFilter.type === 'selected' && selectedJenisFilters.length > 0) {
-        filename += `_selected_${selectedJenisFilters.length}`;
+      if (reportFilter.type === 'operator' && reportFilter.value) {
+        filename += `_operator_${reportFilter.value.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      } else if (reportFilter.type === 'tindakan' && reportFilter.value) {
+        filename += `_tindakan_${reportFilter.value.replace(/[^a-zA-Z0-9]/g, '_')}`;
       }
+
+      const operatorLabel = operators.find((op) => op.kode === reportFilter.value)?.nama;
+      const tindakanLabel = tindakanList.find((t) => t.kode === reportFilter.value)?.nama;
 
       await downloadReport({
         title: "Laporan Kalkulasi Biaya Operatif",
         subtitle:
-          reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan
-            ? `Tahun ${year} • Jenis ${reportFilter.jenisPemeriksaan}`
-            : reportFilter.type === 'selected' && selectedJenisFilters.length > 0
-              ? `Tahun ${year} • ${selectedJenisFilters.length} jenis dipilih`
+          reportFilter.type === 'operator' && reportFilter.value
+            ? `Tahun ${year} • Operator ${operatorLabel ? `${reportFilter.value} - ${operatorLabel}` : reportFilter.value}`
+            : reportFilter.type === 'tindakan' && reportFilter.value
+              ? `Tahun ${year} • Tindakan ${tindakanLabel ? `${reportFilter.value} - ${tindakanLabel}` : reportFilter.value}`
               : `Tahun ${year}`,
         filename,
         records,

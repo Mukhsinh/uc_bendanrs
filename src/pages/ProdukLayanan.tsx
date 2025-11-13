@@ -34,6 +34,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LayananInputTable from "@/components/produk-layanan/LayananInputTable";
 import FarmasiInputTable from "@/components/produk-layanan/FarmasiInputTable";
+import { useReportDownload } from "@/components/report";
 
 interface ProdukLayanan {
   id: string;
@@ -82,6 +83,7 @@ interface ProdukLayanan {
 
 const ProdukLayanan = () => {
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
   const [data, setData] = useState<ProdukLayanan[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
