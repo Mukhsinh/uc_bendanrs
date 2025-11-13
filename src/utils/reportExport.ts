@@ -267,9 +267,9 @@ const ensureWithinPage = (
   return currentY;
 };
 
-const drawTableHeader = (
+const drawTableHeader = <Row,>(
   pdf: jsPDF,
-  columns: ReportTableColumn[],
+  columns: ReportTableColumn<Row>[],
   colWidths: number[],
   startY: number
 ) => {
@@ -440,7 +440,7 @@ const drawFooter = (
 };
 
 const applyFooterToAllPages = (pdf: jsPDF, footerText: string) => {
-  const totalPages = pdf.internal.getNumberOfPages();
+  const totalPages = pdf.getNumberOfPages();
   for (let page = 1; page <= totalPages; page++) {
     pdf.setPage(page);
     pdf.setFont("helvetica", "normal");
