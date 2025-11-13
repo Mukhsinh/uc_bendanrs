@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileDown, LineChart, TrendingUp } from "lucide-react";
 import jsPDF from "jspdf";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 type CostRecoveryRow = {
   unit_kerja_id: string;
@@ -169,6 +169,7 @@ const CostRecovery: React.FC = () => {
 
   const comparisonChartRef = useRef<HTMLDivElement>(null);
   const candleChartRef = useRef<HTMLDivElement>(null);
+  const { downloadReport } = useReportDownload();
 
   useEffect(() => {
     const init = async () => {
@@ -394,34 +395,38 @@ const CostRecovery: React.FC = () => {
     setDownloadDialogOpen(false);
   }, [selectedCharts, tahun, createImageFromSvg]);
 
-  const handleDownloadReport = useCallback(() => {
-    const header = [
-      "Kode Unit",
-      "Nama Unit",
-      "Total Biaya",
-      "Pendapatan Umum",
-      "Pendapatan BPJS",
-      "Pendapatan APBD",
-      "Total Pendapatan",
-    ];
+  const handleDownloadReport = useCallback(async () => {
+    if (filtered.length === 0) {
+      toast.info("Tidak ada data untuk diunduh.");
+      return;
+    }
 
-    const dataRows = filtered.map((row) => [
-      row.kode_unit_kerja,
-      row.nama_unit_kerja,
-      Number(row.total_biaya) || 0,
-      Number(row.pendapatan_umum) || 0,
-      Number(row.pendapatan_bpjs) || 0,
-      Number(row.pendapatan_apbd) || 0,
-      (Number(row.pendapatan_umum) || 0) +
-        (Number(row.pendapatan_bpjs) || 0) +
-        (Number(row.pendapatan_apbd) || 0),
-    ]);
+    try {
+      const records = filtered.map((row) => ({
+        "Kode Unit": row.kode_unit_kerja,
+        "Nama Unit": row.nama_unit_kerja,
+        "Total Biaya": Number(row.total_biaya) || 0,
+        "Pendapatan Umum": Number(row.pendapatan_umum) || 0,
+        "Pendapatan BPJS": Number(row.pendapatan_bpjs) || 0,
+        "Pendapatan APBD": Number(row.pendapatan_apbd) || 0,
+        "Total Pendapatan":
+          (Number(row.pendapatan_umum) || 0) +
+          (Number(row.pendapatan_bpjs) || 0) +
+          (Number(row.pendapatan_apbd) || 0),
+      }));
 
-    const worksheet = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Cost Recovery");
-    XLSX.writeFile(workbook, `laporan-cost-recovery-${tahun}.xlsx`);
-  }, [filtered, tahun]);
+      await downloadReport({
+        title: "Laporan Cost Recovery",
+        subtitle: `Tahun ${tahun}`,
+        filename: `laporan_cost_recovery_${tahun}`,
+        records,
+        orientation: "landscape",
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan cost recovery:", error);
+      toast.error("Gagal mengunduh laporan cost recovery.");
+    }
+  }, [filtered, tahun, downloadReport]);
 
   return (
     <div className="space-y-6">
@@ -463,7 +468,9 @@ const CostRecovery: React.FC = () => {
                       Unduh Grafik
                     </Button>
                     <Button
-                      onClick={handleDownloadReport}
+                      onClick={() => {
+                        void handleDownloadReport();
+                      }}
                       className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
                     >
                       <FileDown className="h-4 w-4" />

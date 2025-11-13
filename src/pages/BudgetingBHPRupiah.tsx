@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, FileDown, TrendingUp, CreditCard, Package, RefreshCw, Users, BedDouble, Stethoscope, FlaskConical } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useToast } from "@/hooks/use-toast";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 interface BudgetingData {
   id: string;
@@ -56,6 +56,7 @@ const BudgetingBHPRupiah = () => {
   const [selectedUnit, setSelectedUnit] = useState<string>("all");
   const [unitKerjaList, setUnitKerjaList] = useState<string[]>([]);
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
   const penunjangSources = new Set([
     "kalkulasi_biaya_laboratorium",
     "kalkulasi_biaya_radiologi",
@@ -205,7 +206,7 @@ const BudgetingBHPRupiah = () => {
     return new Intl.NumberFormat("id-ID").format(value);
   };
 
-  const exportToExcel = (category: "all" | CategoryKey) => {
+  const exportToExcel = async (category: "all" | CategoryKey) => {
     const dataset =
       category === "all"
         ? filteredData
@@ -222,9 +223,14 @@ const BudgetingBHPRupiah = () => {
       "Total Budgeting BHP": item.total_budgeting_bhp,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Budgeting BHP");
+    if (exportData.length === 0) {
+      toast({
+        title: "Tidak ada data",
+        description: "Tidak ada data untuk diunduh.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const label =
       category === "all"
@@ -235,12 +241,15 @@ const BudgetingBHPRupiah = () => {
         ? "Rawat_Jalan"
         : "Penunjang";
 
-    const fileName = `Budgeting_BHP_Rupiah_${label}_${new Date().toISOString().split("T")[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-
-    toast({
-      title: "Berhasil",
-      description: `File ${fileName} berhasil diunduh`,
+    await downloadReport({
+      title: "Budgeting BHP (Rupiah)",
+      subtitle: `Kategori ${label.replace("_", " ")}`,
+      filename: `Budgeting_BHP_Rupiah_${label}_${new Date().toISOString().split("T")[0]}`,
+      filters: {
+        "Unit Kerja": selectedUnit === "all" ? "Semua" : selectedUnit,
+        Kategori: label.replace("_", " "),
+      },
+      records: exportData,
     });
   };
 
@@ -587,8 +596,8 @@ const BudgetingBHPRupiah = () => {
         <CardContent>
           <div className="rounded-md border overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow className="bg-teal-700">
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                   <TableHead className="w-[50px] text-white">No</TableHead>
                   <TableHead className="text-white">Unit Kerja</TableHead>
                   <TableHead className="text-white">Kode</TableHead>

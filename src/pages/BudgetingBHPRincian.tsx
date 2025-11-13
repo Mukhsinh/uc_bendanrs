@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, FileDown, TrendingUp, CreditCard, Package, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 interface RincianData {
   id: string;
@@ -46,6 +46,7 @@ const BudgetingBHPRincian = () => {
   const [unitKerjaList, setUnitKerjaList] = useState<string[]>([]);
   const [activeYear, setActiveYear] = useState<number | null>(null);
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
 
   const aggregateByBarang = (items: RincianData[]): AggregatedRincianData[] => {
     const map = new Map<string, AggregatedRincianData>();
@@ -217,7 +218,7 @@ const BudgetingBHPRincian = () => {
     }).format(value);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const exportData = filteredData.map((item, index) => ({
       No: index + 1,
       "Kode Barang": item.kode_barang,
@@ -229,16 +230,23 @@ const BudgetingBHPRincian = () => {
       "Total Rupiah": item.total_rupiah,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rincian BHP");
-    
-    const fileName = `Budgeting_BHP_Rincian_${selectedUnit}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    if (exportData.length === 0) {
+      toast({
+        title: "Tidak ada data",
+        description: "Tidak ada data untuk diunduh.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    toast({
-      title: "Berhasil",
-      description: `File ${fileName} berhasil diunduh`,
+    await downloadReport({
+      title: "Budgeting BHP (Rincian)",
+      subtitle: activeYear ? `Tahun ${activeYear}` : undefined,
+      filename: `Budgeting_BHP_Rincian_${selectedUnit}_${new Date().toISOString().split("T")[0]}`,
+      filters: {
+        "Unit Kerja": selectedUnit === "all" ? "Semua" : selectedUnit,
+      },
+      records: exportData,
     });
   };
 

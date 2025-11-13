@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Download, Edit, Save, X, Calculator, RefreshCw } from "lucide-react";
-import * as XLSX from 'xlsx';
+import { useReportDownload } from "@/components/report";
 
 interface AlokasiBiayaGiziData {
   id: string;
@@ -74,6 +74,8 @@ interface EditFormData {
 const AlokasiBiayaGizi: React.FC = () => {
   const [data, setData] = useState<AlokasiBiayaGiziData[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
+  const { downloadReport } = useReportDownload();
   const [tahun, setTahun] = useState<number>(new Date().getFullYear());
   const [editDialog, setEditDialog] = useState<boolean>(false);
   const [editForm, setEditForm] = useState<EditFormData | null>(null);
@@ -257,75 +259,83 @@ const AlokasiBiayaGizi: React.FC = () => {
     }).format(value);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (data.length === 0) {
       toast({
-        title: "Info",
-        description: "Tidak ada data untuk diekspor",
+        title: "Tidak ada data",
+        description: "Tidak ada data yang dapat diunduh untuk tahun ini.",
         variant: "destructive",
       });
       return;
     }
 
-    const exportData = data.map(row => ({
-      "Kode Unit Kerja": row.kode_unit_kerja,
-      "Nama Unit Kerja": row.nama_unit_kerja,
-      // Data tempat tidur
-      "Tempat Tidur SVIP": row.tempat_tidur_svip,
-      "Tempat Tidur VIP": row.tempat_tidur_vip,
-      "Tempat Tidur I": row.tempat_tidur_i,
-      "Tempat Tidur II": row.tempat_tidur_ii,
-      "Tempat Tidur III": row.tempat_tidur_iii,
-      // Data jumlah porsi
-      "Jumlah Porsi SVIP": row.jumlah_porsi_svip,
-      "Jumlah Porsi VIP": row.jumlah_porsi_vip,
-      "Jumlah Porsi I": row.jumlah_porsi_i,
-      "Jumlah Porsi II": row.jumlah_porsi_ii,
-      "Jumlah Porsi III": row.jumlah_porsi_iii,
-      // Data kamar luas
-      "Kamar Luas SVIP": row.kamar_luas_svip,
-      "Kamar Luas VIP": row.kamar_luas_vip,
-      "Kamar Luas I": row.kamar_luas_i,
-      "Kamar Luas II": row.kamar_luas_ii,
-      "Kamar Luas III": row.kamar_luas_iii,
-      // Data hari rawat
-      "Hari Rawat VVIP": row.hari_rawat_vvip,
-      "Hari Rawat VIP": row.hari_rawat_vip,
-      "Hari Rawat I": row.hari_rawat_i,
-      "Hari Rawat II": row.hari_rawat_ii,
-      "Hari Rawat III": row.hari_rawat_iii,
-      // Data porsi pasien (computed)
-      "Jumlah Porsi Pasien VVIP": row.jumlah_porsi_pasien_vvip,
-      "Jumlah Porsi Pasien VIP": row.jumlah_porsi_pasien_vip,
-      "Jumlah Porsi Pasien I": row.jumlah_porsi_pasien_i,
-      "Jumlah Porsi Pasien II": row.jumlah_porsi_pasien_ii,
-      "Jumlah Porsi Pasien III": row.jumlah_porsi_pasien_iii,
-      // Data AUC gizi
-      "AUC Gizi VVIP": row.auc_gizi_vvip,
-      "AUC Gizi VIP": row.auc_gizi_vip,
-      "AUC Gizi I": row.auc_gizi_i,
-      "AUC Gizi II": row.auc_gizi_ii,
-      "AUC Gizi III": row.auc_gizi_iii,
-      // Data kali porsi (computed)
-      "Jumlah Kali Porsi VVIP": row.jumlah_kali_porsi_vvip,
-      "Jumlah Kali Porsi VIP": row.jumlah_kali_porsi_vip,
-      "Jumlah Kali Porsi I": row.jumlah_kali_porsi_i,
-      "Jumlah Kali Porsi II": row.jumlah_kali_porsi_ii,
-      "Jumlah Kali Porsi III": row.jumlah_kali_porsi_iii,
-      "Total Gizi": row.total_gizi,
-    }));
+    try {
+      setDownloadingReport(true);
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Alokasi Biaya Gizi");
+      const records = data.map((row) => ({
+        "Tahun": row.tahun,
+        "Unit Kerja": row.nama_unit_kerja,
+        "Kode Unit Kerja": row.kode_unit_kerja,
+        "Tempat Tidur SVIP": row.tempat_tidur_svip,
+        "Tempat Tidur VIP": row.tempat_tidur_vip,
+        "Tempat Tidur I": row.tempat_tidur_i,
+        "Tempat Tidur II": row.tempat_tidur_ii,
+        "Tempat Tidur III": row.tempat_tidur_iii,
+        "Jumlah Porsi SVIP": row.jumlah_porsi_svip,
+        "Jumlah Porsi VIP": row.jumlah_porsi_vip,
+        "Jumlah Porsi I": row.jumlah_porsi_i,
+        "Jumlah Porsi II": row.jumlah_porsi_ii,
+        "Jumlah Porsi III": row.jumlah_porsi_iii,
+        "Kamar Luas SVIP": row.kamar_luas_svip,
+        "Kamar Luas VIP": row.kamar_luas_vip,
+        "Kamar Luas I": row.kamar_luas_i,
+        "Kamar Luas II": row.kamar_luas_ii,
+        "Kamar Luas III": row.kamar_luas_iii,
+        "Hari Rawat VVIP": row.hari_rawat_vvip,
+        "Hari Rawat VIP": row.hari_rawat_vip,
+        "Hari Rawat I": row.hari_rawat_i,
+        "Hari Rawat II": row.hari_rawat_ii,
+        "Hari Rawat III": row.hari_rawat_iii,
+        "Jumlah Porsi Pasien VVIP": row.jumlah_porsi_pasien_vvip,
+        "Jumlah Porsi Pasien VIP": row.jumlah_porsi_pasien_vip,
+        "Jumlah Porsi Pasien I": row.jumlah_porsi_pasien_i,
+        "Jumlah Porsi Pasien II": row.jumlah_porsi_pasien_ii,
+        "Jumlah Porsi Pasien III": row.jumlah_porsi_pasien_iii,
+        "AUC Gizi VVIP": row.auc_gizi_vvip,
+        "AUC Gizi VIP": row.auc_gizi_vip,
+        "AUC Gizi I": row.auc_gizi_i,
+        "AUC Gizi II": row.auc_gizi_ii,
+        "AUC Gizi III": row.auc_gizi_iii,
+        "Jumlah Kali Porsi VVIP": row.jumlah_kali_porsi_vvip,
+        "Jumlah Kali Porsi VIP": row.jumlah_kali_porsi_vip,
+        "Jumlah Kali Porsi I": row.jumlah_kali_porsi_i,
+        "Jumlah Kali Porsi II": row.jumlah_kali_porsi_ii,
+        "Jumlah Kali Porsi III": row.jumlah_kali_porsi_iii,
+        "Total Gizi": Math.round(row.total_gizi || 0),
+      }));
 
-    const fileName = `data_akomodasi_inap_${tahun}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+      await downloadReport({
+        title: "Laporan Alokasi Biaya Gizi",
+        subtitle: `Tahun ${tahun}`,
+        filename: `data_akomodasi_inap_${tahun}`,
+        records,
+        orientation: "landscape",
+      });
 
-    toast({
-      title: "Berhasil",
-      description: `Laporan berhasil diekspor sebagai ${fileName}`,
-    });
+      toast({
+        title: "Berhasil",
+        description: `Laporan berhasil disiapkan untuk ${records.length} unit kerja`,
+      });
+    } catch (error: any) {
+      console.error("Gagal mengunduh alokasi biaya gizi:", error);
+      toast({
+        title: "Gagal mengunduh",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   return (
@@ -348,12 +358,18 @@ const AlokasiBiayaGizi: React.FC = () => {
             />
           </div>
           <Button
-            onClick={exportToExcel}
-            disabled={loading || data.length === 0}
+            onClick={() => {
+              void exportToExcel();
+            }}
+            disabled={loading || data.length === 0 || downloadingReport}
             variant="report"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
+            {downloadingReport ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
           </Button>
           <Button
             variant="ghost"
@@ -385,8 +401,8 @@ const AlokasiBiayaGizi: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-teal-700">
-                  <TableRow>
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                     <TableHead className="text-white font-semibold">Unit Kerja</TableHead>
                     <TableHead className="text-center text-white font-semibold">Tempat Tidur</TableHead>
                     <TableHead className="text-center text-white font-semibold">Kamar Luas (m²)</TableHead>

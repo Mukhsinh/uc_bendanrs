@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Download, Calculator, RefreshCw, Building, TrendingUp, TrendingDown, Layers, ListOrdered } from "lucide-react";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import * as XLSX from 'xlsx';
+import { useReportDownload } from "@/components/report";
 
 interface KalkulasiTindakanRawatJalanData {
   id: string;
@@ -72,6 +72,70 @@ const KalkulasiTindakanRawatJalan = () => {
     search: ""
   });
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
+
+  const toNumber = (value: number | string | null | undefined): number => {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (typeof value === "string") {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const biayaFields: Array<keyof Pick<KalkulasiTindakanRawatJalanData,
+    'biaya_gaji_tunjangan' |
+    'biaya_jasa_pelayanan' |
+    'biaya_obat' |
+    'biaya_bhp' |
+    'biaya_makan_karyawan' |
+    'biaya_makan_pasien' |
+    'biaya_rumah_tangga' |
+    'biaya_cetak' |
+    'biaya_atk' |
+    'biaya_listrik' |
+    'biaya_air' |
+    'biaya_telp' |
+    'biaya_pemeliharaan_bangunan' |
+    'biaya_pemeliharaan_alat_medis' |
+    'biaya_pemeliharaan_alat_non_medis' |
+    'biaya_operasional_lainnya' |
+    'biaya_penyusutan_gedung' |
+    'biaya_penyusutan_jaringan' |
+    'biaya_penyusutan_alat_medis' |
+    'biaya_penyusutan_alat_non_medis' |
+    'biaya_pendidikan_pelatihan' |
+    'biaya_laundry' |
+    'biaya_sterilisasi' |
+    'biaya_tidak_langsung_terdistribusi'
+  >> = [
+    'biaya_gaji_tunjangan',
+    'biaya_jasa_pelayanan',
+    'biaya_obat',
+    'biaya_bhp',
+    'biaya_makan_karyawan',
+    'biaya_makan_pasien',
+    'biaya_rumah_tangga',
+    'biaya_cetak',
+    'biaya_atk',
+    'biaya_listrik',
+    'biaya_air',
+    'biaya_telp',
+    'biaya_pemeliharaan_bangunan',
+    'biaya_pemeliharaan_alat_medis',
+    'biaya_pemeliharaan_alat_non_medis',
+    'biaya_operasional_lainnya',
+    'biaya_penyusutan_gedung',
+    'biaya_penyusutan_jaringan',
+    'biaya_penyusutan_alat_medis',
+    'biaya_penyusutan_alat_non_medis',
+    'biaya_pendidikan_pelatihan',
+    'biaya_laundry',
+    'biaya_sterilisasi',
+    'biaya_tidak_langsung_terdistribusi',
+  ];
 
   useEffect(() => {
     console.log('Component mounted, fetching data...');
@@ -102,7 +166,60 @@ const KalkulasiTindakanRawatJalan = () => {
         throw fetchError;
       }
 
-      setData(result || []);
+      const normalizedData: KalkulasiTindakanRawatJalanData[] = (result || []).map((item) => {
+        const normalizedItem: KalkulasiTindakanRawatJalanData = {
+          ...item,
+          tahun: toNumber(item.tahun),
+          kode_jenis: toNumber(item.kode_jenis),
+          jumlah: toNumber(item.jumlah),
+          waktu: toNumber(item.waktu),
+          profesionalisme: toNumber(item.profesionalisme),
+          tingkat_kesulitan: toNumber(item.tingkat_kesulitan),
+          hasil_kali_waktu: toNumber(item.hasil_kali_waktu),
+          hasil_kali: toNumber(item.hasil_kali),
+          biaya_bahan_tindakan: toNumber(item.biaya_bahan_tindakan),
+          kali_bahan: toNumber(item.kali_bahan),
+          dasar_alokasi_kali_waktu: toNumber(item.dasar_alokasi_kali_waktu),
+          dasar_alokasi_hasil_kali: toNumber(item.dasar_alokasi_hasil_kali),
+          biaya_gaji_tunjangan: toNumber(item.biaya_gaji_tunjangan),
+          biaya_jasa_pelayanan: toNumber(item.biaya_jasa_pelayanan),
+          biaya_obat: toNumber(item.biaya_obat),
+          biaya_bhp: toNumber(item.biaya_bhp),
+          biaya_makan_karyawan: toNumber(item.biaya_makan_karyawan),
+          biaya_makan_pasien: toNumber(item.biaya_makan_pasien),
+          biaya_rumah_tangga: toNumber(item.biaya_rumah_tangga),
+          biaya_cetak: toNumber(item.biaya_cetak),
+          biaya_atk: toNumber(item.biaya_atk),
+          biaya_listrik: toNumber(item.biaya_listrik),
+          biaya_air: toNumber(item.biaya_air),
+          biaya_telp: toNumber(item.biaya_telp),
+          biaya_pemeliharaan_bangunan: toNumber(item.biaya_pemeliharaan_bangunan),
+          biaya_pemeliharaan_alat_medis: toNumber(item.biaya_pemeliharaan_alat_medis),
+          biaya_pemeliharaan_alat_non_medis: toNumber(item.biaya_pemeliharaan_alat_non_medis),
+          biaya_operasional_lainnya: toNumber(item.biaya_operasional_lainnya),
+          biaya_penyusutan_gedung: toNumber(item.biaya_penyusutan_gedung),
+          biaya_penyusutan_jaringan: toNumber(item.biaya_penyusutan_jaringan),
+          biaya_penyusutan_alat_medis: toNumber(item.biaya_penyusutan_alat_medis),
+          biaya_penyusutan_alat_non_medis: toNumber(item.biaya_penyusutan_alat_non_medis),
+          biaya_pendidikan_pelatihan: toNumber(item.biaya_pendidikan_pelatihan),
+          biaya_laundry: toNumber(item.biaya_laundry),
+          biaya_sterilisasi: toNumber(item.biaya_sterilisasi),
+          biaya_tidak_langsung_terdistribusi: toNumber(item.biaya_tidak_langsung_terdistribusi),
+          unit_cost_tindakan_rawat_jalan: toNumber(item.unit_cost_tindakan_rawat_jalan),
+        } as KalkulasiTindakanRawatJalanData;
+
+        if (normalizedItem.unit_cost_tindakan_rawat_jalan <= 0) {
+          const computedUnitCost = biayaFields.reduce(
+            (sum, field) => sum + toNumber(item[field]),
+            0
+          );
+          normalizedItem.unit_cost_tindakan_rawat_jalan = computedUnitCost;
+        }
+
+        return normalizedItem;
+      });
+
+      setData(normalizedData);
       console.log('Data set successfully:', result?.length || 0, 'items');
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -169,7 +286,7 @@ const KalkulasiTindakanRawatJalan = () => {
     }).format(amount);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     if (filteredData.length === 0) {
       toast({
         title: "Error",
@@ -179,29 +296,45 @@ const KalkulasiTindakanRawatJalan = () => {
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(
-      filteredData.map(item => ({
-        'Tahun': item.tahun,
-        'Kode Unit Kerja': item.kode_unit_kerja,
-        'Nama Unit Kerja': item.nama_unit_kerja,
-        'Kode Jenis Tindakan': item.kode_jenis_tindakan,
-        'Jenis Tindakan': item.jenis_tindakan,
-        'Jumlah': item.jumlah,
-        'Biaya Bahan Tindakan': item.biaya_bahan_tindakan,
-        'Unit Cost Tindakan Rawat Jalan': item.unit_cost_tindakan_rawat_jalan,
-      }))
-    );
+    try {
+      const records = filteredData.map((item) => ({
+        Tahun: item.tahun,
+        "Kode Unit Kerja": item.kode_unit_kerja,
+        "Nama Unit Kerja": item.nama_unit_kerja,
+        "Kode Jenis Tindakan": item.kode_jenis_tindakan,
+        "Jenis Tindakan": item.jenis_tindakan,
+        Jumlah: item.jumlah,
+        "Waktu (menit)": item.waktu,
+        "Profesionalisme": item.profesionalisme,
+        "Tingkat Kesulitan": item.tingkat_kesulitan,
+        "Biaya Bahan Tindakan": item.biaya_bahan_tindakan,
+        "Unit Cost Tindakan Rawat Jalan": item.unit_cost_tindakan_rawat_jalan,
+      }));
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Kalkulasi Tindakan RJ');
+      const fileName = `kalkulasi_tindakan_rawat_jalan_${filters.tahun || "all"}_${new Date()
+        .toISOString()
+        .split("T")[0]}`;
 
-    const fileName = `kalkulasi_tindakan_rawat_jalan_${filters.tahun || 'all'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+      await downloadReport({
+        title: "Laporan Kalkulasi Tindakan Rawat Jalan",
+        subtitle: filters.tahun ? `Tahun ${filters.tahun}` : undefined,
+        filename: fileName,
+        records,
+        orientation: "landscape",
+      });
 
-    toast({
-      title: "Success",
-      description: "Data berhasil diekspor ke Excel",
-    });
+      toast({
+        title: "Success",
+        description: "Data berhasil diekspor.",
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan kalkulasi tindakan rawat jalan:", error);
+      toast({
+        title: "Error",
+        description: "Gagal mengunduh laporan.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getTotalUnitCost = () => {
@@ -325,7 +458,9 @@ const KalkulasiTindakanRawatJalan = () => {
           Filter
         </Button>
         <Button
-          onClick={exportToExcel}
+          onClick={() => {
+            void exportToExcel();
+          }}
           className="bg-red-500 hover:bg-red-600 text-white"
           disabled={filteredData.length === 0 || loading}
         >
@@ -433,130 +568,69 @@ const KalkulasiTindakanRawatJalan = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card className="border-none bg-violet-50 shadow-sm">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-violet-700">Top 3 Tindakan Terbanyak</p>
-                <p className="text-xs text-violet-500">Berdasarkan jumlah tindakan</p>
-              </div>
-              <div className="rounded-full bg-white/80 p-3 text-violet-500">
-                <ListOrdered className="h-6 w-6" />
-              </div>
+        <Card className="border border-violet-100 bg-violet-50 shadow-sm">
+          <CardHeader className="flex items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-sm font-semibold text-violet-700">Top 3 Tindakan Terbanyak</CardTitle>
+              <CardDescription className="text-xs text-violet-500">Berdasarkan jumlah tindakan</CardDescription>
             </div>
+            <ListOrdered className="h-5 w-5 text-violet-500" />
+          </CardHeader>
+          <CardContent className="space-y-2">
             {topTindakanTerbanyak.length > 0 ? (
-              <ChartContainer
-                className="h-[220px] w-full"
-                config={{ value: { label: "Jumlah", color: "#7c3aed" } }}
-              >
-                <BarChart
-                  data={topTindakanTerbanyak.map(item => ({
-                    label:
-                      item.jenis_tindakan.length > 18
-                        ? `${item.jenis_tindakan.slice(0, 18)}…`
-                        : item.jenis_tindakan,
-                    fullLabel: item.jenis_tindakan,
-                    value: item.jumlah,
-                  }))}
-                  margin={{ top: 10, right: 16, left: -12, bottom: 8 }}
-                >
-                  <defs>
-                    <linearGradient id="rjTopGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#c4b5fd" />
-                      <stop offset="70%" stopColor="#7c3aed" />
-                      <stop offset="100%" stopColor="#4c1d95" />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid vertical={false} stroke="rgba(124,58,237,0.12)" strokeDasharray="6 10" />
-                  <XAxis
-                    dataKey="label"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#4c1d95", fontSize: 12 }}
-                  />
-                  <YAxis hide />
-                  <ChartTooltip content={<ChartTooltipContent labelKey="fullLabel" />} cursor={{ fill: "rgba(124,58,237,0.08)" }} />
-                  <Bar
-                    dataKey="value"
-                    shape={(props) => (
-                      <ThreeDBar
-                        {...props}
-                        frontFill="url(#rjTopGradient)"
-                        topFill="#ede9fe"
-                        sideFill="#5b21b6"
-                      />
-                    )}
-                    barSize={44}
-                  />
-                </BarChart>
-              </ChartContainer>
+              <ol className="space-y-2">
+                {topTindakanTerbanyak.map((item, index) => (
+                  <li key={item.kode_jenis_tindakan} className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 text-xs font-semibold text-violet-600">{index + 1}.</span>
+                      <div>
+                        <p className="font-medium text-sm text-violet-900">{item.jenis_tindakan}</p>
+                        <p className="text-xs text-violet-500">Unit {item.nama_unit_kerja}</p>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-600">
+                      {item.jumlah.toLocaleString('id-ID')} tindakan
+                    </span>
+                  </li>
+                ))}
+              </ol>
             ) : (
               <div className="rounded-lg bg-white/70 px-4 py-6 text-center text-sm text-violet-500">
-                Data tidak tersedia
+                Belum ada data yang dapat ditampilkan
               </div>
             )}
           </CardContent>
         </Card>
-        <Card className="border-none bg-amber-50 shadow-sm">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-amber-700">Top 3 Tindakan Tersedikit</p>
-                <p className="text-xs text-amber-500">Berdasarkan jumlah tindakan</p>
-              </div>
-              <div className="rounded-full bg-white/80 p-3 text-amber-500">
-                <TrendingDown className="h-6 w-6" />
-              </div>
+
+        <Card className="border border-amber-100 bg-amber-50 shadow-sm">
+          <CardHeader className="flex items-center justify-between space-y-0 pb-2">
+            <div>
+              <CardTitle className="text-sm font-semibold text-amber-700">Top 3 Tindakan Tersedikit</CardTitle>
+              <CardDescription className="text-xs text-amber-500">Berdasarkan jumlah tindakan</CardDescription>
             </div>
+            <TrendingDown className="h-5 w-5 text-amber-500" />
+          </CardHeader>
+          <CardContent className="space-y-2">
             {topTindakanTersedikit.length > 0 ? (
-              <ChartContainer
-                className="h-[220px] w-full"
-                config={{ value: { label: "Jumlah", color: "#f97316" } }}
-              >
-                <BarChart
-                  data={topTindakanTersedikit.map(item => ({
-                    label:
-                      item.jenis_tindakan.length > 18
-                        ? `${item.jenis_tindakan.slice(0, 18)}…`
-                        : item.jenis_tindakan,
-                    fullLabel: item.jenis_tindakan,
-                    value: item.jumlah,
-                  }))}
-                  margin={{ top: 10, right: 16, left: -12, bottom: 8 }}
-                >
-                  <defs>
-                    <linearGradient id="rjLowGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#fde68a" />
-                      <stop offset="70%" stopColor="#f97316" />
-                      <stop offset="100%" stopColor="#b45309" />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid vertical={false} stroke="rgba(249,115,22,0.12)" strokeDasharray="6 10" />
-                  <XAxis
-                    dataKey="label"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: "#b45309", fontSize: 12 }}
-                  />
-                  <YAxis hide />
-                  <ChartTooltip content={<ChartTooltipContent labelKey="fullLabel" />} cursor={{ fill: "rgba(249,115,22,0.08)" }} />
-                  <Bar
-                    dataKey="value"
-                    shape={(props) => (
-                      <ThreeDBar
-                        {...props}
-                        frontFill="url(#rjLowGradient)"
-                        topFill="#fef3c7"
-                        sideFill="#c2410c"
-                      />
-                    )}
-                    barSize={44}
-                  />
-                </BarChart>
-              </ChartContainer>
+              <ol className="space-y-2">
+                {topTindakanTersedikit.map((item, index) => (
+                  <li key={item.kode_jenis_tindakan} className="flex items-center justify-between rounded-md bg-white/70 px-3 py-2">
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 text-xs font-semibold text-amber-600">{index + 1}.</span>
+                      <div>
+                        <p className="font-medium text-sm text-amber-900">{item.jenis_tindakan}</p>
+                        <p className="text-xs text-amber-500">Unit {item.nama_unit_kerja}</p>
+                      </div>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-600">
+                      {item.jumlah.toLocaleString('id-ID')} tindakan
+                    </span>
+                  </li>
+                ))}
+              </ol>
             ) : (
               <div className="rounded-lg bg-white/70 px-4 py-6 text-center text-sm text-amber-500">
-                Data tidak tersedia
+                Belum ada data yang dapat ditampilkan
               </div>
             )}
           </CardContent>
@@ -580,6 +654,9 @@ const KalkulasiTindakanRawatJalan = () => {
                   <TableHead className="text-white">Unit Kerja</TableHead>
                   <TableHead className="text-white">Jenis Tindakan</TableHead>
                   <TableHead className="text-white">Jumlah</TableHead>
+                  <TableHead className="text-white text-center">Waktu (mnt)</TableHead>
+                  <TableHead className="text-white text-center">Prof.</TableHead>
+                  <TableHead className="text-white text-center">Tingkat</TableHead>
                   <TableHead className="text-white">Biaya Bahan Tindakan</TableHead>
                   <TableHead className="text-white">
                     <div>
@@ -610,6 +687,21 @@ const KalkulasiTindakanRawatJalan = () => {
                       </div>
                     </TableCell>
                     <TableCell>{item.jumlah.toLocaleString('id-ID')}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline" className="text-xs">
+                        {item.waktu || 0} mnt
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary" className="text-xs">
+                        {item.profesionalisme || 1}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary" className="text-xs">
+                        {item.tingkat_kesulitan || 1}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="font-medium">
                       {formatCurrency(item.biaya_bahan_tindakan)}
                     </TableCell>

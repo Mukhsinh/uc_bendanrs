@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, useEffect, useState } from "react";
 import { GeneralSettingsProvider } from "@/contexts/GeneralSettingsContext";
+import { ReportDownloadProvider } from "@/components/report";
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -501,13 +502,15 @@ const AppContent = () => {
 const App = () => (
   <AuthProvider>
     <GeneralSettingsProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <AppContent />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <ReportDownloadProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <AppContent />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </ReportDownloadProvider>
     </GeneralSettingsProvider>
   </AuthProvider>
 );

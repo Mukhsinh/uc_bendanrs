@@ -8,8 +8,9 @@ import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, RefreshCw, Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 
 const KalkulasiBiayaIBS: React.FC = () => {
@@ -40,6 +41,8 @@ const KalkulasiBiayaIBS: React.FC = () => {
   const [manualInputData, setManualInputData] = useState<any>({});
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'specific', jenisPemeriksaan: string}>({type: 'all', jenisPemeriksaan: ''});
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
+  const { downloadReport } = useReportDownload();
 
   // Initialize user session
   useEffect(() => {
@@ -609,116 +612,90 @@ const KalkulasiBiayaIBS: React.FC = () => {
 
   const handleDownloadReport = async () => {
     try {
-      if (!rows || rows.length === 0) {
-        toast.error("Tidak ada data untuk diunduh.");
+      setDownloadingReport(true);
+
+      const { data: latestData, error: fetchError } = await supabase
+        .from('kalkulasi_biaya_ibs')
+        .select('*')
+        .eq('tahun', year)
+        .order('jenis_pemeriksaan');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const filteredRows = (latestData || []).filter((row) => {
+        if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
+          return row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan;
+        }
+        return true;
+      });
+
+      if (filteredRows.length === 0) {
+        toast.error('Tidak ada data yang sesuai filter untuk diunduh.');
         return;
       }
 
-      // Filter data berdasarkan jenis pemeriksaan jika dipilih
-      let filteredRows = rows;
-      if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
-        filteredRows = rows.filter(row => row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan);
-        if (filteredRows.length === 0) {
-          toast.error("Tidak ada data untuk jenis pemeriksaan yang dipilih.");
-          return;
-        }
-      }
-
-      // Create CSV content for report with all cost columns
-      const headers = [
-        "Kode",
-        "Kode Unit Kerja", 
-        "Jenis Pemeriksaan",
-        "Jumlah",
-        "Waktu (menit)",
-        "Prof",
-        "Kesulitan",
-        "HK Waktu",
-        "Alokasi Waktu",
-        "Hasil Kali",
-        "Alokasi HK",
-        "Bahan Rp",
-        "Gaji Rp",
-        "Jasa Pelayanan Rp",
-        "Obat Rp",
-        "BHP Rp",
-        "Makan Karyawan Rp",
-        "Makan Pasien Rp",
-        "Rumah Tangga Rp",
-        "Cetak Rp",
-        "ATK Rp",
-        "Listrik Rp",
-        "Air Rp",
-        "Telp Rp",
-        "Pemeliharaan Bangunan Rp",
-        "Pemeliharaan Alat Medis Rp",
-        "Pemeliharaan Alat Non Medis Rp",
-        "Operasional Lainnya Rp",
-        "Penyusutan Gedung Rp",
-        "Penyusutan Jaringan Rp",
-        "Penyusutan Alat Medis Rp",
-        "Penyusutan Alat Non Medis Rp",
-        "Pendidikan Pelatihan Rp",
-        "Laundry Rp",
-        "Sterilisasi Rp",
-        "Biaya Tidak Langsung Terdistribusi Rp",
-        "Unit Cost"
-      ];
-
-      const rowsCsv = filteredRows.map((row: any) => ({
+      const records = filteredRows.map((row: any) => ({
         "Kode": row.kode || '',
-        "Kode Unit Kerja": row.kode_unit_kerja || 'UK074',
+        "Kode Unit Kerja": row.kode_unit_kerja || 'UK040',
         "Jenis Pemeriksaan": row.jenis_pemeriksaan || '',
         "Jumlah": row.jumlah || 0,
         "Waktu (menit)": row.waktu_pemeriksaan || 0,
-        "Prof": row.profesionalisme || 1,
-        "Kesulitan": row.tingkat_kesulitan || 1,
-        "HK Waktu": row.hasil_kali_waktu || 0,
-        "Alokasi Waktu": row.dasar_alokasi_waktu || 0,
-        "Hasil Kali": row.hasil_kali || 0,
-        "Alokasi HK": row.dasar_alokasi_hasil_kali || 0,
-        "Bahan Rp": row.biaya_bahan_pemeriksaan_numeric || 0,
-        "Gaji Rp": row.biaya_gaji_tunjangan || 0,
-        "Jasa Pelayanan Rp": row.biaya_jasa_pelayanan || 0,
-        "Obat Rp": row.biaya_obat || 0,
-        "BHP Rp": row.biaya_bhp || 0,
-        "Makan Karyawan Rp": row.biaya_makan_karyawan || 0,
-        "Makan Pasien Rp": row.biaya_makan_pasien || 0,
-        "Rumah Tangga Rp": row.biaya_rumah_tangga || 0,
-        "Cetak Rp": row.biaya_cetak || 0,
-        "ATK Rp": row.biaya_atk || 0,
-        "Listrik Rp": row.biaya_listrik || 0,
-        "Air Rp": row.biaya_air || 0,
-        "Telp Rp": row.biaya_telp || 0,
-        "Pemeliharaan Bangunan Rp": row.biaya_pemeliharaan_bangunan || 0,
-        "Pemeliharaan Alat Medis Rp": row.biaya_pemeliharaan_alat_medis || 0,
-        "Pemeliharaan Alat Non Medis Rp": row.biaya_pemeliharaan_alat_non_medis || 0,
-        "Operasional Lainnya Rp": row.biaya_operasional_lainnya || 0,
-        "Penyusutan Gedung Rp": row.biaya_penyusutan_gedung || 0,
-        "Penyusutan Jaringan Rp": row.biaya_penyusutan_jaringan || 0,
-        "Penyusutan Alat Medis Rp": row.biaya_penyusutan_alat_medis || 0,
-        "Penyusutan Alat Non Medis Rp": row.biaya_penyusutan_alat_non_medis || 0,
-        "Pendidikan Pelatihan Rp": row.biaya_pendidikan_pelatihan || 0,
-        "Laundry Rp": row.biaya_laundry || 0,
-        "Sterilisasi Rp": row.biaya_sterilisasi || 0,
-        "Biaya Tidak Langsung Terdistribusi Rp": row.biaya_tidak_langsung_terdistribusi || 0,
-        "Unit Cost": row.unit_cost_per_pemeriksaan || 0
+        "Profesionalisme": row.profesionalisme || 1,
+        "Tingkat Kesulitan": row.tingkat_kesulitan || 1,
+        "Biaya Bahan": Math.round(row.biaya_bahan_pemeriksaan_numeric || 0),
+        "Biaya Gaji & Tunjangan": Math.round(row.biaya_gaji_tunjangan || 0),
+        "Biaya Jasa Pelayanan": Math.round(row.biaya_jasa_pelayanan || 0),
+        "Biaya Obat": Math.round(row.biaya_obat || 0),
+        "Biaya BHP": Math.round(row.biaya_bhp || 0),
+        "Biaya Makan Karyawan": Math.round(row.biaya_makan_karyawan || 0),
+        "Biaya Makan Pasien": Math.round(row.biaya_makan_pasien || 0),
+        "Biaya Rumah Tangga": Math.round(row.biaya_rumah_tangga || 0),
+        "Biaya Cetak": Math.round(row.biaya_cetak || 0),
+        "Biaya ATK": Math.round(row.biaya_atk || 0),
+        "Biaya Listrik": Math.round(row.biaya_listrik || 0),
+        "Biaya Air": Math.round(row.biaya_air || 0),
+        "Biaya Telepon": Math.round(row.biaya_telp || 0),
+        "Biaya Pemeliharaan Bangunan": Math.round(row.biaya_pemeliharaan_bangunan || 0),
+        "Biaya Pemeliharaan Alat Medis": Math.round(row.biaya_pemeliharaan_alat_medis || 0),
+        "Biaya Pemeliharaan Alat Non Medis": Math.round(row.biaya_pemeliharaan_alat_non_medis || 0),
+        "Biaya Operasional Lainnya": Math.round(row.biaya_operasional_lainnya || 0),
+        "Biaya Penyusutan Gedung": Math.round(row.biaya_penyusutan_gedung || 0),
+        "Biaya Penyusutan Jaringan": Math.round(row.biaya_penyusutan_jaringan || 0),
+        "Biaya Penyusutan Alat Medis": Math.round(row.biaya_penyusutan_alat_medis || 0),
+        "Biaya Penyusutan Alat Non Medis": Math.round(row.biaya_penyusutan_alat_non_medis || 0),
+        "Biaya Pendidikan & Pelatihan": Math.round(row.biaya_pendidikan_pelatihan || 0),
+        "Biaya Laundry": Math.round(row.biaya_laundry || 0),
+        "Biaya Sterilisasi": Math.round(row.biaya_sterilisasi || 0),
+        "Biaya Tidak Langsung Terdistribusi": Math.round(row.biaya_tidak_langsung_terdistribusi || 0),
+        "Unit Cost": Math.round(row.unit_cost_per_pemeriksaan || 0),
       }));
 
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rowsCsv.map(row => Object.values(row))]);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Laporan Kalkulasi IBS");
-      
-      const filterSuffix = reportFilter.type === 'specific' ? `_${reportFilter.jenisPemeriksaan.replace(/[^a-zA-Z0-9]/g, '_')}` : '_semua';
-      XLSX.writeFile(wb, `laporan_kalkulasi_biaya_ibs_${year}${filterSuffix}.xlsx`);
-      
+      const filterSuffix = reportFilter.type === 'specific'
+        ? `_${reportFilter.jenisPemeriksaan.replace(/[^a-zA-Z0-9]/g, '_')}`
+        : '_semua';
+
+      await downloadReport({
+        title: "Laporan Kalkulasi Biaya IBS",
+        subtitle:
+          reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan
+            ? `Tahun ${year} • Jenis ${reportFilter.jenisPemeriksaan}`
+            : `Tahun ${year}`,
+        filename: `laporan_kalkulasi_biaya_ibs_${year}${filterSuffix}`,
+        records,
+        orientation: "landscape",
+      });
+
       const filterText = reportFilter.type === 'specific' ? `untuk ${reportFilter.jenisPemeriksaan}` : 'semua data';
-      toast.success(`Laporan ${filterText} berisi ${rowsCsv.length} data berhasil diunduh.`);
-      
+      toast.success(`Laporan ${filterText} berisi ${records.length} data berhasil diunduh.`);
+
       setShowReportFilter(false);
     } catch (e: any) {
       console.error(e);
-      toast.error(`Gagal mengunduh laporan: ${e.message}`);
+      toast.error(`Gagal mengunduh laporan: ${e.message || e}`);
+    } finally {
+      setDownloadingReport(false);
     }
   };
 
@@ -1389,11 +1366,18 @@ const KalkulasiBiayaIBS: React.FC = () => {
                 Batal
               </Button>
               <Button 
-                onClick={handleDownloadReport}
-                disabled={reportFilter.type === 'specific' && !reportFilter.jenisPemeriksaan}
+                onClick={() => {
+                  void handleDownloadReport();
+                }}
+                disabled={(reportFilter.type === 'specific' && !reportFilter.jenisPemeriksaan) || downloadingReport}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                Unduh Laporan
+                {downloadingReport ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
               </Button>
             </DialogFooter>
           </DialogContent>

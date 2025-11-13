@@ -11,7 +11,6 @@ import { useFormOperations } from "@/hooks/use-form-operations";
 import { showError } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
 import { Button } from "@/components/ui/button";
@@ -61,6 +60,7 @@ import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
 import { testSupabaseConnection, testAuthStatus } from "@/test-supabase";
 import { logCreate, logUpdate, logDelete, logView, logExport } from "@/utils/auditTrail";
+import { useReportDownload } from "@/components/report";
 
 interface Biaya {
   id: string;
@@ -140,6 +140,7 @@ interface UnitKerja {
 }
 
 const BiayaFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [biayaList, setBiayaList] = useState<Biaya[]>([]);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedUnitId, setSelectedUnitId] = useState<string>("all");
@@ -1025,7 +1026,7 @@ const BiayaFormTable: React.FC = () => {
     }
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (biayaList.length === 0) {
       toast.warning("Tidak ada data untuk dibuat laporan.");
       return;
@@ -1068,11 +1069,13 @@ const BiayaFormTable: React.FC = () => {
       "Biaya Operasional Lainnya": item.biaya_operasional_lainnya || 0,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Biaya");
-    XLSX.writeFile(wb, "laporan_biaya.xlsx");
-    toast.info("Laporan berhasil diunduh.");
+    await downloadReport({
+      title: "Laporan Data Biaya",
+      subtitle: `Tahun ${selectedYear}`,
+      filename: `laporan_biaya_${selectedYear}`,
+      records: dataToExport,
+      orientation: "landscape",
+    });
   };
 
   // Format currency for display
@@ -1661,7 +1664,7 @@ const BiayaFormTable: React.FC = () => {
             </DialogContent>
           </Dialog>
             <Button
-              onClick={handleDownloadReport}
+              onClick={() => { void handleDownloadReport(); }}
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
@@ -1773,8 +1776,8 @@ const BiayaFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="w-20 text-white">Tahun</TableHead>
               <TableHead className="w-40 text-white">Unit Kerja</TableHead>
               <TableHead className="w-32 text-white">Total Biaya</TableHead>

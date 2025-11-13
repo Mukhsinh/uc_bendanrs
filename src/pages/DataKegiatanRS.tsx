@@ -1012,8 +1012,8 @@ export default function DataKegiatanRS() {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow className="bg-teal-700">
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                     <TableHead className="w-12 text-white"></TableHead>
                     <TableHead className="text-white">Unit Kerja</TableHead>
                     <TableHead className="text-right text-white">Total SDM</TableHead>

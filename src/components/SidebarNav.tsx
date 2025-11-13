@@ -387,10 +387,10 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
 
   return (
     <div className={cn("flex flex-col gap-2 bg-teal-800 text-white", className)} {...props}>
-      <Accordion 
-        type="single" 
-        collapsible 
-        value={openGroup} 
+      <Accordion
+        type="single"
+        collapsible
+        value={openGroup}
         onValueChange={setOpenGroup}
       >
         {filteredNavItems.map((item) => (

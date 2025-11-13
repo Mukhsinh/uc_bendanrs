@@ -12,9 +12,10 @@ import {
   GraduationCap,
   Users,
   TrendingUp,
-  Banknote
+  Banknote,
+  Loader2
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 interface KalkulasiDiklat {
   id: string;
@@ -37,6 +38,8 @@ const KalkulasiBiayaDiklat: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [showFilters, setShowFilters] = useState(true);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const { downloadReport } = useReportDownload();
 
   const jenisDiklatOptions = [
     { value: "basis_harian", label: "Basis Harian" }
@@ -121,30 +124,42 @@ const KalkulasiBiayaDiklat: React.FC = () => {
   };
 
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (data.length === 0) {
       toast.error("Tidak ada data untuk diunduh");
       return;
     }
 
-    const exportData = data.map((item) => ({
-      "Jenis Diklat": jenisDiklatOptions.find(opt => opt.value === item.jenis_diklat)?.label || item.jenis_diklat,
-      "Lama Hari Diklat": item.lama_hari_diklat,
-      "Biaya Unit Diklat": item.biaya_unit_diklat,
-      "Biaya Distribusi Kedua": item.biaya_distribusi_kedua,
-      "Total Biaya Unit Diklat": item.total_biaya_unit_diklat,
-      "Total Diklat": item.total_diklat,
-      "Biaya Diklat per Hari": item.biaya_diklat_per_hari,
-      "Unit Cost per Jenis Layanan": item.unit_cost_per_jenis_layanan,
-      "Tahun": item.tahun
-    }));
+    try {
+      setDownloadingReport(true);
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Kalkulasi Biaya Diklat");
-    const fileName = `Kalkulasi_Biaya_Diklat_${year}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    toast.success("Laporan berhasil diunduh");
+      const records = data.map((item) => ({
+        "Jenis Diklat": jenisDiklatOptions.find((opt) => opt.value === item.jenis_diklat)?.label || item.jenis_diklat,
+        "Lama Hari Diklat": item.lama_hari_diklat,
+        "Biaya Unit Diklat": Math.round(item.biaya_unit_diklat || 0),
+        "Biaya Distribusi Kedua": Math.round(item.biaya_distribusi_kedua || 0),
+        "Total Biaya Unit Diklat": Math.round(item.total_biaya_unit_diklat || 0),
+        "Total Diklat": Math.round(item.total_diklat || 0),
+        "Biaya Diklat per Hari": Math.round(item.biaya_diklat_per_hari || 0),
+        "Unit Cost per Jenis Layanan": Math.round(item.unit_cost_per_jenis_layanan || 0),
+        "Tahun": item.tahun,
+      }));
+
+      await downloadReport({
+        title: "Laporan Kalkulasi Biaya Diklat",
+        subtitle: `Tahun ${year}`,
+        filename: `kalkulasi_biaya_diklat_${year}`,
+        records,
+        orientation: "portrait",
+      });
+
+      toast.success("Laporan berhasil disiapkan");
+    } catch (error: any) {
+      console.error("Gagal mengunduh kalkulasi biaya diklat:", error);
+      toast.error(error?.message || "Terjadi kesalahan saat menyiapkan laporan");
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   // Calculate statistics
@@ -174,12 +189,18 @@ const KalkulasiBiayaDiklat: React.FC = () => {
             Filter
           </Button>
           <Button
-            onClick={handleDownloadReport}
-            className="bg-red-500 text-white hover:bg-red-600"
-            disabled={loading || data.length === 0}
+            onClick={() => {
+              void handleDownloadReport();
+            }}
+            className="bg-red-500 text-white hover:bg-red-600 disabled:bg-red-400 disabled:cursor-not-allowed"
+            disabled={loading || data.length === 0 || downloadingReport}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
+            {downloadingReport ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
           </Button>
           <Button
             onClick={loadData}

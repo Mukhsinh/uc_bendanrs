@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Download, RefreshCcw, ClipboardList, Bed, TrendingUp, TrendingDown } from "lucide-react";
-import * as XLSX from 'xlsx';
+import { useReportDownload } from "@/components/report";
 
 interface KalkulasiTindakanInapData {
   id: string;
@@ -125,6 +125,9 @@ const KalkulasiTindakanInap = () => {
     search: ""
   });
   const { toast } = useToast();
+  const [showStats, setShowStats] = useState<boolean>(true);
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
+  const { downloadReport } = useReportDownload();
 
   useEffect(() => {
     console.log('Component mounted, fetching data...');
@@ -300,39 +303,57 @@ const KalkulasiTindakanInap = () => {
     }).format(value);
   };
 
-  const exportToExcel = () => {
+  const handleDownloadReport = async () => {
     if (filteredData.length === 0) {
       toast({
         title: "Error",
-        description: "Tidak ada data untuk diekspor",
+        description: "Tidak ada data untuk diunduh",
         variant: "destructive",
       });
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(
-      filteredData.map(item => ({
-        'Tahun': item.tahun,
-        'Kode Unit Kerja': item.kode_unit_kerja,
-        'Nama Unit Kerja': item.nama_unit_kerja,
-        'Kode Jenis Tindakan': item.kode_jenis_tindakan,
-        'Jenis Tindakan': item.jenis_tindakan,
-        'Jumlah': safeNumber(item.jumlah),
-        'Biaya Bahan Tindakan': safeNumber(item.biaya_bahan_tindakan),
-        'Unit Cost Tindakan Inap': safeNumber(item.unit_cost_tindakan_inap),
-      }))
-    );
+    try {
+      setDownloadingReport(true);
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Kalkulasi Tindakan Inap');
+      const subtitleParts: string[] = [];
+      if (filters.tahun) subtitleParts.push(`Tahun ${filters.tahun}`);
+      if (filters.nama_unit_kerja) subtitleParts.push(`Unit ${filters.nama_unit_kerja}`);
+      if (filters.jenis_tindakan) subtitleParts.push(`Jenis ${filters.jenis_tindakan}`);
 
-    const fileName = `kalkulasi_tindakan_inap_${filters.tahun || 'all'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+      const records = filteredData.map((item) => ({
+        "Tahun": item.tahun,
+        "Kode Unit Kerja": item.kode_unit_kerja,
+        "Nama Unit Kerja": item.nama_unit_kerja,
+        "Kode Jenis Tindakan": item.kode_jenis_tindakan,
+        "Jenis Tindakan": item.jenis_tindakan,
+        "Jumlah": safeNumber(item.jumlah),
+        "Biaya Bahan Tindakan": safeNumber(item.biaya_bahan_tindakan),
+        "Unit Cost Tindakan Inap": safeNumber(item.unit_cost_tindakan_inap),
+      }));
 
-    toast({
-      title: "Success",
-      description: "Data berhasil diekspor ke Excel",
-    });
+      await downloadReport({
+        title: "Laporan Kalkulasi Tindakan Rawat Inap",
+        subtitle: subtitleParts.join(" • ") || undefined,
+        filename: `kalkulasi_tindakan_inap_${filters.tahun || 'all'}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast({
+        title: "Berhasil",
+        description: "Laporan berhasil disiapkan.",
+      });
+    } catch (error: any) {
+      console.error("Gagal mengunduh kalkulasi tindakan inap:", error);
+      toast({
+        title: "Error",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   const getTotalJumlah = () => {
@@ -410,12 +431,17 @@ const KalkulasiTindakanInap = () => {
             className="flex-1 min-w-[200px]"
           />
           <Button
-            onClick={exportToExcel}
-            disabled={loading || filteredData.length === 0}
-            variant="report"
+            onClick={() => {
+              void handleDownloadReport();
+            }}
+            disabled={filteredData.length === 0 || downloadingReport}
           >
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
+            {downloadingReport ? (
+              <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
           </Button>
           <Button
             variant="ghost"
@@ -537,8 +563,8 @@ const KalkulasiTindakanInap = () => {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-teal-700">
-                <TableRow>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                   <TableHead className="text-white font-semibold">Tahun</TableHead>
                   <TableHead className="text-white font-semibold">Unit Kerja</TableHead>
                   <TableHead className="text-white font-semibold">Jenis Tindakan</TableHead>

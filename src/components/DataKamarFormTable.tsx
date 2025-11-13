@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -23,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface DataKamar {
   id: number;
@@ -47,6 +47,7 @@ const formSchema = z.object({
 });
 
 const DataKamarFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [list, setList] = useState<DataKamar[]>([]);
   const [editing, setEditing] = useState<DataKamar | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -297,23 +298,34 @@ const DataKamarFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
-    if (list.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
-    const data = list.map(i => ({ 
-      Kode: i.Kode_Kamar, 
-      Nama: i.Nama_Kamar, 
-      "Kelas SVIP": i.Kelas_SVIP ? "Ya" : "Tidak",
-      "Kelas VIP": i.Kelas_VIP ? "Ya" : "Tidak",
-      "Kelas I": i.Kelas_I ? "Ya" : "Tidak",
-      "Kelas II": i.Kelas_II ? "Ya" : "Tidak",
-      "Kelas III": i.Kelas_III ? "Ya" : "Tidak",
-      "Kelas Khusus": i.Kelas_Khusus ? "Ya" : "Tidak"
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Data Kamar");
-    XLSX.writeFile(wb, "laporan_data_kamar.xlsx");
-    toast.info("Laporan diunduh.");
+  const handleDownloadReport = async () => {
+    if (list.length === 0) {
+      toast.warning("Tidak ada data untuk laporan.");
+      return;
+    }
+
+    try {
+      const records = list.map((item) => ({
+        "Kode Kamar": item.Kode_Kamar,
+        "Nama Kamar": item.Nama_Kamar,
+        "Kelas SVIP": item.Kelas_SVIP ? "Ya" : "Tidak",
+        "Kelas VIP": item.Kelas_VIP ? "Ya" : "Tidak",
+        "Kelas I": item.Kelas_I ? "Ya" : "Tidak",
+        "Kelas II": item.Kelas_II ? "Ya" : "Tidak",
+        "Kelas III": item.Kelas_III ? "Ya" : "Tidak",
+        "Kelas Khusus": item.Kelas_Khusus ? "Ya" : "Tidak",
+      }));
+
+      await downloadReport({
+        title: "Laporan Data Kamar",
+        filename: "laporan_data_kamar",
+        records,
+        orientation: "landscape",
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan data kamar:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   return (
@@ -499,7 +511,13 @@ const DataKamarFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          variant="report"
+          className="shadow-sm"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
       </div>
@@ -507,8 +525,8 @@ const DataKamarFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode & Nama Kamar</TableHead>
               <TableHead className="font-bold text-white">Kelas SVIP</TableHead>
               <TableHead className="font-bold text-white">Kelas VIP</TableHead>

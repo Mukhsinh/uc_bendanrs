@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Download, RefreshCw, FileText } from "lucide-react";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 type DistribusiKeduaRow = {
   id: string;
@@ -52,12 +52,14 @@ const getColumnName = (i: number): string => {
 };
 
 export default function DistribusiBiayaKedua() {
+  const { downloadReport } = useReportDownload();
   const [rows, setRows] = useState<DistribusiKeduaRow[]>([]);
   const [filteredRows, setFilteredRows] = useState<DistribusiKeduaRow[]>([]);
   const [tahun, setTahun] = useState<number>(2025);
   const [selectedUnitKerja, setSelectedUnitKerja] = useState<string>("");
   const [unitKerjaOptions, setUnitKerjaOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
   const [showFilters, setShowFilters] = useState<boolean>(true);
   const { toast } = useToast();
@@ -696,51 +698,67 @@ export default function DistribusiBiayaKedua() {
     }
   };
 
-  const exportExcel = async () => {
+  const handleDownloadReport = async () => {
+    if (filteredRows.length === 0) {
+      toast({
+        title: "Tidak ada data",
+        description: "Belum ada data untuk diunduh.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      setLoading(true);
-      
-      if (filteredRows.length === 0) {
-        toast({ title: "Tidak ada data", description: "Belum ada data untuk diunduh.", variant: "destructive" });
-        return;
-      }
+      setDownloadingReport(true);
 
-      const dataForExport = filteredRows.map((r) => {
-        const ukColumns = Array.from({ length: 77 - 37 + 1 }, (_, idx) => [
-          `UK${(37 + idx).toString().padStart(3, '0')}`,
-          Math.round(((r as any)[getColumnName(37 + idx)] ?? 0))
-        ]);
+      const unitKerjaLabel = selectedUnitKerja ? `Unit ${selectedUnitKerja}` : "Semua Unit Kerja";
+      const subtitleParts = [`Tahun ${tahun}`, unitKerjaLabel];
 
-        return {
-          "Unit Kerja (Pusat Biaya)": r.unit_kerja_pusat_biaya || "",
-          "Biaya Alokasi I": Math.round(r.biaya_alokasi_i ?? 0),
-          "Dasar Alokasi": r.dasar_alokasi || "",
-          "Keterangan": r.keterangan || "",
-          "Total Alokasi I": Math.round(r.total_alokasi_i ?? 0),
-          "Audit Check": r.audit_check || "",
-          ...Object.fromEntries(ukColumns),
-          // Gunakan jumlah UK037-UK077 sebagai total alokasi biaya kedua agar konsisten dengan rumus
-          "Total Alokasi Biaya Kedua": Math.round(getRowTotalAlokasiKedua(r)),
-          "Tahun": r.tahun ?? tahun,
-          "Updated At": r.updated_at || "",
+      const records = filteredRows.map((row) => {
+        const record: Record<string, string | number> = {
+          "Unit Kerja (Pusat Biaya)": row.unit_kerja_pusat_biaya || "",
+          "Biaya Alokasi I": Math.round(row.biaya_alokasi_i ?? 0),
+          "Dasar Alokasi": row.dasar_alokasi || "",
+          "Keterangan": row.keterangan || "",
+          "Audit Check": row.audit_check || "",
         };
+
+        for (let i = 37; i <= 77; i++) {
+          const code = `UK${i.toString().padStart(3, "0")}`;
+          const columnKey = getColumnName(i);
+          record[code] = Math.round(Number((row as any)[columnKey] ?? 0));
+        }
+
+        record["Total Alokasi Biaya Kedua"] = Math.round(getRowTotalAlokasiKeduaAdjusted(row));
+        record["Selisih Pembulatan"] = Math.round(Number(row.selisih_pembulatan ?? getRowSelisih(row)));
+        record["Total Alokasi I (DB)"] = Math.round(row.total_alokasi_i ?? row.biaya_alokasi_i ?? 0);
+        record["Tahun"] = row.tahun ?? tahun;
+        record["Updated At"] = row.updated_at || "";
+
+        return record;
       });
 
-      const ws = XLSX.utils.json_to_sheet(dataForExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Distribusi Biaya Kedua");
-      
-      const fileName = `distribusi_biaya_kedua_${tahun}${selectedUnitKerja ? `_${selectedUnitKerja.replace(/[^a-zA-Z0-9]/g, '_')}` : ''}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-      
+      await downloadReport({
+        title: "Laporan Distribusi Biaya Kedua",
+        subtitle: subtitleParts.filter(Boolean).join(" • "),
+        filename: `distribusi_biaya_kedua_${tahun}${selectedUnitKerja ? `_${selectedUnitKerja.replace(/[^a-zA-Z0-9]/g, "_")}` : ""}`,
+        records,
+        orientation: "landscape",
+      });
+
       toast({
         title: "Berhasil",
-        description: `Laporan Excel berhasil diunduh dengan ${filteredRows.length} data`,
+        description: `Laporan berhasil disiapkan untuk ${filteredRows.length} baris data`,
       });
-    } catch (err: any) {
-      toast({ title: "Gagal mengunduh", description: err.message || String(err), variant: "destructive" });
+    } catch (error: any) {
+      console.error("Gagal mengunduh laporan distribusi biaya kedua:", error);
+      toast({
+        title: "Gagal mengunduh",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setDownloadingReport(false);
     }
   };
 
@@ -776,12 +794,18 @@ export default function DistribusiBiayaKedua() {
           Filter
         </Button>
         <Button
-          className="bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300 disabled:text-white/70"
-          disabled={filteredRows.length === 0}
-          onClick={exportExcel}
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          disabled={downloadingReport}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-emerald-400 disabled:cursor-not-allowed"
         >
-          <Download className="h-4 w-4 mr-2" />
-          Unduh Laporan
+          {downloadingReport ? (
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
         </Button>
         <Button
           className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"

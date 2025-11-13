@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -36,6 +35,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface TindakanRadiologi {
   id: string;
@@ -50,6 +50,7 @@ const formSchema = z.object({
 });
 
 const TindakanRadiologiFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [list, setList] = useState<TindakanRadiologi[]>([]);
   const [editing, setEditing] = useState<TindakanRadiologi | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -252,17 +253,27 @@ const TindakanRadiologiFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
-    const data = list.map(item => ({ 
-      "Kode Tindakan": item.kode_tindakan, 
-      "Nama Tindakan": item.nama_tindakan 
-    }));
-    if (data.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Tindakan Radiologi");
-    XLSX.writeFile(wb, "laporan_tindakan_radiologi.xlsx");
-    toast.info("Laporan diunduh.");
+  const handleDownloadReport = async () => {
+    if (list.length === 0) {
+      toast.warning("Tidak ada data untuk laporan.");
+      return;
+    }
+
+    try {
+      const records = list.map((item) => ({
+        "Kode Tindakan": item.kode_tindakan,
+        "Nama Tindakan": item.nama_tindakan,
+      }));
+
+      await downloadReport({
+        title: "Laporan Tindakan Radiologi",
+        filename: "laporan_tindakan_radiologi",
+        records,
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan tindakan radiologi:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   return (
@@ -330,7 +341,13 @@ const TindakanRadiologiFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          variant="report"
+          className="shadow-sm"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
         <Button onClick={() => fetchAll()} variant="outline" size="icon">
@@ -340,8 +357,8 @@ const TindakanRadiologiFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Tindakan</TableHead>
               <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
               <TableHead className="text-right font-bold text-white">Aksi</TableHead>

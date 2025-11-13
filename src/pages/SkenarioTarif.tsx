@@ -22,7 +22,7 @@ import {
   ArrowUpCircle,
   Activity,
 } from "lucide-react";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 import { formatCurrency } from "@/lib/utils";
 
 interface SkenarioTarifData {
@@ -154,8 +154,10 @@ const SkenarioTarif = () => {
   });
   const [namaTindakanFilter, setNamaTindakanFilter] = useState<string>("");
   const [showFilters, setShowFilters] = useState<boolean>(true);
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
 
   const queryClient = useQueryClient();
+  const { downloadReport } = useReportDownload();
 
   // Fetch data skenario tarif
   const { data: skenarioData, isLoading } = useQuery({
@@ -591,49 +593,58 @@ const SkenarioTarif = () => {
     setEditingRow(null);
   };
 
+  const handleDownloadReport = async () => {
+    if (!filteredData || filteredData.length === 0) {
+      toast.error("Belum ada data untuk diunduh");
+      return;
+    }
 
-  const handleExport = () => {
-    if (!filteredData) return;
-    
-    const csvContent = [
-      ["Unit Kerja", "Operator", "Tindakan", "Unit Cost", "Biaya Bahan", "Jasa Sarana", "Jasa Pelayanan Medis", "Jasa Pelayanan Non Medis", "Jasa Pelayanan", "% Jasa Pelayanan", "% Profit", "Tarif per Tindakan"],
-      ...filteredData.map(item => [
-        `${item.kode_unit_kerja} - ${item.nama_unit_kerja}`,
-        item.nama_operator || "-",
-        `${item.kode_tindakan} - ${item.nama_tindakan}`,
-        formatCurrency(item.unit_cost_per_tindakan),
-        formatCurrency(item.biaya_bahan),
-        formatCurrency(item.jasa_sarana),
-        formatCurrency(item.jasa_pelayanan_medis || 0),
-        formatCurrency(item.jasa_pelayanan_non_medis || 0),
-        formatCurrency(item.jasa_pelayanan),
-        `${item.prosentase_jasa_pelayanan.toFixed(2)}%`,
-        `${item.prosentase_profit.toFixed(2)}%`,
-        formatCurrency(item.tarif_per_tindakan),
-      ])
-    ].map(row => row.join(",")).join("\n");
+    try {
+      setDownloadingReport(true);
 
-    const dataForExport = filteredData.map(item => ({
-      "Tahun": item.tahun || tahun,
-      "Kode Unit Kerja": item.kode_unit_kerja || "",
-      "Nama Unit Kerja": item.nama_unit_kerja || "",
-      "Kode Tindakan": item.kode_tindakan || "",
-      "Nama Tindakan": item.nama_tindakan || "",
-      "Unit Cost": item.unit_cost_per_tindakan || 0,
-      "Biaya Bahan": item.biaya_bahan || 0,
-      "Jasa Sarana": item.jasa_sarana || 0,
-      "Jasa Pelayanan Medis": item.jasa_pelayanan_medis || 0,
-      "Jasa Pelayanan Non Medis": item.jasa_pelayanan_non_medis || 0,
-      "Jasa Pelayanan": item.jasa_pelayanan || 0,
-      "Tarif Per Tindakan": item.tarif_per_tindakan || 0,
-      "Prosentase Profit": item.prosentase_profit || 0,
-      "Sumber Tabel": item.sumber_tabel || ""
-    }));
+      const subtitleParts = [`Tahun ${tahun}`];
+      if (selectedUnitKerja !== "all") {
+        subtitleParts.push(`Unit ${selectedUnitKerja}`);
+      }
+      if (namaTindakanFilter.trim()) {
+        subtitleParts.push(`Filter tindakan: ${namaTindakanFilter}`);
+      }
 
-    const ws = XLSX.utils.json_to_sheet(dataForExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Skenario Tarif");
-    XLSX.writeFile(wb, `skenario_tarif_${tahun}.xlsx`);
+      const records = filteredData.map((item) => ({
+        "Tahun": item.tahun || tahun,
+        "Kode Unit Kerja": item.kode_unit_kerja || "",
+        "Nama Unit Kerja": item.nama_unit_kerja || "",
+        "Kode Operator": item.kode_operator || "-",
+        "Nama Operator": item.nama_operator || "-",
+        "Kode Tindakan": item.kode_tindakan || "",
+        "Nama Tindakan": item.nama_tindakan || "",
+        "Unit Cost": Math.round(item.unit_cost_per_tindakan || 0),
+        "Biaya Bahan": Math.round(item.biaya_bahan || 0),
+        "Jasa Sarana": Math.round(item.jasa_sarana || 0),
+        "Jasa Pelayanan Medis": Math.round(item.jasa_pelayanan_medis || 0),
+        "Jasa Pelayanan Non Medis": Math.round(item.jasa_pelayanan_non_medis || 0),
+        "Jasa Pelayanan": Math.round(item.jasa_pelayanan || 0),
+        "Tarif Per Tindakan": Math.round(item.tarif_per_tindakan || 0),
+        "Prosentase Jasa Pelayanan (%)": Number((item.prosentase_jasa_pelayanan || 0).toFixed(2)),
+        "Prosentase Profit (%)": Number((item.prosentase_profit || 0).toFixed(2)),
+        "Sumber Tabel": item.sumber_tabel || "",
+      }));
+
+      await downloadReport({
+        title: "Laporan Skenario Tarif",
+        subtitle: subtitleParts.join(" • "),
+        filename: `skenario_tarif_${tahun}${selectedUnitKerja !== "all" ? `_${selectedUnitKerja.replace(/[^a-zA-Z0-9]/g, "_")}` : ""}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast.success("Laporan berhasil disiapkan");
+    } catch (error: any) {
+      console.error("Gagal mengunduh skenario tarif:", error);
+      toast.error(error?.message || "Terjadi kesalahan saat menyiapkan laporan");
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   const GaugeCard = ({
@@ -738,12 +749,18 @@ const SkenarioTarif = () => {
             Filter
           </Button>
           <Button
-            onClick={handleExport}
-            disabled={!filteredData?.length}
+            onClick={() => {
+              void handleDownloadReport();
+            }}
+            disabled={!filteredData?.length || downloadingReport}
             className="bg-red-500 text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
+            {downloadingReport ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
           </Button>
           <Button
             onClick={() => populateMutation.mutate()}

@@ -15,6 +15,7 @@ import { Download, Upload, Plus, Edit, Trash2, Calculator, Clock, RefreshCw } fr
 import * as XLSX from "xlsx";
 import BahanPorsiForm from "@/components/BahanPorsiForm";
 import { manualRecalculateGizi, handleDatabaseError } from "@/utils/database-operations";
+import { useReportDownload } from "@/components/report";
 
 interface MenuGizi {
   id: number;
@@ -110,6 +111,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
   const [isUpdateWaktuDialogOpen, setIsUpdateWaktuDialogOpen] = useState(false);
   const [selectedItemForWaktu, setSelectedItemForWaktu] = useState<KalkulasiBiayaGiziData | null>(null);
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
+  const [downloadingSummary, setDownloadingSummary] = useState(false);
+  const [downloadingDetail, setDownloadingDetail] = useState(false);
+  const [downloadingDetailBiaya, setDownloadingDetailBiaya] = useState(false);
   
   // State untuk manual recalculation
   const [recalculating, setRecalculating] = useState(false);
@@ -322,31 +327,115 @@ const KalkulasiBiayaGizi: React.FC = () => {
     XLSX.writeFile(wb, filename);
   };
 
-  const handleDownloadSummary = () => {
-    const rows = [
-      { kelas: 'SVIP/VVIP', average_unit_cost: aucSummary.svip },
-      { kelas: 'VIP', average_unit_cost: aucSummary.vip },
-      { kelas: 'Kelas I', average_unit_cost: aucSummary.i },
-      { kelas: 'Kelas II', average_unit_cost: aucSummary.ii },
-      { kelas: 'Kelas III', average_unit_cost: aucSummary.iii },
-    ];
-    downloadExcel(`ringkasan_auc_gizi_${currentYear}.xlsx`, rows);
+  const handleDownloadSummary = async () => {
+    try {
+      setDownloadingSummary(true);
+
+      const records = [
+        { "Kelas": "SVIP/VVIP", "Unit Cost Rata-rata": Math.round(aucSummary.svip || 0) },
+        { "Kelas": "VIP", "Unit Cost Rata-rata": Math.round(aucSummary.vip || 0) },
+        { "Kelas": "Kelas I", "Unit Cost Rata-rata": Math.round(aucSummary.i || 0) },
+        { "Kelas": "Kelas II", "Unit Cost Rata-rata": Math.round(aucSummary.ii || 0) },
+        { "Kelas": "Kelas III", "Unit Cost Rata-rata": Math.round(aucSummary.iii || 0) },
+      ];
+
+      await downloadReport({
+        title: "Ringkasan Average Unit Cost Gizi",
+        subtitle: `Tahun ${currentYear}`,
+        filename: `ringkasan_auc_gizi_${currentYear}`,
+        records,
+        orientation: "portrait",
+      });
+
+      toast({
+        title: "Berhasil",
+        description: "Ringkasan AUC berhasil disiapkan",
+      });
+    } catch (error: any) {
+      console.error("Gagal mengunduh ringkasan AUC gizi:", error);
+      toast({
+        title: "Gagal mengunduh",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingSummary(false);
+    }
   };
 
-  const handleDownloadDetail = () => {
-    const rows = data.map(d => ({
-      tahun: d.tahun,
-      kode: d.kode,
-      jenis_makanan: d.jenis_makanan,
-      jumlah: d.jumlah,
-      jumlah_svip: d.jumlah_svip,
-      jumlah_vip: d.jumlah_vip,
-      jumlah_kelas_i: d.jumlah_kelas_i,
-      jumlah_kelas_ii: d.jumlah_kelas_ii,
-      jumlah_kelas_iii: d.jumlah_kelas_iii,
-      unit_cost_per_porsi: d.unit_cost_per_porsi,
-    }));
-    downloadExcel(`detail_kalkulasi_gizi_${currentYear}.xlsx`, rows);
+  const handleDownloadDetail = async () => {
+    if (!data.length) {
+      toast({
+        title: "Tidak ada data",
+        description: "Belum ada data detail kalkulasi untuk diunduh.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setDownloadingDetail(true);
+
+      const records = data.map((d) => ({
+        "Tahun": d.tahun,
+        "Kode": d.kode,
+        "Jenis Makanan": d.jenis_makanan,
+        "Jumlah Porsi": d.jumlah,
+        "Jumlah SVIP/VVIP": d.jumlah_svip,
+        "Jumlah VIP": d.jumlah_vip,
+        "Jumlah Kelas I": d.jumlah_kelas_i,
+        "Jumlah Kelas II": d.jumlah_kelas_ii,
+        "Jumlah Kelas III": d.jumlah_kelas_iii,
+        "Unit Cost per Porsi": Math.round(d.unit_cost_per_porsi || 0),
+        "Biaya Gaji & Tunjangan": Math.round(d.biaya_gaji_tunjangan || 0),
+        "Biaya Jasa Pelayanan": Math.round(d.biaya_jasa_pelayanan || 0),
+        "Biaya Obat": Math.round(d.biaya_obat || 0),
+        "Biaya BHP": Math.round(d.biaya_bhp || 0),
+        "Biaya Makan Karyawan": Math.round(d.biaya_makan_karyawan || 0),
+        "Biaya Makan Pasien": Math.round(d.biaya_makan_pasien || 0),
+        "Biaya Rumah Tangga": Math.round(d.biaya_rumah_tangga || 0),
+        "Biaya Cetak": Math.round(d.biaya_cetak || 0),
+        "Biaya ATK": Math.round(d.biaya_atk || 0),
+        "Biaya Listrik": Math.round(d.biaya_listrik || 0),
+        "Biaya Air": Math.round(d.biaya_air || 0),
+        "Biaya Telepon": Math.round(d.biaya_telp || 0),
+        "Biaya Pemeliharaan Bangunan": Math.round(d.biaya_pemeliharaan_bangunan || 0),
+        "Biaya Pemeliharaan Alat Medis": Math.round(d.biaya_pemeliharaan_alat_medis || 0),
+        "Biaya Pemeliharaan Alat Non Medis": Math.round(d.biaya_pemeliharaan_alat_non_medis || 0),
+        "Biaya Operasional Lainnya": Math.round(d.biaya_operasional_lainnya || 0),
+        "Biaya Penyusutan Gedung": Math.round(d.biaya_penyusutan_gedung || 0),
+        "Biaya Penyusutan Jaringan": Math.round(d.biaya_penyusutan_jaringan || 0),
+        "Biaya Penyusutan Alat Medis": Math.round(d.biaya_penyusutan_alat_medis || 0),
+        "Biaya Penyusutan Alat Non Medis": Math.round(d.biaya_penyusutan_alat_non_medis || 0),
+        "Biaya Pendidikan & Pelatihan": Math.round(d.biaya_pendidikan_pelatihan || 0),
+        "Biaya Laundry": Math.round(d.biaya_laundry || 0),
+        "Biaya Sterilisasi": Math.round(d.biaya_sterilisasi || 0),
+        "Biaya Tidak Langsung Terdistribusi": Math.round(d.biaya_tidak_langsung_terdistribusi || 0),
+        "Biaya Bahan per Porsi": Math.round(d.biaya_bahan_porsi_numeric || 0),
+      }));
+
+      await downloadReport({
+        title: "Detail Kalkulasi Biaya Gizi",
+        subtitle: `Tahun ${currentYear}`,
+        filename: `detail_kalkulasi_gizi_${currentYear}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast({
+        title: "Berhasil",
+        description: "Data detail kalkulasi berhasil disiapkan",
+      });
+    } catch (error: any) {
+      console.error("Gagal mengunduh detail kalkulasi gizi:", error);
+      toast({
+        title: "Gagal mengunduh",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingDetail(false);
+    }
   };
 
   // Manual recalculation function
@@ -427,6 +516,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
   // Download laporan detail biaya (semua kolom biaya), dengan filter jenis makanan
   const handleDownloadDetailBiaya = async () => {
     try {
+      setDownloadingDetailBiaya(true);
       const filter = exportJenisFilter?.trim();
       // Fetch fresh data from DB to ensure up-to-date export and include all columns
       let query = supabase
@@ -464,7 +554,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
       const filteredDb = (rowsDb || []).filter((d: any) => matchJenisStrict(d.jenis_makanan, filter || ''));
 
-      const rowsMapped = filteredDb.map((d: any) => {
+      const records = filteredDb.map((d: any) => {
         // Compute biaya_bahan_porsi when numeric is missing using bahan_porsi JSON breakdown
         let biayaBahanPorsi = d.biaya_bahan_porsi_numeric || 0;
         if ((!biayaBahanPorsi || Number.isNaN(biayaBahanPorsi)) && Array.isArray(d.bahan_porsi)) {
@@ -472,47 +562,56 @@ const KalkulasiBiayaGizi: React.FC = () => {
         }
 
         return {
-          tahun: d.tahun,
-          kode: d.kode,
-          jenis_makanan: d.jenis_makanan,
-          jumlah: d.jumlah,
-          unit_cost_per_porsi: d.unit_cost_per_porsi,
-          biaya_gaji_tunjangan: d.biaya_gaji_tunjangan,
-          biaya_jasa_pelayanan: d.biaya_jasa_pelayanan,
-          biaya_obat: d.biaya_obat,
-          biaya_bhp: d.biaya_bhp,
-          biaya_makan_karyawan: d.biaya_makan_karyawan,
-          biaya_makan_pasien: d.biaya_makan_pasien,
-          biaya_rumah_tangga: d.biaya_rumah_tangga,
-          biaya_cetak: d.biaya_cetak,
-          biaya_atk: d.biaya_atk,
-          biaya_listrik: d.biaya_listrik,
-          biaya_air: d.biaya_air,
-          biaya_telp: d.biaya_telp,
-          biaya_pemeliharaan_bangunan: d.biaya_pemeliharaan_bangunan,
-          biaya_pemeliharaan_alat_medis: d.biaya_pemeliharaan_alat_medis,
-          biaya_pemeliharaan_alat_non_medis: d.biaya_pemeliharaan_alat_non_medis,
-          biaya_operasional_lainnya: d.biaya_operasional_lainnya,
-          biaya_penyusutan_gedung: d.biaya_penyusutan_gedung,
-          biaya_penyusutan_jaringan: d.biaya_penyusutan_jaringan,
-          biaya_penyusutan_alat_medis: d.biaya_penyusutan_alat_medis,
-          biaya_penyusutan_alat_non_medis: d.biaya_penyusutan_alat_non_medis,
-          biaya_pendidikan_pelatihan: d.biaya_pendidikan_pelatihan,
-          biaya_laundry: d.biaya_laundry,
-          biaya_sterilisasi: d.biaya_sterilisasi,
-          biaya_tidak_langsung_terdistribusi: d.biaya_tidak_langsung_terdistribusi,
-          biaya_bahan_porsi: biayaBahanPorsi,
+          "Tahun": d.tahun,
+          "Kode": d.kode,
+          "Jenis Makanan": d.jenis_makanan,
+          "Jumlah Porsi": d.jumlah,
+          "Unit Cost per Porsi": Math.round(d.unit_cost_per_porsi || 0),
+          "Biaya Gaji & Tunjangan": Math.round(d.biaya_gaji_tunjangan || 0),
+          "Biaya Jasa Pelayanan": Math.round(d.biaya_jasa_pelayanan || 0),
+          "Biaya Obat": Math.round(d.biaya_obat || 0),
+          "Biaya BHP": Math.round(d.biaya_bhp || 0),
+          "Biaya Makan Karyawan": Math.round(d.biaya_makan_karyawan || 0),
+          "Biaya Makan Pasien": Math.round(d.biaya_makan_pasien || 0),
+          "Biaya Rumah Tangga": Math.round(d.biaya_rumah_tangga || 0),
+          "Biaya Cetak": Math.round(d.biaya_cetak || 0),
+          "Biaya ATK": Math.round(d.biaya_atk || 0),
+          "Biaya Listrik": Math.round(d.biaya_listrik || 0),
+          "Biaya Air": Math.round(d.biaya_air || 0),
+          "Biaya Telepon": Math.round(d.biaya_telp || 0),
+          "Biaya Pemeliharaan Bangunan": Math.round(d.biaya_pemeliharaan_bangunan || 0),
+          "Biaya Pemeliharaan Alat Medis": Math.round(d.biaya_pemeliharaan_alat_medis || 0),
+          "Biaya Pemeliharaan Alat Non Medis": Math.round(d.biaya_pemeliharaan_alat_non_medis || 0),
+          "Biaya Operasional Lainnya": Math.round(d.biaya_operasional_lainnya || 0),
+          "Biaya Penyusutan Gedung": Math.round(d.biaya_penyusutan_gedung || 0),
+          "Biaya Penyusutan Jaringan": Math.round(d.biaya_penyusutan_jaringan || 0),
+          "Biaya Penyusutan Alat Medis": Math.round(d.biaya_penyusutan_alat_medis || 0),
+          "Biaya Penyusutan Alat Non Medis": Math.round(d.biaya_penyusutan_alat_non_medis || 0),
+          "Biaya Pendidikan & Pelatihan": Math.round(d.biaya_pendidikan_pelatihan || 0),
+          "Biaya Laundry": Math.round(d.biaya_laundry || 0),
+          "Biaya Sterilisasi": Math.round(d.biaya_sterilisasi || 0),
+          "Biaya Tidak Langsung Terdistribusi": Math.round(d.biaya_tidak_langsung_terdistribusi || 0),
+          "Biaya Bahan per Porsi": Math.round(biayaBahanPorsi || 0),
         };
       });
 
-      if (!rowsMapped.length) {
+      if (!records.length) {
         toast({ title: 'Tidak ada data', description: 'Tidak ada data sesuai filter jenis makanan.', variant: 'destructive' });
         return;
       }
-      downloadExcel(`detail_biaya_gizi_${currentYear}${filter ? `_filter_${filter}` : ''}.xlsx`, rowsMapped);
+      await downloadReport({
+        title: "Detail Komponen Biaya Gizi",
+        subtitle: [`Tahun ${currentYear}`, filter ? `Filter: ${filter}` : null].filter(Boolean).join(' • '),
+        filename: `detail_biaya_gizi_${currentYear}${filter ? `_filter_${filter.replace(/[^a-zA-Z0-9]+/g, '_')}` : ''}`,
+        records,
+        orientation: "landscape",
+      });
+      toast({ title: 'Berhasil', description: 'Laporan detail biaya berhasil disiapkan' });
     } catch (e) {
       console.error('Export error:', e);
       toast({ title: 'Gagal mengunduh', description: 'Terjadi kesalahan saat menyiapkan laporan detail biaya.', variant: 'destructive' });
+    } finally {
+      setDownloadingDetailBiaya(false);
     }
   };
 
@@ -1383,17 +1482,47 @@ const KalkulasiBiayaGizi: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="report" onClick={handleDownloadSummary}>
-              <Download className="h-4 w-4" />
-              Unduh Ringkasan AUC
+            <Button
+              variant="report"
+              onClick={() => {
+                void handleDownloadSummary();
+              }}
+              disabled={downloadingSummary}
+            >
+              {downloadingSummary ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {downloadingSummary ? "Menyiapkan..." : "Unduh Ringkasan AUC"}
             </Button>
-            <Button variant="report" onClick={handleDownloadDetail}>
-              <Download className="h-4 w-4" />
-              Unduh Data Detail
+            <Button
+              variant="report"
+              onClick={() => {
+                void handleDownloadDetail();
+              }}
+              disabled={downloadingDetail}
+            >
+              {downloadingDetail ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {downloadingDetail ? "Menyiapkan..." : "Unduh Data Detail"}
             </Button>
-            <Button variant="report" onClick={handleDownloadDetailBiaya}>
-              <Download className="h-4 w-4" />
-              Unduh Laporan Detail Biaya
+            <Button
+              variant="report"
+              onClick={() => {
+                void handleDownloadDetailBiaya();
+              }}
+              disabled={downloadingDetailBiaya}
+            >
+              {downloadingDetailBiaya ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {downloadingDetailBiaya ? "Menyiapkan..." : "Unduh Laporan Detail Biaya"}
             </Button>
           </div>
         </CardContent>
@@ -1434,8 +1563,8 @@ const KalkulasiBiayaGizi: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-teal-700">
-                  <TableRow>
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                     <TableHead className="text-white font-semibold">Jenis Makanan</TableHead>
                     <TableHead className="text-white font-semibold">Total Porsi</TableHead>
                     <TableHead className="text-white font-semibold">Waktu (Meracik/Memasak/Menata)</TableHead>
@@ -1686,8 +1815,8 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-teal-700">
-                <TableRow>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                   <TableHead className="text-white font-semibold">Kode</TableHead>
                   <TableHead className="text-white font-semibold">Jenis Makanan</TableHead>
                   <TableHead className="text-white font-semibold">Nama Barang</TableHead>

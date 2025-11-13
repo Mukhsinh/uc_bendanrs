@@ -10,6 +10,7 @@ import { Download, RefreshCw, Calculator } from 'lucide-react';
 import * as XLSX from "xlsx";
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useReportDownload } from '@/components/report';
 // Revert to API routes usage
 
 interface DistribusiBiayaData {
@@ -124,6 +125,7 @@ const getColumnName = (i: number): string => {
 };
 
 const DistribusiBiayaPertama: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [data, setData] = useState<DistribusiBiayaData[]>([]);
   const [filteredData, setFilteredData] = useState<DistribusiBiayaData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -326,189 +328,122 @@ const DistribusiBiayaPertama: React.FC = () => {
   };
 
   // Download report
-  const downloadReport = () => {
-    const wb = generateExcel(filteredData);
-    XLSX.writeFile(wb, `distribusi_biaya_pertama_${selectedTahun}.xlsx`);
-  };
+  const handleDownloadReport = async () => {
+    if (filteredData.length === 0) {
+      toast.warning("Tidak ada data untuk laporan.");
+      return;
+    }
 
-  // Generate Excel content
-  const generateExcel = (data: DistribusiBiayaData[]) => {
-    const headers = [
-      'Unit Kerja Pusat Biaya',
-      'Biaya Tahunan',
-      'Dasar Alokasi',
-      'Tahun',
-      'Jumlah Biaya Terdistribusi I',
-      'Audit Check',
-      'UK001 Direktur',
-      'UK002 Komite PPI',
-      'UK003 Komite PMKP',
-      'UK004 Komite Medik',
-      'UK005 Akreditasi',
-      'UK006 Dewan Pengawas',
-      'UK007 Bid Pengembangan',
-      'UK008 Seksi Penunjang Non Medis',
-      'UK009 IPSRS',
-      'UK010 Seksi Penunjang Pelayanan Medis',
-      'UK011 Bid Keperawatan',
-      'UK012 Seksi Asuhan Pelayanan Keperawatan',
-      'UK013 Seksi Pengembangan dan Etika Keperawatan',
-      'UK014 Bid Pelayanan Medis',
-      'UK015 Seksi Pengembangan Pelayanan Medis',
-      'UK016 Seksi Pelayanan Medis dan Rekam Medis',
-      'UK017 TPPRJ',
-      'UK018 TPPRI',
-      'UK019 Bag Tata Usaha',
-      'UK020 Subag Keuangan',
-      'UK021 Unit Perbendaharaan',
-      'UK022 Unit Pendapatan',
-      'UK023 Unit Akuntansi dan Verifikasi',
-      'UK024 Unit Akuntansi Manajemen',
-      'UK025 Analis Biaya dan Kasir',
-      'UK026 Subag Umpeg',
-      'UK027 Staf Umum dan Kepegawaian',
-      'UK028 Unit IT',
-      'UK029 Rumah Tangga',
-      'UK030 Cleaning Service',
-      'UK031 Security',
-      'UK032 Unit Aset',
-      'UK033 Instalasi Humas Komplain',
-      'UK034 Subag Renval',
-      'UK035 Staf Renval',
-      'UK036 Rekam Medik',
-      'UK037 Ambulance',
-      'UK038 Laboratorium PK PA',
-      'UK039 Radiologi',
-      'UK040 Farmasi',
-      'UK041 Rehab Medik',
-      'UK042 Gizi Dapur',
-      'UK043 Laundry CSSD',
-      'UK044 BDRS',
-      'UK045 Cathlab',
-      'UK046 Terang Bulan VIP VVIP',
-      'UK047 Truntum',
-      'UK048 Sekarjagat',
-      'UK049 Jlamprang',
-      'UK050 Nifas',
-      'UK051 Perinatologi',
-      'UK052 Buketan',
-      'UK053 ICU PICU NICU',
-      'UK054 VK',
-      'UK055 IGD PONEK',
-      'UK056 Klinik Kebid Kandungan',
-      'UK057 Klinik Bedah Mulut',
-      'UK058 Klinik Syaraf',
-      'UK059 Klinik Bedah Syaraf',
-      'UK060 Klinik Bedah Digestif',
-      'UK061 Klinik Bedah Umum',
-      'UK062 Klinik Anak',
-      'UK063 Klinik Penyakit Dalam',
-      'UK064 Klinik Mata',
-      'UK065 Klinik Kulit Kelamin',
-      'UK066 Klinik THT',
-      'UK067 Klinik Gigi',
-      'UK068 Klinik Jantung',
-      'UK069 Klinik DOT VCT CST',
-      'UK070 Klinik Paru',
-      'UK071 Klinik Orthopedi',
-      'UK072 Klinik Jiwa',
-      'UK073 Klinik Parikesit',
-      'UK074 IBS',
-      'UK075 Pemulasaran Jenazah',
-      'UK076 Hemodialisis',
-      'UK077 Unit Diklat'
-    ];
+    try {
+      const columnLabels = [
+        'UK001 Direktur',
+        'UK002 Komite PPI',
+        'UK003 Komite PMKP',
+        'UK004 Komite Medik',
+        'UK005 Akreditasi',
+        'UK006 Dewan Pengawas',
+        'UK007 Bid Pengembangan',
+        'UK008 Seksi Penunjang Non Medis',
+        'UK009 IPSRS',
+        'UK010 Seksi Penunjang Pelayanan Medis',
+        'UK011 Bid Keperawatan',
+        'UK012 Seksi Asuhan Pelayanan Keperawatan',
+        'UK013 Seksi Pengembangan dan Etika Keperawatan',
+        'UK014 Bid Pelayanan Medis',
+        'UK015 Seksi Pengembangan Pelayanan Medis',
+        'UK016 Seksi Pelayanan Medis dan Rekam Medis',
+        'UK017 TPPRJ',
+        'UK018 TPPRI',
+        'UK019 Bag Tata Usaha',
+        'UK020 Subag Keuangan',
+        'UK021 Unit Perbendaharaan',
+        'UK022 Unit Pendapatan',
+        'UK023 Unit Akuntansi dan Verifikasi',
+        'UK024 Unit Akuntansi Manajemen',
+        'UK025 Analis Biaya dan Kasir',
+        'UK026 Subag Umpeg',
+        'UK027 Staf Umum dan Kepegawaian',
+        'UK028 Unit IT',
+        'UK029 Rumah Tangga',
+        'UK030 Cleaning Service',
+        'UK031 Security',
+        'UK032 Unit Aset',
+        'UK033 Instalasi Humas Komplain',
+        'UK034 Subag Renval',
+        'UK035 Staf Renval',
+        'UK036 Rekam Medik',
+        'UK037 Ambulance',
+        'UK038 Laboratorium PK PA',
+        'UK039 Radiologi',
+        'UK040 Farmasi',
+        'UK041 Rehab Medik',
+        'UK042 Gizi Dapur',
+        'UK043 Laundry CSSD',
+        'UK044 BDRS',
+        'UK045 Cathlab',
+        'UK046 Terang Bulan VIP VVIP',
+        'UK047 Truntum',
+        'UK048 Sekarjagat',
+        'UK049 Jlamprang',
+        'UK050 Nifas',
+        'UK051 Perinatologi',
+        'UK052 Buketan',
+        'UK053 ICU PICU NICU',
+        'UK054 VK',
+        'UK055 IGD PONEK',
+        'UK056 Klinik Kebid Kandungan',
+        'UK057 Klinik Bedah Mulut',
+        'UK058 Klinik Syaraf',
+        'UK059 Klinik Bedah Syaraf',
+        'UK060 Klinik Bedah Digestif',
+        'UK061 Klinik Bedah Umum',
+        'UK062 Klinik Anak',
+        'UK063 Klinik Penyakit Dalam',
+        'UK064 Klinik Mata',
+        'UK065 Klinik Kulit Kelamin',
+        'UK066 Klinik THT',
+        'UK067 Klinik Gigi',
+        'UK068 Klinik Jantung',
+        'UK069 Klinik DOT VCT CST',
+        'UK070 Klinik Paru',
+        'UK071 Klinik Orthopedi',
+        'UK072 Klinik Jiwa',
+        'UK073 Klinik Parikesit',
+        'UK074 IBS',
+        'UK075 Pemulasaran Jenazah',
+        'UK076 Hemodialisis',
+        'UK077 Unit Diklat',
+      ];
 
-    const rows = data.map(item => [
-      item.unit_kerja_pusat_biaya,
-      item.biaya_tahunan,
-      item.dasar_alokasi,
-      item.tahun,
-      item.jumlah_biaya_terdistribusi_i ?? 0,
-      item.audit_check ?? '',
-      item.uk001_direktur,
-      item.uk002_komite_ppi,
-      item.uk003_komite_pmkp,
-      item.uk004_komite_medik,
-      item.uk005_akreditasi,
-      item.uk006_dewan_pengawas,
-      item.uk007_bid_pengembangan_dan_penunjang_pelayanan,
-      item.uk008_seksi_penunjang_non_medis_dan_pengembangan_penunjang_pela,
-      item.uk009_ipsrs_medis_dan_non_medis,
-      item.uk010_seksi_penunjang_pelayanan_medis,
-      item.uk011_bid_keperawatan,
-      item.uk012_seksi_asuhan_pelayanan_keperawatan,
-      item.uk013_seksi_pengembangan_dan_etika_keperawatan,
-      item.uk014_bid_pelayanan_medis,
-      item.uk015_seksi_pengembangan_pelayanan_medis,
-      item.uk016_seksi_pelayanan_medis_dan_rekam_medis,
-      item.uk017_tpprj,
-      item.uk018_tppri,
-      item.uk019_bag_tata_usaha,
-      item.uk020_subag_keuangan,
-      item.uk021_unit_perbendaharaan,
-      item.uk022_unit_pendapatan,
-      item.uk023_unit_akuntansi_dan_verifikasi,
-      item.uk024_unit_akuntansi_manajemen,
-      item.uk025_analis_biaya_dan_kasir,
-      item.uk026_subag_umpeg,
-      item.uk027_staf_umum_dan_kepegawaian,
-      item.uk028_unit_it,
-      item.uk029_rumah_tangga,
-      item.uk030_cleaning_service,
-      item.uk031_security,
-      item.uk032_unit_aset,
-      item.uk033_instalasi_humas_komplain,
-      item.uk034_subag_renval,
-      item.uk035_staf_renval,
-      item.uk036_rekam_medik,
-      item.uk037_ambulance,
-      item.uk038_laboratorium_pk_pa,
-      item.uk039_radiologi,
-      item.uk040_farmasi,
-      item.uk041_rehab_medik,
-      item.uk042_gizi_dapur,
-      item.uk043_laundry_cssd,
-      item.uk044_bdrs,
-      item.uk045_cathlab,
-      item.uk046_terang_bulan_vip_vvip,
-      item.uk047_truntum,
-      item.uk048_sekarjagat,
-      item.uk049_jlamprang,
-      item.uk050_nifas,
-      item.uk051_perinatologi,
-      item.uk052_buketan,
-      item.uk053_icu_picu_nicu,
-      item.uk054_vk,
-      item.uk055_igd_ponek,
-      item.uk056_klinik_kebid_kandungan,
-      item.uk057_klinik_bedah_mulut,
-      item.uk058_klinik_syaraf,
-      item.uk059_klinik_bedah_syaraf,
-      item.uk060_klinik_bedah_digestif,
-      item.uk061_klinik_bedah_umum,
-      item.uk062_klinik_anak,
-      item.uk063_klinik_penyakit_dalam,
-      item.uk064_klinik_mata,
-      item.uk065_klinik_kulit_kelamin,
-      item.uk066_klinik_tht,
-      item.uk067_klinik_gigi,
-      item.uk068_klinik_jantung,
-      item.uk069_klinik_dot_vct_cst,
-      item.uk070_klinik_paru,
-      item.uk071_klinik_orthopedi,
-      item.uk072_klinik_jiwa,
-      item.uk073_klinik_parikesit,
-      item.uk074_ibs,
-      item.uk075_pemulasaran_jenazah,
-      item.uk076_hemodialisis,
-      item.uk077_unit_diklat
-    ]);
+      const records = filteredData.map((item) => {
+        const base: Record<string, number | string> = {
+          'Unit Kerja Pusat Biaya': item.unit_kerja_pusat_biaya,
+          'Biaya Tahunan': item.biaya_tahunan || 0,
+          'Dasar Alokasi': item.dasar_alokasi,
+          Tahun: item.tahun,
+          'Jumlah Biaya Terdistribusi I': item.jumlah_biaya_terdistribusi_i || 0,
+          'Audit Check': item.audit_check || 0,
+        };
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Distribusi Biaya Pertama");
-    return wb;
+        columnKeys.forEach((key, index) => {
+          const label = columnLabels[index] ?? key;
+          base[label] = (item as any)[key] ?? 0;
+        });
+
+        return base;
+      });
+
+      await downloadReport({
+        title: "Laporan Distribusi Biaya Pertama",
+        subtitle: `Tahun ${selectedTahun}`,
+        filename: `distribusi_biaya_pertama_${selectedTahun}`,
+        records,
+        orientation: "landscape",
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan distribusi biaya pertama:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   // Format number (integer)
@@ -548,7 +483,11 @@ const DistribusiBiayaPertama: React.FC = () => {
         >
           Filter
         </Button>
-        <Button onClick={downloadReport} className="bg-red-600 hover:bg-red-700 text-white">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          className="bg-red-600 hover:bg-red-700 text-white">
           <Download className="h-4 w-4 mr-2" />
           Unduh Laporan
         </Button>

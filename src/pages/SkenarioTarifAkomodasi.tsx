@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Loader2, Download, Upload, Calculator, Pencil, Check, X } from "lucide-react";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 import { formatCurrency } from "@/lib/utils";
 
 interface SkenarioTarifAkomodasiData {
@@ -50,8 +50,10 @@ const SkenarioTarifAkomodasi = () => {
   const [tahun, setTahun] = useState<number>(2025);
   const [editingKelas, setEditingKelas] = useState<string | null>(null);
   const [editTarif, setEditTarif] = useState<number>(0);
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
 
   const queryClient = useQueryClient();
+  const { downloadReport } = useReportDownload();
 
   // Fetch data skenario tarif akomodasi
   const { data: skenarioData, isLoading, refetch } = useQuery({
@@ -175,24 +177,39 @@ const SkenarioTarifAkomodasi = () => {
     setEditingKelas(null);
   };
 
-  const handleExport = () => {
-    if (!kelasDataArray || kelasDataArray.length === 0) return;
-    
-    const dataForExport = kelasDataArray.map(item => ({
-      "Tahun": tahun,
-      "Kelas": item.kelas,
-      "Rata-rata Unit Cost": item.rataRataUc,
-      "Tarif": item.tarif,
-      "Profit (Rp)": item.profitRupiah,
-      "Profit (%)": item.profitPersen
-    }));
+  const handleDownloadReport = async () => {
+    if (!kelasDataArray || kelasDataArray.length === 0) {
+      toast.error("Belum ada data untuk diunduh");
+      return;
+    }
 
-    const ws = XLSX.utils.json_to_sheet(dataForExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Skenario Tarif Akomodasi");
-    XLSX.writeFile(wb, `skenario_tarif_akomodasi_${tahun}.xlsx`);
-    
-    toast.success("Laporan berhasil diunduh");
+    try {
+      setDownloadingReport(true);
+
+      const records = kelasDataArray.map((item) => ({
+        "Tahun": tahun,
+        "Kelas": item.kelas,
+        "Rata-rata Unit Cost": Math.round(item.rataRataUc || 0),
+        "Tarif": Math.round(item.tarif || 0),
+        "Profit (Rp)": Math.round(item.profitRupiah || 0),
+        "Profit (%)": Number((item.profitPersen || 0).toFixed(2)),
+      }));
+
+      await downloadReport({
+        title: "Laporan Skenario Tarif Akomodasi",
+        subtitle: `Tahun ${tahun}`,
+        filename: `skenario_tarif_akomodasi_${tahun}`,
+        records,
+        orientation: "portrait",
+      });
+
+      toast.success("Laporan berhasil disiapkan");
+    } catch (error: any) {
+      console.error("Gagal mengunduh skenario tarif akomodasi:", error);
+      toast.error(error?.message || "Terjadi kesalahan saat menyiapkan laporan");
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   return (
@@ -241,12 +258,18 @@ const SkenarioTarifAkomodasi = () => {
               </Button>
               
               <Button 
-                onClick={handleExport} 
-                disabled={!kelasDataArray.length}
-                className="bg-red-600 text-white hover:bg-red-700"
+                onClick={() => {
+                  void handleDownloadReport();
+                }} 
+                disabled={!kelasDataArray.length || downloadingReport}
+                className="bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed"
               >
-                <Download className="h-4 w-4 mr-2" />
-                Unduh Laporan
+                {downloadingReport ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
               </Button>
               
               {/* Average Profit Badge */}

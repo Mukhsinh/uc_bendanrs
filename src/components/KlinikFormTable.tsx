@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -44,6 +43,7 @@ import {
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface Klinik {
   kode_klinik: string;
@@ -59,6 +59,7 @@ const formSchema = z.object({
 });
 
 const KlinikFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [klinikList, setKlinikList] = useState<Klinik[]>([]);
   const [editing, setEditing] = useState<Klinik | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -281,7 +282,7 @@ const KlinikFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (klinikList.length === 0) {
       toast.warning("Tidak ada data untuk laporan.");
       return;
@@ -292,11 +293,12 @@ const KlinikFormTable: React.FC = () => {
       "Layanan BPJS Kes": k.Layanan_BPJS_Kes ? "Ya" : "Tidak",
       "Layanan Umum/Asuransi": k.Layanan_Umum_Asuransi ? "Ya" : "Tidak"
     }));
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Klinik");
-    XLSX.writeFile(wb, "laporan_klinik.xlsx");
-    toast.info("Laporan diunduh.");
+    await downloadReport({
+      title: "Laporan Klinik",
+      subtitle: "Daftar layanan klinik",
+      filename: "laporan_klinik",
+      records: dataToExport,
+    });
   };
 
   return (
@@ -397,7 +399,7 @@ const KlinikFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+        <Button onClick={() => { void handleDownloadReport(); }} variant="report" className="shadow-sm">
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
         <Button onClick={() => fetchKlinik()} variant="outline" size="icon">
@@ -405,10 +407,10 @@ const KlinikFormTable: React.FC = () => {
         </Button>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border shadow-sm">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Klinik</TableHead>
               <TableHead className="font-bold text-white">Nama Klinik</TableHead>
               <TableHead className="font-bold text-white">Layanan BPJS Kes</TableHead>

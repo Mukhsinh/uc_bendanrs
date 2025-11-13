@@ -49,6 +49,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Loader2, Plus, Users, Stethoscope, BarChart3 } from "lucide-react";
+import { useReportDownload } from "@/components/report";
 
 interface DataDokter {
   id: string;
@@ -68,6 +69,7 @@ const formSchema = z.object({
 });
 
 const DataDokterFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [dataDokterList, setDataDokterList] = useState<DataDokter[]>([]);
   const [editingDataDokter, setEditingDataDokter] = useState<DataDokter | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -253,30 +255,31 @@ const DataDokterFormTable: React.FC = () => {
     }
   };
 
-  const handleReportDownload = () => {
+  const handleReportDownload = async () => {
+    if (dataDokterList.length === 0) {
+      showInfo("Tidak ada data dokter untuk diunduh.");
+      return;
+    }
+
     try {
       setIsDownloading(true);
-      
-      // Prepare data for report
-      const reportData = dataDokterList.map(item => ({
+
+      const reportData = dataDokterList.map((item) => ({
         "Kode Dokter": item.kode_dokter,
         "Nama Dokter": item.nama_dokter,
         "Spesialistik": item.spesialistik,
         "Jenis Spesialistik": item.jenis_spesialistik,
-        "Tanggal Dibuat": new Date(item.created_at || '').toLocaleDateString('id-ID')
+        "Tanggal Dibuat": item.created_at
+          ? new Date(item.created_at).toLocaleDateString("id-ID")
+          : "-",
       }));
 
-      // Convert to Excel
-      const ws = XLSX.utils.json_to_sheet(reportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Laporan Data Dokter");
-      
-      // Save file
-      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(data, `Laporan_Data_Dokter_${new Date().toISOString().split('T')[0]}.xlsx`);
-      
-      showSuccess("Laporan berhasil diunduh");
+      await downloadReport({
+        title: "Laporan Data Dokter",
+        subtitle: "Daftar dokter terdaftar",
+        filename: `laporan_data_dokter_${new Date().toISOString().split("T")[0]}`,
+        records: reportData,
+      });
     } catch (error) {
       console.error("Error downloading report:", error);
       showError("Gagal mengunduh laporan");
@@ -645,7 +648,7 @@ const DataDokterFormTable: React.FC = () => {
           <Button
             variant="report"
             className="shadow-sm"
-            onClick={handleReportDownload}
+            onClick={() => { void handleReportDownload(); }}
             disabled={isDownloading}
           >
             {isDownloading ? (
@@ -680,10 +683,10 @@ const DataDokterFormTable: React.FC = () => {
       </div>
 
       {/* Table */}
-      <div className="border rounded-lg">
+      <div className="rounded-lg border shadow-sm overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Dokter</TableHead>
               <TableHead className="font-bold text-white">Nama Dokter</TableHead>
               <TableHead className="font-bold text-white">Spesialistik</TableHead>

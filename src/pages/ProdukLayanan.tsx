@@ -273,7 +273,7 @@ const ProdukLayanan = () => {
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (data.length === 0) {
       toast({
         title: "Tidak ada data",
@@ -282,67 +282,6 @@ const ProdukLayanan = () => {
       });
       return;
     }
-
-    const csvContent = [
-      // Header
-      [
-        "tahun",
-        "jenis",
-        "deskripsi_inacbg",
-        "grouper",
-        "diaglist",
-        "diagnosa_1",
-        "diagnosa_2",
-        "diagnosa_3",
-        "diagnosa_4",
-        "diagnosa_5",
-        "proclist",
-        "proc_1",
-        "proc_2",
-        "proc_3",
-        "proc_4",
-        "proc_5",
-        "los",
-        "spesialisasi_dokter",
-        "nama_dokter",
-        "kode_dokter",
-        "tarif_inacbgs_numeric",
-        "jp_farmasi_prosentase",
-        "total_biaya",
-        "saldo_distribusi",
-        "prosentase_saldo",
-      ].join(","),
-      // Data rows
-      ...data.map((row) =>
-        [
-          row.tahun || tahun,
-          row.jenis,
-          row.deskripsi_inacbg || "",
-          row.grouper || "",
-          row.diaglist || "",
-          row.diagnosa_1 || "",
-          row.diagnosa_2 || "",
-          row.diagnosa_3 || "",
-          row.diagnosa_4 || "",
-          row.diagnosa_5 || "",
-          row.proclist || "",
-          row.proc_1 || "",
-          row.proc_2 || "",
-          row.proc_3 || "",
-          row.proc_4 || "",
-          row.proc_5 || "",
-          row.los,
-          row.spesialisasi_dokter || "",
-          row.nama_dokter || "",
-          row.kode_dokter || "",
-          row.tarif_inacbgs_numeric || 0,
-          row.jp_farmasi_prosentase || 0,
-          row.total_biaya,
-          row.saldo_distribusi || 0,
-          row.prosentase_saldo || 0,
-        ].join(",")
-      ),
-    ].join("\n");
 
     const dataForExport = data.map(item => ({
       "ID": item.id || "",
@@ -381,14 +320,14 @@ const ProdukLayanan = () => {
       "JP Konsultasi": item.jp_konsultasi || 0
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataForExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Produk Layanan");
-    XLSX.writeFile(wb, `produk_layanan_${tahun}.xlsx`);
-
-    toast({
-      title: "Berhasil",
-      description: "Laporan berhasil diunduh",
+    await downloadReport({
+      title: "Laporan Produk Layanan",
+      subtitle: `Data tahun ${tahun}`,
+      filename: `produk_layanan_${tahun}`,
+      records: dataForExport,
+      filters: {
+        Tahun: tahun,
+      },
     });
   };
 
@@ -953,8 +892,8 @@ const ProdukLayanan = () => {
           ) : (
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader>
-                  <TableRow className="bg-teal-700">
+                <TableHeader className="bg-[#0f766e]">
+                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                     <TableHead className="text-white font-bold">Jenis</TableHead>
                     <TableHead className="text-white font-bold">Deskripsi INA-CBG</TableHead>
                     <TableHead className="text-white font-bold">LOS</TableHead>

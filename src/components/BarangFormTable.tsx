@@ -12,8 +12,8 @@ import { showError, showInfo } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { safeCRUDOperation, handleDatabaseError } from "@/utils/database-operations";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +84,7 @@ const BarangFormTable: React.FC = () => {
   const [reportFilter, setReportFilter] = useState<"all" | "obat" | "bhp">("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
+  const { downloadReport } = useReportDownload();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -630,9 +631,9 @@ const BarangFormTable: React.FC = () => {
     });
   }
 
-  const handleDownloadReport = () => {
-    const filteredData = barangList.filter(item =>
-      reportFilter === "all" ? true : item.gudang === reportFilter
+  const handleDownloadReport = useCallback(async () => {
+    const filteredData = barangList.filter((item) =>
+      reportFilter === "all" ? true : item.gudang === reportFilter,
     );
 
     if (filteredData.length === 0) {
@@ -640,7 +641,7 @@ const BarangFormTable: React.FC = () => {
       return;
     }
 
-    const dataToExport = filteredData.map(item => ({
+    const dataToExport = filteredData.map((item) => ({
       "Kode Barang": item.kode_barang,
       "Nama Barang": item.nama_barang,
       "Satuan": item.satuan,
@@ -648,12 +649,17 @@ const BarangFormTable: React.FC = () => {
       "Gudang": item.gudang,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Barang");
-    XLSX.writeFile(wb, `laporan_barang_${reportFilter}.xlsx`);
-    toast.info("Laporan berhasil diunduh.");
-  };
+    await downloadReport({
+      title: "Laporan Barang Farmasi",
+      subtitle: "Daftar barang farmasi berdasarkan gudang",
+      filename: `laporan_barang_${reportFilter}`,
+      filters: {
+        Gudang: reportFilter === "all" ? "Semua" : reportFilter.toUpperCase(),
+        Pencarian: searchTerm || "Tidak ada",
+      },
+      records: dataToExport,
+    });
+  }, [barangList, reportFilter, downloadReport, searchTerm]);
 
   return (
     <div className="container mx-auto p-4">
@@ -855,8 +861,8 @@ const BarangFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Barang</TableHead>
               <TableHead className="font-bold text-white">Nama Barang</TableHead>
               <TableHead className="font-bold text-white">Satuan</TableHead>

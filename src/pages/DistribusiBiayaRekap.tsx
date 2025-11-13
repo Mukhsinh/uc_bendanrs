@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Download, RefreshCw } from "lucide-react";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 type RekapRow = {
   id?: string;
@@ -59,9 +59,11 @@ const getUkColumnName = (i: number): string => `uk${i.toString().padStart(3, '0'
 const getUkDisplayName = (i: number): string => ukDisplayNames[i - 1] || `UK${i.toString().padStart(3,'0')}`;
 
 export default function DistribusiBiayaRekap() {
+  const { downloadReport } = useReportDownload();
   const [rows, setRows] = useState<RekapRow[]>([]);
   const [tahun, setTahun] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState<boolean>(false);
+  const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
   const { toast } = useToast();
   const [filterNama, setFilterNama] = useState<string>("");
@@ -214,58 +216,75 @@ export default function DistribusiBiayaRekap() {
     }
   };
 
-  const exportExcel = async () => {
+  const handleDownloadReport = async () => {
     try {
-      setLoading(true);
-      
+      setDownloadingReport(true);
+
       const { data, error } = await supabase
         .from("distribusi_biaya_rekap")
         .select("*")
         .eq("tahun", tahun)
         .order("urutan");
-      if (error) throw error;
-      const rowsForDownload: RekapRow[] = (data as any[]) as RekapRow[];
+
+      if (error) {
+        throw error;
+      }
+
+      const rowsForDownload: RekapRow[] = (data as any[]) ?? [];
+
       if (rowsForDownload.length === 0) {
-        toast({ title: "Tidak ada data", description: "Belum ada data untuk diunduh.", variant: "destructive" });
+        toast({
+          title: "Tidak ada data",
+          description: "Belum ada data untuk diunduh.",
+          variant: "destructive",
+        });
         return;
       }
 
-      const headers = [
-        "Biaya",
-        ...Array.from({ length: 77 - 37 + 1 }, (_, idx) => `UK${(37 + idx).toString().padStart(3, '0')}`),
-        "Total"
-      ];
-
-      const dataForExport = rowsForDownload.map((r) => {
-        const values = Array.from({ length: 41 }, (_, idx) => Number(((r as any)[getUkColumnName(37 + idx)] ?? 0)));
-        const total = values.reduce((s, v) => s + v, 0);
-        return {
-          "Biaya": r.biaya || "",
-          ...Object.fromEntries(
-            Array.from({ length: 41 }, (_, idx) => [
-              `UK${(37 + idx).toString().padStart(3, '0')}`,
-              values[idx]
-            ])
-          ),
-          "Total": total
+      const records = rowsForDownload.map((row) => {
+        const record: Record<string, string | number> = {
+          "Biaya": row.biaya || "",
         };
+
+        for (let i = 37; i <= 77; i++) {
+          const code = `UK${i.toString().padStart(3, "0")}`;
+          const columnKey = getUkColumnName(i);
+          const displayName = getUkDisplayName(i);
+          const keyLabel = `${code} - ${displayName}`;
+          record[keyLabel] = Math.round(Number((row as any)[columnKey] ?? 0));
+        }
+
+        const total = Object.keys(record)
+          .filter((key) => key.startsWith("UK"))
+          .reduce((sum, key) => sum + Number(record[key] ?? 0), 0);
+
+        record["Total"] = Math.round(total);
+        record["Tahun"] = tahun;
+
+        return record;
       });
 
-      const ws = XLSX.utils.json_to_sheet(dataForExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Distribusi Biaya Rekap");
-      
-      const fileName = `distribusi_biaya_rekap_${tahun}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-      
+      await downloadReport({
+        title: "Laporan Distribusi Biaya Rekap",
+        subtitle: `Tahun ${tahun}`,
+        filename: `distribusi_biaya_rekap_${tahun}`,
+        records,
+        orientation: "landscape",
+      });
+
       toast({
         title: "Berhasil",
-        description: `Laporan Excel berhasil diunduh dengan ${rowsForDownload.length} data`,
+        description: `Laporan berhasil disiapkan dengan ${rowsForDownload.length} baris data`,
       });
     } catch (err: any) {
-      toast({ title: "Gagal mengunduh", description: err.message || String(err), variant: "destructive" });
+      console.error("Gagal mengunduh laporan distribusi biaya rekap:", err);
+      toast({
+        title: "Gagal mengunduh",
+        description: err?.message || String(err),
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setDownloadingReport(false);
     }
   };
 
@@ -285,11 +304,17 @@ export default function DistribusiBiayaRekap() {
         </Button>
         <Button
           className="bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300 disabled:text-white/70"
-          disabled={loading || rows.length === 0}
-          onClick={exportExcel}
+          disabled={loading || downloadingReport || rows.length === 0}
+          onClick={() => {
+            void handleDownloadReport();
+          }}
         >
-          <Download className="h-4 w-4 mr-2" />
-          Unduh Laporan
+          {downloadingReport ? (
+            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
         </Button>
         <Button
           className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"

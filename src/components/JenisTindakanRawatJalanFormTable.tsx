@@ -17,6 +17,7 @@ import { filterDataForTable } from "@/utils/database-operations";
 
 interface JenisTindakanRawatJalan {
   id: string;
+  user_id?: string;
   kode_jenis: number;
   kode_unit_kerja: string;
   nama_unit_kerja: string;
@@ -185,6 +186,8 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
       // Get existing tindakan for this unit kerja
       const existingUnit = unitKerjaList.find(uk => uk.kode === selectedUnitKerja.kode);
       const existingTindakanCodes = existingUnit?.tindakan_list.map(t => t.kode_jenis_tindakan) || [];
+      const datasetOwnerId =
+        existingUnit?.tindakan_list.find((t) => t.user_id)?.user_id || user.id;
 
       // Prepare data to insert
       const tindakanToInsert = selectedTindakanWithJumlah
@@ -198,7 +201,7 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
           }
 
           return {
-            user_id: user.id,
+            user_id: datasetOwnerId,
             kode_jenis: 1,
             kode_unit_kerja: selectedUnitKerja.kode,
             nama_unit_kerja: selectedUnitKerja.nama,
@@ -394,8 +397,8 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
                 ) : (
                   <div className="rounded-md border">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
+                      <TableHeader className="bg-[#0f766e]">
+                        <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                           <TableHead className="w-[120px]">Kode</TableHead>
                           <TableHead>Nama Tindakan</TableHead>
                           <TableHead className="w-[100px] text-center">Jumlah</TableHead>
@@ -462,17 +465,7 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
                                   </Button>
                                 </div>
                               ) : (
-                                <div className="flex items-center justify-center gap-1">
-                                  <span className="font-medium">{tindakan.jumlah || 0}</span>
-                                  <Button
-                                    size="icon"
-                                    variant="edit"
-                                    className="h-6 w-6"
-                                    onClick={() => handleEditJumlah(tindakan)}
-                                  >
-                                    <Edit2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
+                                <span className="font-medium">{tindakan.jumlah || 0}</span>
                               )}
                             </TableCell>
                             <TableCell className="text-center">
@@ -499,8 +492,16 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
                                 <span className="text-xs text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell>
-                              <div className="flex justify-center">
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-blue-600 hover:text-blue-700"
+                                  onClick={() => handleEditJumlah(tindakan)}
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"

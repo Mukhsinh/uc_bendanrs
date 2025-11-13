@@ -1,14 +1,8 @@
-import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { ComponentProps, useState } from "react";
+import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useGeneralSettingsContext } from "@/contexts/GeneralSettingsContext";
-import {
-  ReportFilters,
-  ReportTableColumn,
-  generateReportExcel,
-  generateReportPdf,
-} from "@/utils/reportExport";
+import { ReportFilters, ReportTableColumn } from "@/utils/reportExport";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useReportDownload } from "./ReportDownloadProvider";
 
 type AnyRow = Record<string, unknown>;
 
@@ -28,6 +23,20 @@ interface ReportToolbarProps {
   rows?: AnyRow[];
   filters?: ReportFilters;
   className?: string;
+  prepareDataset?: () =>
+    | {
+        columns: ReportTableColumn<AnyRow>[];
+        rows: AnyRow[];
+      }
+    | Promise<{
+        columns: ReportTableColumn<AnyRow>[];
+        rows: AnyRow[];
+      }>;
+  align?: "start" | "center" | "end";
+  buttonVariant?: ComponentProps<typeof Button>["variant"];
+  buttonSize?: ComponentProps<typeof Button>["size"];
+  buttonClassName?: string;
+  orientation?: "portrait" | "landscape";
 }
 
 export const ReportToolbar = ({
@@ -38,26 +47,50 @@ export const ReportToolbar = ({
   rows,
   filters,
   className,
+  prepareDataset,
+  align = "end",
+  buttonVariant = "default",
+  buttonSize = "sm",
+  buttonClassName,
+  orientation = "portrait",
 }: ReportToolbarProps) => {
   const { toast } = useToast();
-  const { settings } = useGeneralSettingsContext();
+  const { downloadReport } = useReportDownload();
 
   const [exportState, setExportState] = useState<"idle" | "pdf" | "excel">(
     "idle",
   );
 
+  const resolveDataset = async () => {
+    if (prepareDataset) {
+      const result = await prepareDataset();
+      if (!result?.columns || !result?.rows) {
+        throw new Error("Data laporan belum siap.");
+      }
+      if (result.columns.length === 0 || result.rows.length === 0) {
+        throw new Error("Tidak ada data yang dapat diunduh.");
+      }
+      return result;
+    }
+
+    if (!columns || !rows || columns.length === 0 || rows.length === 0) {
+      throw new Error("Data laporan belum siap atau kosong.");
+    }
+
+    return { columns, rows };
+  };
+
   const handleExportPdf = async () => {
     setExportState("pdf");
     try {
-      const dataset = { columns, rows };
-      await generateReportPdf({
+      const dataset = await resolveDataset();
+      await downloadReport({
         title,
         subtitle,
         filename,
-        columns: dataset.columns,
-        rows: dataset.rows,
         filters,
-        settings,
+        dataset,
+        orientation,
       });
       toast({
         title: "Berhasil",
@@ -68,7 +101,9 @@ export const ReportToolbar = ({
       toast({
         title: "Gagal mengunduh PDF",
         description:
-          error instanceof Error ? error.message : "Terjadi kesalahan saat membuat PDF.",
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat membuat PDF.",
         variant: "destructive",
       });
     } finally {
@@ -79,15 +114,14 @@ export const ReportToolbar = ({
   const handleExportExcel = async () => {
     setExportState("excel");
     try {
-      const dataset = { columns, rows };
-      await generateReportExcel({
+      const dataset = await resolveDataset();
+      await downloadReport({
         title,
         subtitle,
         filename,
-        columns: dataset.columns,
-        rows: dataset.rows,
         filters,
-        settings,
+        dataset,
+        orientation,
       });
       toast({
         title: "Berhasil",
@@ -98,7 +132,9 @@ export const ReportToolbar = ({
       toast({
         title: "Gagal mengunduh Excel",
         description:
-          error instanceof Error ? error.message : "Terjadi kesalahan saat membuat Excel.",
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat membuat Excel.",
         variant: "destructive",
       });
     } finally {
@@ -107,25 +143,33 @@ export const ReportToolbar = ({
   };
 
   const disabled =
-    !columns ||
-    !rows ||
-    columns.length === 0 ||
-    rows.length === 0;
+    !prepareDataset &&
+    (!columns ||
+      !rows ||
+      columns.length === 0 ||
+      rows.length === 0);
   const busy = exportState !== "idle";
+
+  const alignmentClass =
+    align === "start" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-end gap-2 ${className ?? ""}`.trim()}
+      className={`flex flex-wrap items-center gap-2 ${alignmentClass} ${className ?? ""}`.trim()}
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant="default"
-            size="sm"
+            variant={buttonVariant}
+            size={buttonSize}
             disabled={disabled || busy}
-            className="gap-2 bg-teal-600 hover:bg-teal-700"
+            className={`gap-2 ${buttonClassName ?? "bg-teal-600 hover:bg-teal-700"}`.trim()}
           >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
             Unduh Laporan
           </Button>
         </DropdownMenuTrigger>

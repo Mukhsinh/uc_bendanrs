@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Download, Calculator, RefreshCw, Check } from "lucide-react";
+import { useReportDownload } from "@/components/report";
 import { manualRecalculateOperatif, recalculateOperatifBatched, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 
@@ -31,6 +32,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
   const [operators, setOperators] = useState<{kode: string, nama: string}[]>([]);
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'operator' | 'tindakan', value: string}>({type: 'all', value: ''});
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const { downloadReport } = useReportDownload();
   const [tindakanList, setTindakanList] = useState<{kode: string, nama: string}[]>([]);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
@@ -548,192 +551,103 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
   const handleDownloadReport = async () => {
     try {
-      const ownerId = dataOwnerId || userId;
-      if (!ownerId) {
-        toast.error("User tidak ditemukan. Silakan login kembali.");
-        return;
-      }
+      setDownloadingReport(true);
 
-      // Query data langsung dari database untuk memastikan sinkronisasi
-      let query = supabase
+      const { data: latestData, error: fetchError } = await supabase
         .from('kalkulasi_biaya_operatif')
-        .select(`
-          kode,
-          kode_operator_spesialistik,
-          nama_operator_spesialistik,
-          jenis_pemeriksaan,
-          kode_jenis,
-          kode_unit_kerja,
-          nama_unit_kerja,
-          jumlah,
-          waktu_pemeriksaan,
-          profesionalisme,
-          tingkat_kesulitan,
-          hasil_kali,
-          hasil_kali_waktu,
-          dasar_alokasi_waktu,
-          dasar_alokasi_hasil_kali,
-          biaya_gaji_tunjangan,
-          biaya_makan_karyawan,
-          biaya_rumah_tangga,
-          biaya_cetak,
-          biaya_atk,
-          biaya_listrik,
-          biaya_air,
-          biaya_telp,
-          biaya_pemeliharaan_bangunan,
-          biaya_pemeliharaan_alat_medis,
-          biaya_pemeliharaan_alat_non_medis,
-          biaya_operasional_lainnya,
-          biaya_penyusutan_gedung,
-          biaya_penyusutan_jaringan,
-          biaya_penyusutan_alat_medis,
-          biaya_penyusutan_alat_non_medis,
-          biaya_pendidikan_pelatihan,
-          biaya_laundry,
-          biaya_sterilisasi,
-          biaya_tidak_langsung_terdistribusi,
-          biaya_bahan_pemeriksaan_numeric,
-          unit_cost_per_tindakan
-        `)
+        .select('*')
         .eq('tahun', year)
-        .eq('user_id', ownerId);
-      
-      if (reportFilter.type === 'operator' && reportFilter.value) {
-        query = query.eq('kode_operator_spesialistik', reportFilter.value);
-      } else if (reportFilter.type === 'tindakan' && reportFilter.value) {
-        query = query.eq('kode', reportFilter.value);
-      }
-      
-      const { data: reportData, error: reportError } = await query.order('kode');
+        .order('jenis_pemeriksaan');
 
-      if (reportError) {
-        console.error('Error fetching report data:', reportError);
-        toast.error(`Gagal mengambil data dari database: ${reportError.message}`);
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const allRows = latestData || [];
+      const filteredRows = allRows.filter((row) => {
+        if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
+          return row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan;
+        }
+        if (reportFilter.type === 'selected') {
+          if (selectedJenisFilters.length === 0) return true;
+          return selectedJenisFilters.includes(row.jenis_pemeriksaan);
+        }
+        return true;
+      });
+
+      if (filteredRows.length === 0) {
+        toast.error('Tidak ada data yang sesuai filter untuk diunduh.');
         return;
       }
 
-      if (!reportData || reportData.length === 0) {
-        toast.error("Tidak ada data untuk diunduh.");
-        return;
-      }
-
-      let filteredRows = reportData;
-
-      const headers = [
-        "Kode",
-        "Kode Operator",
-        "Nama Operator",
-        "Kode Tindakan",
-        "Nama Tindakan",
-        "Jenis",
-        "Unit Kerja",
-        "Nama Unit Kerja",
-        "Jumlah",
-        "Waktu Pemeriksaan",
-        "Profesionalisme",
-        "Tingkat Kesulitan",
-        "Hasil Kali",
-        "Hasil Kali Waktu",
-        "Dasar Alokasi Waktu",
-        "Dasar Alokasi Hasil Kali",
-        // 24 Komponen Biaya
-        "Biaya Gaji & Tunjangan",
-        "Biaya Jasa Pelayanan",
-        "Biaya Obat",
-        "Biaya BHP",
-        "Biaya Makan Karyawan",
-        "Biaya Makan Pasien",
-        "Biaya Rumah Tangga",
-        "Biaya Cetak",
-        "Biaya ATK",
-        "Biaya Listrik",
-        "Biaya Air",
-        "Biaya Telepon",
-        "Biaya Pemeliharaan Bangunan",
-        "Biaya Pemeliharaan Alat Medis",
-        "Biaya Pemeliharaan Alat Non Medis",
-        "Biaya Operasional Lainnya",
-        "Biaya Penyusutan Gedung",
-        "Biaya Penyusutan Jaringan",
-        "Biaya Penyusutan Alat Medis",
-        "Biaya Penyusutan Alat Non Medis",
-        "Biaya Pendidikan & Pelatihan",
-        "Biaya Laundry",
-        "Biaya Sterilisasi",
-        "Biaya Tidak Langsung Terdistribusi",
-        "Biaya Bahan Pemeriksaan",
-        // Hasil Akhir
-        "Unit Cost Per Tindakan"
-      ];
-
-      const rowsCsv = filteredRows.map((r: any) => ({
-        "Kode": r.kode,
-        "Kode Operator": r.kode_operator_spesialistik,
-        "Nama Operator": r.nama_operator_spesialistik,
-        "Kode Tindakan": r.kode,
-        "Nama Tindakan": r.jenis_pemeriksaan,
-        "Jenis": r.kode_jenis,
-        "Unit Kerja": r.kode_unit_kerja,
-        "Nama Unit Kerja": r.nama_unit_kerja,
-        "Jumlah": r.jumlah,
-        "Waktu Pemeriksaan": r.waktu_pemeriksaan,
-        "Profesionalisme": r.profesionalisme,
-        "Tingkat Kesulitan": r.tingkat_kesulitan,
-        "Hasil Kali": r.hasil_kali,
-        "Hasil Kali Waktu": r.hasil_kali_waktu,
-        "Dasar Alokasi Waktu": r.dasar_alokasi_waktu,
-        "Dasar Alokasi Hasil Kali": r.dasar_alokasi_hasil_kali,
-        // 24 Komponen Biaya (beberapa kolom tidak ada di database, diisi 0)
-        "Biaya Gaji & Tunjangan": r.biaya_gaji_tunjangan || 0,
-        "Biaya Jasa Pelayanan": 0, // Kolom tidak tersedia di tabel
-        "Biaya Obat": 0, // Kolom tidak tersedia di tabel
-        "Biaya BHP": 0, // Kolom tidak tersedia di tabel
-        "Biaya Makan Karyawan": r.biaya_makan_karyawan || 0,
-        "Biaya Makan Pasien": 0, // Kolom tidak tersedia di tabel
-        "Biaya Rumah Tangga": r.biaya_rumah_tangga || 0,
-        "Biaya Cetak": r.biaya_cetak || 0,
-        "Biaya ATK": r.biaya_atk || 0,
-        "Biaya Listrik": r.biaya_listrik || 0,
-        "Biaya Air": r.biaya_air || 0,
-        "Biaya Telepon": r.biaya_telp || 0,
-        "Biaya Pemeliharaan Bangunan": r.biaya_pemeliharaan_bangunan || 0,
-        "Biaya Pemeliharaan Alat Medis": r.biaya_pemeliharaan_alat_medis || 0,
-        "Biaya Pemeliharaan Alat Non Medis": r.biaya_pemeliharaan_alat_non_medis || 0,
-        "Biaya Operasional Lainnya": r.biaya_operasional_lainnya || 0,
-        "Biaya Penyusutan Gedung": r.biaya_penyusutan_gedung || 0,
-        "Biaya Penyusutan Jaringan": r.biaya_penyusutan_jaringan || 0,
-        "Biaya Penyusutan Alat Medis": r.biaya_penyusutan_alat_medis || 0,
-        "Biaya Penyusutan Alat Non Medis": r.biaya_penyusutan_alat_non_medis || 0,
-        "Biaya Pendidikan & Pelatihan": r.biaya_pendidikan_pelatihan || 0,
-        "Biaya Laundry": r.biaya_laundry || 0,
-        "Biaya Sterilisasi": r.biaya_sterilisasi || 0,
-        "Biaya Tidak Langsung Terdistribusi": r.biaya_tidak_langsung_terdistribusi || 0,
-        "Biaya Bahan Pemeriksaan": r.biaya_bahan_pemeriksaan_numeric || 0,
-        // Hasil Akhir
-        "Unit Cost Per Tindakan": r.unit_cost_per_tindakan || 0
+      const records = filteredRows.map((row: any) => ({
+        "Kode": row.kode || '',
+        "Kode Unit Kerja": row.kode_unit_kerja || 'UK041',
+        "Jenis Pemeriksaan": row.jenis_pemeriksaan || '',
+        "Jumlah": row.jumlah || 0,
+        "Waktu (menit)": row.waktu_pemeriksaan || 0,
+        "Profesionalisme": row.profesionalisme || 1,
+        "Tingkat Kesulitan": row.tingkat_kesulitan || 1,
+        "Hasil Kali": row.hasil_kali || 0,
+        "Hasil Kali Waktu": row.hasil_kali_waktu || 0,
+        "Dasar Alokasi Waktu": row.dasar_alokasi_waktu || 0,
+        "Dasar Alokasi Hasil Kali": row.dasar_alokasi_hasil_kali || 0,
+        "Biaya Bahan": Math.round(row.biaya_bahan_pemeriksaan_numeric || 0),
+        "Biaya Gaji & Tunjangan": Math.round(row.biaya_gaji_tunjangan || 0),
+        "Biaya Jasa Pelayanan": Math.round(row.biaya_jasa_pelayanan || 0),
+        "Biaya Obat": Math.round(row.biaya_obat || 0),
+        "Biaya BHP": Math.round(row.biaya_bhp || 0),
+        "Biaya Makan Karyawan": Math.round(row.biaya_makan_karyawan || 0),
+        "Biaya Makan Pasien": Math.round(row.biaya_makan_pasien || 0),
+        "Biaya Rumah Tangga": Math.round(row.biaya_rumah_tangga || 0),
+        "Biaya Cetak": Math.round(row.biaya_cetak || 0),
+        "Biaya ATK": Math.round(row.biaya_atk || 0),
+        "Biaya Listrik": Math.round(row.biaya_listrik || 0),
+        "Biaya Air": Math.round(row.biaya_air || 0),
+        "Biaya Telepon": Math.round(row.biaya_telp || 0),
+        "Biaya Pemeliharaan Bangunan": Math.round(row.biaya_pemeliharaan_bangunan || 0),
+        "Biaya Pemeliharaan Alat Medis": Math.round(row.biaya_pemeliharaan_alat_medis || 0),
+        "Biaya Pemeliharaan Alat Non Medis": Math.round(row.biaya_pemeliharaan_alat_non_medis || 0),
+        "Biaya Operasional Lainnya": Math.round(row.biaya_operasional_lainnya || 0),
+        "Biaya Penyusutan Gedung": Math.round(row.biaya_penyusutan_gedung || 0),
+        "Biaya Penyusutan Jaringan": Math.round(row.biaya_penyusutan_jaringan || 0),
+        "Biaya Penyusutan Alat Medis": Math.round(row.biaya_penyusutan_alat_medis || 0),
+        "Biaya Penyusutan Alat Non Medis": Math.round(row.biaya_penyusutan_alat_non_medis || 0),
+        "Biaya Pendidikan & Pelatihan": Math.round(row.biaya_pendidikan_pelatihan || 0),
+        "Biaya Laundry": Math.round(row.biaya_laundry || 0),
+        "Biaya Sterilisasi": Math.round(row.biaya_sterilisasi || 0),
+        "Biaya Tidak Langsung Terdistribusi": Math.round(row.biaya_tidak_langsung_terdistribusi || 0),
+        "Unit Cost": Math.round(row.unit_cost_per_pemeriksaan || 0),
       }));
 
-      const csv = Papa.unparse({ fields: headers, data: rowsCsv });
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      
       let filename = `laporan_kalkulasi_operatif_${year}`;
-      if (reportFilter.type === 'operator') {
-        filename += `_operator_${reportFilter.value}`;
-      } else if (reportFilter.type === 'tindakan') {
-        filename += `_tindakan_${reportFilter.value}`;
+      if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
+        filename += `_${reportFilter.jenisPemeriksaan.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      } else if (reportFilter.type === 'selected' && selectedJenisFilters.length > 0) {
+        filename += `_selected_${selectedJenisFilters.length}`;
       }
-      filename += `.csv`;
-      
-      a.download = filename;
-      a.click();
-      
-      toast.success(`Laporan berisi ${rowsCsv.length} data berhasil diunduh (sinkron dengan database).`);
+
+      await downloadReport({
+        title: "Laporan Kalkulasi Biaya Operatif",
+        subtitle:
+          reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan
+            ? `Tahun ${year} • Jenis ${reportFilter.jenisPemeriksaan}`
+            : reportFilter.type === 'selected' && selectedJenisFilters.length > 0
+              ? `Tahun ${year} • ${selectedJenisFilters.length} jenis dipilih`
+              : `Tahun ${year}`,
+        filename,
+        records,
+        orientation: "landscape",
+      });
+
+      toast.success(`Laporan kalkulasi operatif dengan ${records.length} data berhasil disiapkan.`);
+
       setShowReportFilter(false);
     } catch (e: any) {
-      toast.error(`Gagal membuat laporan: ${e.message}`);
+      console.error(e);
+      toast.error(`Gagal mengunduh laporan: ${e.message || e}`);
+    } finally {
+      setDownloadingReport(false);
     }
   };
 
@@ -1313,11 +1227,18 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 Batal
               </Button>
               <Button 
-                onClick={handleDownloadReport}
-                disabled={(reportFilter.type === 'operator' || reportFilter.type === 'tindakan') && !reportFilter.value}
+                onClick={() => {
+                  void handleDownloadReport();
+                }}
+                disabled={((reportFilter.type === 'operator' || reportFilter.type === 'tindakan') && !reportFilter.value) || downloadingReport}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                Unduh Laporan
+                {downloadingReport ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
               </Button>
             </DialogFooter>
           </DialogContent>

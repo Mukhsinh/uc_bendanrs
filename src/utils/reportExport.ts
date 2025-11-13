@@ -38,6 +38,13 @@ export interface ReportFilters {
   [label: string]: string | number | undefined | null;
 }
 
+export interface ReportDataset<Row = Record<string, unknown>> {
+  columns: ReportTableColumn<Row>[];
+  rows: Row[];
+}
+
+type ReportOrientation = "portrait" | "landscape";
+
 interface BaseReportOptions<Row> {
   title: string;
   subtitle?: string;
@@ -46,17 +53,16 @@ interface BaseReportOptions<Row> {
   rows: Row[];
   filters?: ReportFilters;
   settings?: GeneralSettings;
+  orientation?: ReportOrientation;
 }
 
 const margin = 15; // 1.5 cm
-const tableHeaderHeight = 10;
-const rowLineHeight = 5;
+const defaultFontSize = 8;
+const rowLineHeight = 7.5; // 0.75 cm
 const cellPaddingX = 3;
-const cellPaddingY = 2.5;
-const headerGradientSteps = 24;
-const headerStartColor: [number, number, number] = [13, 148, 136]; // teal-600
-const headerEndColor: [number, number, number] = [14, 165, 233]; // cyan-500
-const tableHeaderColor: [number, number, number] = [15, 118, 110]; // teal-700
+const cellPaddingY = 2;
+const tableHeaderHeight = rowLineHeight + cellPaddingY * 2;
+const tableHeaderColor: [number, number, number] = [15, 118, 110]; // #0f766e
 
 const imageCache = new Map<string, string>();
 
@@ -81,38 +87,6 @@ const resolveCellValue = <Row,>(
   if (typeof raw === "number") return Number.isFinite(raw) ? raw.toString() : "-";
   const text = String(raw).trim();
   return text.length === 0 ? "-" : text;
-};
-
-const drawGradientBar = (
-  pdf: jsPDF,
-  x: number,
-  y: number,
-  width: number,
-  height: number
-) => {
-  for (let i = 0; i < headerGradientSteps; i++) {
-    const ratio = i / Math.max(headerGradientSteps - 1, 1);
-    const r = Math.round(
-      headerStartColor[0] +
-        (headerEndColor[0] - headerStartColor[0]) * ratio
-    );
-    const g = Math.round(
-      headerStartColor[1] +
-        (headerEndColor[1] - headerStartColor[1]) * ratio
-    );
-    const b = Math.round(
-      headerStartColor[2] +
-        (headerEndColor[2] - headerStartColor[2]) * ratio
-    );
-    pdf.setFillColor(r, g, b);
-    pdf.rect(
-      x + (width / headerGradientSteps) * i,
-      y,
-      width / headerGradientSteps + 0.2,
-      height,
-      "F"
-    );
-  }
 };
 
 const addLogoToPdf = async (
@@ -192,9 +166,9 @@ const createHeaderSection = async (
 
   pdf.setFont("helvetica", "bold");
   pdf.setTextColor(18, 53, 91);
-  pdf.setFontSize(13);
+  pdf.setFontSize(defaultFontSize + 4);
   pdf.text(metadata.organization, margin + logoSize + 14, margin + 13);
-  pdf.setFontSize(10);
+  pdf.setFontSize(defaultFontSize);
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(71, 85, 105);
   pdf.text(normalized.address, margin + logoSize + 14, margin + 19, {
@@ -202,13 +176,13 @@ const createHeaderSection = async (
   });
 
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(14);
+  pdf.setFontSize(defaultFontSize + 6);
   pdf.setTextColor(28, 58, 118);
   pdf.text(options.title, margin, margin + headerHeight + 6, {
     maxWidth: headerWidth,
   });
   if (options.subtitle) {
-    pdf.setFontSize(11);
+    pdf.setFontSize(defaultFontSize + 2);
     pdf.setTextColor(71, 85, 105);
     pdf.text(options.subtitle, margin, margin + headerHeight + 14, {
       maxWidth: headerWidth,
@@ -221,7 +195,7 @@ const createHeaderSection = async (
         .map(([label, value]) => `${label}: ${value}`)
     : [];
   if (filters.length > 0) {
-    pdf.setFontSize(7);
+    pdf.setFontSize(defaultFontSize);
     pdf.setTextColor(100, 116, 139);
     const filterText = filters.join("   ·   ");
     pdf.text(filterText, margin, margin + headerHeight + 28, {
@@ -232,7 +206,7 @@ const createHeaderSection = async (
   const printedAt = format(new Date(), "dd MMMM yyyy HH:mm", {
     locale: localeId,
   });
-  pdf.setFontSize(9);
+  pdf.setFontSize(defaultFontSize);
   pdf.setTextColor(71, 85, 105);
   pdf.text(`Dicetak: ${printedAt}`, pageWidth - margin, margin + headerHeight + 4, {
     align: "right",
@@ -274,15 +248,16 @@ const drawTableHeader = <Row,>(
   startY: number
 ) => {
   const rowWidth = colWidths.reduce((a, b) => a + b, 0);
-  drawGradientBar(pdf, margin, startY, rowWidth, tableHeaderHeight);
+  pdf.setFillColor(...tableHeaderColor);
+  pdf.rect(margin, startY, rowWidth, tableHeaderHeight, "F");
   pdf.setDrawColor(12, 74, 110);
   pdf.setLineWidth(0.2);
-  pdf.roundedRect(margin, startY, rowWidth, tableHeaderHeight, 2, 2, "S");
+  pdf.rect(margin, startY, rowWidth, tableHeaderHeight, "S");
 
   let currentX = margin;
   pdf.setTextColor(255, 255, 255);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(9);
+  pdf.setFontSize(defaultFontSize);
 
   columns.forEach((column, index) => {
     const width = colWidths[index];
@@ -319,9 +294,8 @@ const drawTableBody = <Row,>(
       const value = resolveCellValue(column, row, rowIndex, columnIndex);
       const maxWidth = Math.max(colWidths[columnIndex] - cellPaddingX * 2, 12);
       const lines = pdf.splitTextToSize(value, maxWidth);
-      const baseHeight = rowLineHeight * 2.5;
-      const contentHeight = Math.max(lines.length * rowLineHeight, rowLineHeight);
-      const height = Math.max(contentHeight + cellPaddingY * 2, baseHeight);
+      const contentHeight = Math.max(lines.length, 1) * rowLineHeight;
+      const height = contentHeight + cellPaddingY * 2;
       return { value, lines, height, align: column.align ?? "left" };
     });
 
@@ -335,15 +309,16 @@ const drawTableBody = <Row,>(
     let currentX = margin;
     const rowWidth = colWidths.reduce((a, b) => a + b, 0);
     pdf.setFillColor(rowIndex % 2 === 0 ? 249 : 255, 250, 252);
-    pdf.roundedRect(currentX, currentY, rowWidth, rowHeight, 1.5, 1.5, "F");
+    pdf.rect(currentX, currentY, rowWidth, rowHeight, "F");
 
     cellData.forEach((cell, columnIndex) => {
       const cellX = currentX + cellPaddingX;
-      let textY = currentY + cellPaddingY + rowLineHeight - 0.5;
+      const fontHeight = defaultFontSize * 0.3528; // convert pt to mm
+      let textY = currentY + cellPaddingY + fontHeight;
       pdf.setTextColor(15, 23, 42);
 
       cell.lines.forEach((line) => {
-        pdf.setFontSize(9);
+        pdf.setFontSize(defaultFontSize);
         let align: Align | undefined;
         if (cell.align === "center") {
           align = "center";
@@ -367,7 +342,7 @@ const drawTableBody = <Row,>(
             maxWidth: colWidths[columnIndex] - cellPaddingX * 2,
           });
         }
-        textY += rowLineHeight + 0.5;
+        textY += rowLineHeight;
       });
 
       currentX += colWidths[columnIndex];
@@ -394,21 +369,21 @@ const drawFooter = (
 
   const dateText = format(new Date(), "dd MMMM yyyy", { locale: localeId });
 
-  pdf.setFontSize(9);
+  pdf.setFontSize(defaultFontSize);
   pdf.setTextColor(71, 85, 105);
   pdf.text(normalized.institutionName, signatureX + signatureWidth / 2, currentY, {
     align: "center",
   });
-  pdf.text(`Tanggal: ${dateText}`, signatureX + signatureWidth / 2, currentY + 5, {
+  pdf.text(`Tanggal: ${dateText}`, signatureX + signatureWidth / 2, currentY + rowLineHeight / 2, {
     align: "center",
   });
 
-  pdf.setFontSize(9);
+  pdf.setFontSize(defaultFontSize);
   pdf.setTextColor(100, 116, 139);
   pdf.text(
     "Mengetahui,",
     signatureX + signatureWidth / 2,
-    currentY + 12,
+    currentY + rowLineHeight + cellPaddingY,
     { align: "center" }
   );
 
@@ -421,20 +396,20 @@ const drawFooter = (
     currentY + 26
   );
 
-  pdf.setFontSize(9);
+  pdf.setFontSize(defaultFontSize);
   pdf.setFont("helvetica", "bold");
   pdf.setTextColor(15, 23, 42);
   pdf.text(
     signature.nameLine.toUpperCase(),
     signatureX + signatureWidth / 2,
-    currentY + 24,
+    currentY + rowLineHeight * 2,
     { align: "center" }
   );
 
-  pdf.setFontSize(9);
+  pdf.setFontSize(defaultFontSize);
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(71, 85, 105);
-  pdf.text(signature.titleLine, signatureX + signatureWidth / 2, currentY + 32, {
+  pdf.text(signature.titleLine, signatureX + signatureWidth / 2, currentY + rowLineHeight * 2 + 4, {
     align: "center",
   });
 };
@@ -444,7 +419,7 @@ const applyFooterToAllPages = (pdf: jsPDF, footerText: string) => {
   for (let page = 1; page <= totalPages; page++) {
     pdf.setPage(page);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7);
+    pdf.setFontSize(defaultFontSize);
     pdf.setTextColor(148, 163, 184);
     const pageHeight = pdf.internal.pageSize.getHeight();
     pdf.text(footerText, pdf.internal.pageSize.getWidth() / 2, pageHeight - 8, {
@@ -464,13 +439,20 @@ const applyFooterToAllPages = (pdf: jsPDF, footerText: string) => {
 export const generateReportPdf = async <Row,>(
   options: BaseReportOptions<Row>
 ) => {
+  if (!options.columns || !options.rows) {
+    throw new Error("Kolom dan baris laporan wajib tersedia untuk membuat PDF.");
+  }
+
+  const orientation = options.orientation ?? "portrait";
+
   const pdf = new jsPDF({
-    orientation: "portrait",
+    orientation,
     unit: "mm",
     format: "a4",
   });
 
   pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(defaultFontSize);
 
   const stabilizedSettings = ensureSettings(options.settings);
   const normalizedSettings = normalizeGeneralSettings(stabilizedSettings);
@@ -501,6 +483,10 @@ export const generateReportPdf = async <Row,>(
 };
 
 export const generateReportExcel = <Row,>(options: BaseReportOptions<Row>) => {
+  if (!options.columns || !options.rows) {
+    throw new Error("Kolom dan baris laporan wajib tersedia untuk membuat Excel.");
+  }
+
   const rows: (string | number)[][] = [];
 
   const normalized = normalizeGeneralSettings(options.settings);
@@ -520,6 +506,7 @@ export const generateReportExcel = <Row,>(options: BaseReportOptions<Row>) => {
   rows.push([]);
 
   const headers = options.columns.map((column) => column.header);
+  const headerRowIndex = rows.length;
   rows.push(headers);
 
   options.rows.forEach((row, rowIndex) => {
@@ -542,16 +529,96 @@ export const generateReportExcel = <Row,>(options: BaseReportOptions<Row>) => {
   worksheet["!cols"] = options.columns.map((column) => ({
     wch: Math.max(12, column.header.length + 4),
   }));
-  worksheet["!freeze"] = { xSplit: 0, ySplit: rows.length - options.rows.length - 1 };
+  worksheet["!freeze"] = { xSplit: 0, ySplit: headerRowIndex + 1 };
+  worksheet["!rows"] = rows.map(() => ({
+    hpt: 21.26, // 0.75 cm
+  }));
+
+  const range = XLSX.utils.decode_range(worksheet["!ref"] ?? "A1");
+  for (let R = range.s.r; R <= range.e.r; R++) {
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const address = XLSX.utils.encode_cell({ r: R, c: C });
+      const cell = worksheet[address];
+      if (!cell) continue;
+
+      cell.s = cell.s ?? {};
+      cell.s.font = {
+        ...(cell.s.font ?? {}),
+        name: "Helvetica",
+        sz: defaultFontSize,
+      };
+
+      if (R === headerRowIndex) {
+        cell.s.fill = {
+          patternType: "solid",
+          fgColor: { rgb: "0F766E" },
+        };
+        cell.s.font = {
+          ...(cell.s.font ?? {}),
+          color: { rgb: "FFFFFF" },
+          bold: true,
+        };
+        cell.s.alignment = {
+          ...(cell.s.alignment ?? {}),
+          horizontal: "center",
+          vertical: "center",
+        };
+      } else if (R > headerRowIndex) {
+        cell.s.alignment = {
+          ...(cell.s.alignment ?? {}),
+          vertical: "center",
+        };
+      }
+    }
+  }
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
 
-  const buffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  const buffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+    cellStyles: true,
+  });
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
   saveAs(blob, `${options.filename}.xlsx`);
+};
+
+export const buildDatasetFromRecords = <Row extends Record<string, unknown>>(
+  records: Row[],
+): ReportDataset<Row> => {
+  if (!records || records.length === 0) {
+    return { columns: [], rows: [] };
+  }
+
+  const columnOrder: string[] = [];
+  records.forEach((record) => {
+    Object.keys(record).forEach((key) => {
+      if (!columnOrder.includes(key)) {
+        columnOrder.push(key);
+      }
+    });
+  });
+
+  const columns = columnOrder.map((key) => {
+    const align: Align =
+      records.every((record) => typeof record[key] === "number")
+        ? "right"
+        : "left";
+
+    return {
+      key,
+      header: key,
+      align,
+    } as ReportTableColumn<Row>;
+  });
+
+  return {
+    columns,
+    rows: records,
+  };
 };
 
 

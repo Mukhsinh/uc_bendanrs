@@ -40,6 +40,7 @@ import {
   Building2,
   Activity,
 } from "lucide-react";
+import { useReportDownload } from "@/components/report";
 
 interface UnitKerjaData {
   Kode_UK: string;
@@ -68,6 +69,8 @@ const PengelompokanData = () => {
   const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const { downloadReport } = useReportDownload();
 
   // Load data
   const loadData = async () => {
@@ -148,38 +151,45 @@ const PengelompokanData = () => {
   };
 
   // Download report
-  const downloadReport = () => {
-    const reportData = filteredData.map(item => ({
-      "Kode UK": item.Kode_UK,
-      "Unit Kerja": item.Nama_Unit_Kerja,
-      "Tahun": item.tahun,
-      "Jenis": item.Jenis,
-      "SDM Dokter": item.SDM_dokter || 0,
-      "SDM Perawat": item.SDM_Perawat || 0,
-      "SDM Non Medis": item.SDM_Non || 0,
-      "Total SDM": (item.SDM_dokter || 0) + (item.SDM_Perawat || 0) + (item.SDM_Non || 0),
-      "Kunjungan Lama": item.Kunjungan_Pasien_Lama || 0,
-      "Kunjungan Baru": item.Kunjungan_Pasien_Baru || 0,
-      "Total Kunjungan": (item.Kunjungan_Pasien_Lama || 0) + (item.Kunjungan_Pasien_Baru || 0),
-      "Jumlah Tindakan": item.Jumlah_Tindakan || 0
-    }));
+  const handleDownloadReport = async () => {
+    if (filteredData.length === 0) {
+      toast.error("Belum ada data untuk diunduh");
+      return;
+    }
 
-    const csvContent = [
-      Object.keys(reportData[0]).join(","),
-      ...reportData.map(row => Object.values(row).join(","))
-    ].join("\n");
+    try {
+      setDownloadingReport(true);
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `laporan_pengelompokan_data_${filterTahun}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("Laporan berhasil diunduh");
+      const records = filteredData.map((item) => ({
+        "Kode UK": item.Kode_UK,
+        "Unit Kerja": item.Nama_Unit_Kerja,
+        "Tahun": item.tahun,
+        "Jenis": item.Jenis,
+        "SDM Dokter": item.SDM_dokter || 0,
+        "SDM Perawat": item.SDM_Perawat || 0,
+        "SDM Non Medis": item.SDM_Non || 0,
+        "Total SDM": (item.SDM_dokter || 0) + (item.SDM_Perawat || 0) + (item.SDM_Non || 0),
+        "Kunjungan Lama": item.Kunjungan_Pasien_Lama || 0,
+        "Kunjungan Baru": item.Kunjungan_Pasien_Baru || 0,
+        "Total Kunjungan": (item.Kunjungan_Pasien_Lama || 0) + (item.Kunjungan_Pasien_Baru || 0),
+        "Jumlah Tindakan": item.Jumlah_Tindakan || 0,
+      }));
+
+      await downloadReport({
+        title: "Laporan Pengelompokan Data",
+        subtitle: `Tahun ${filterTahun} • Jenis ${filterJenis}`,
+        filename: `laporan_pengelompokan_data_${filterTahun}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast.success("Laporan berhasil disiapkan");
+    } catch (error: any) {
+      console.error("Gagal mengunduh laporan pengelompokan data:", error);
+      toast.error(error?.message || "Terjadi kesalahan saat mengunduh laporan");
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   const getJenisBadgeVariant = (jenis: string | null | undefined) => {
@@ -277,9 +287,18 @@ const PengelompokanData = () => {
               </DialogContent>
             </Dialog>
 
-            <Button onClick={downloadReport} disabled={loading}>
-              <Download className="h-4 w-4 mr-2" />
-              Unduh Laporan
+            <Button
+              onClick={() => {
+                void handleDownloadReport();
+              }}
+              disabled={loading || downloadingReport}
+            >
+              {downloadingReport ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
             </Button>
 
             <Button variant="outline" onClick={loadData} disabled={loading}>

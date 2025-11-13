@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -29,6 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface TindakanBDRS {
   kode: string;
@@ -41,6 +41,7 @@ const formSchema = z.object({
 });
 
 const TindakanBDRSFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [list, setList] = useState<TindakanBDRS[]>([]);
   const [editing, setEditing] = useState<TindakanBDRS | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -196,17 +197,27 @@ const TindakanBDRSFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
-    const data = list.map(item => ({
-      "Kode Tindakan": item.kode,
-      "Nama Tindakan": item.nama,
-    }));
-    if (data.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Tindakan BDRS");
-    XLSX.writeFile(wb, "laporan_tindakan_bdrs.xlsx");
-    toast.info("Laporan diunduh.");
+  const handleDownloadReport = async () => {
+    if (list.length === 0) {
+      toast.warning("Tidak ada data untuk laporan.");
+      return;
+    }
+
+    try {
+      const records = list.map((item) => ({
+        "Kode Tindakan": item.kode,
+        "Nama Tindakan": item.nama,
+      }));
+
+      await downloadReport({
+        title: "Laporan Tindakan BDRS",
+        filename: "laporan_tindakan_bdrs",
+        records,
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan tindakan BDRS:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   return (
@@ -260,7 +271,13 @@ const TindakanBDRSFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          variant="report"
+          className="shadow-sm"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
         <Button onClick={() => fetchAll()} variant="outline" size="icon">
@@ -270,8 +287,8 @@ const TindakanBDRSFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Tindakan</TableHead>
               <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
               <TableHead className="text-right font-bold text-white">Aksi</TableHead>

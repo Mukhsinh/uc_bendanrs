@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -67,6 +66,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { cn } from "@/lib/utils";
+import { useReportDownload } from "@/components/report";
 
 // Helpers to map between DB codes and UI labels for 'jenis'
 const jenisCodeToLabel = (code: number | null | undefined): "Rawat Jalan" | "Rawat Inap" | "Operatif" | "Non Layanan" | undefined => {
@@ -112,6 +112,7 @@ const formSchema = z.object({
 });
 
 const UnitKerjaFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [unitKerjaList, setUnitKerjaList] = useState<UnitKerja[]>([]);
   const [editingUnitKerja, setEditingUnitKerja] = useState<UnitKerja | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -615,7 +616,7 @@ const UnitKerjaFormTable: React.FC = () => {
     toast.info("Template impor data berhasil diunduh.");
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     const filteredData = unitKerjaList.filter(item =>
       (reportFilter === "all" ? true : item.kategori === reportFilter) &&
       (jenisFilter === "all" ? true : item.jenis === jenisFilter)
@@ -635,11 +636,16 @@ const UnitKerjaFormTable: React.FC = () => {
       "Kategori": item.kategori,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Unit Kerja");
-    XLSX.writeFile(wb, `laporan_unit_kerja_${reportFilter.replace(/\s/g, '_')}.xlsx`);
-    toast.info("Laporan berhasil diunduh.");
+    await downloadReport({
+      title: "Laporan Unit Kerja",
+      subtitle: "Daftar unit kerja sesuai filter",
+      filename: `laporan_unit_kerja_${reportFilter.replace(/\s/g, "_")}_${jenisFilter.replace(/\s/g, "_")}`,
+      filters: {
+        Kategori: reportFilter === "all" ? "Semua" : reportFilter,
+        Jenis: jenisFilter === "all" ? "Semua" : jenisFilter,
+      },
+      records: dataToExport,
+    });
   };
 
   return (
@@ -993,7 +999,7 @@ const UnitKerjaFormTable: React.FC = () => {
           </Dialog>
 
           <Button
-            onClick={handleDownloadReport}
+            onClick={() => { void handleDownloadReport(); }}
             variant="report"
             className="shadow-sm"
           >
@@ -1039,8 +1045,8 @@ const UnitKerjaFormTable: React.FC = () => {
 
       <div className="rounded-md border overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Unit Kerja</TableHead>
               <TableHead className="font-bold text-white">Nama Unit Kerja</TableHead>
               <TableHead className="font-bold text-white">Lokasi Unit Kerja</TableHead>

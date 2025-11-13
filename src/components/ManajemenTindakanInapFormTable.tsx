@@ -398,8 +398,8 @@ const ManajemenTindakanInapFormTable: React.FC = () => {
                 ) : (
                   <div className="rounded-md border">
                     <Table>
-                      <TableHeader className="bg-teal-700">
-                        <TableRow>
+                      <TableHeader className="bg-[#0f766e]">
+                        <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                           <TableHead className="w-[120px] text-white font-semibold">Kode</TableHead>
                           <TableHead className="text-white font-semibold">Nama Tindakan</TableHead>
                           <TableHead className="w-[100px] text-center text-white font-semibold">Jumlah</TableHead>

@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -52,6 +51,7 @@ import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-re
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
 import { fetchUnitKerjaPusatPendapatan, validateUnitKerjaData, type UnitKerja as UnitKerjaType } from "@/utils/unit-kerja-helper";
+import { useReportDownload } from "@/components/report";
 
 interface UnitKerja {
   id: string;
@@ -84,6 +84,7 @@ const formSchema = z.object({
 });
 
 const PendapatanFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [pendapatanList, setPendapatanList] = useState<DataPendapatan[]>([]);
   const [unitKerjaList, setUnitKerjaList] = useState<UnitKerja[]>([]);
   const [editingPendapatan, setEditingPendapatan] = useState<DataPendapatan | null>(null);
@@ -536,7 +537,7 @@ const PendapatanFormTable: React.FC = () => {
     }
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (pendapatanList.length === 0) {
       toast.warning("Tidak ada data untuk dibuat laporan.");
       return;
@@ -552,11 +553,12 @@ const PendapatanFormTable: React.FC = () => {
       "Tahun": item.tahun,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Data Pendapatan");
-    XLSX.writeFile(wb, "laporan_data_pendapatan.xlsx");
-    toast.info("Laporan berhasil diunduh.");
+    await downloadReport({
+      title: "Laporan Pendapatan Unit Kerja",
+      subtitle: "Ringkasan pendapatan per unit kerja",
+      filename: "laporan_data_pendapatan",
+      records: dataToExport,
+    });
   };
 
   return (
@@ -681,7 +683,7 @@ const PendapatanFormTable: React.FC = () => {
           </DialogContent>
         </Dialog>
         <Button
-          onClick={handleDownloadReport}
+          onClick={() => { void handleDownloadReport(); }}
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
@@ -698,8 +700,8 @@ const PendapatanFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="text-white">Kode Unit Kerja</TableHead>
               <TableHead className="text-white">Nama Unit Kerja</TableHead>
               <TableHead className="text-white">Tahun</TableHead>

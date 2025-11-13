@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, RefreshCcw, ClipboardList, Scale, Building } from "lucide-react";
+import { Download, RefreshCcw, ClipboardList, Scale, Building, Loader2 } from "lucide-react";
+import { useReportDownload } from "@/components/report";
 import * as XLSX from 'xlsx';
 
 interface KalkulasiBiayaKelasAkomodasiData {
@@ -66,6 +67,8 @@ const KalkulasiBiayaKelasAkomodasi = () => {
     search: ""
   });
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   useEffect(() => {
     console.log('Component mounted, fetching data...');
@@ -163,37 +166,55 @@ const KalkulasiBiayaKelasAkomodasi = () => {
     }).format(amount);
   };
 
-  const exportToExcel = () => {
+  const handleDownloadReport = async () => {
     if (filteredData.length === 0) {
       toast({
         title: "Error",
-        description: "Tidak ada data untuk diekspor",
+        description: "Tidak ada data untuk diunduh",
         variant: "destructive",
       });
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(
-      filteredData.map(item => ({
-        'Tahun': item.tahun,
-        'Kode Unit Kerja': item.kode_unit_kerja,
-        'Nama Unit Kerja': item.nama_unit_kerja,
-        'Kelas': item.kelas,
-        'Alokasi Biaya Gizi': item.alokasi_biaya_gizi,
-        'Unit Cost Per Kelas': item.unit_cost_per_kelas,
-      }))
-    );
+    try {
+      setDownloadingReport(true);
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Kalkulasi Biaya Kelas Akomodasi');
+      const subtitleParts: string[] = [];
+      if (filters.tahun) subtitleParts.push(`Tahun ${filters.tahun}`);
+      if (filters.nama_unit_kerja) subtitleParts.push(`Unit ${filters.nama_unit_kerja}`);
+      if (filters.kelas) subtitleParts.push(`Kelas ${filters.kelas}`);
 
-    const fileName = `kalkulasi_biaya_kelas_akomodasi_${filters.tahun || 'all'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
+      const records = filteredData.map((item) => ({
+        "Tahun": item.tahun,
+        "Kode Unit Kerja": item.kode_unit_kerja,
+        "Nama Unit Kerja": item.nama_unit_kerja,
+        "Kelas": item.kelas,
+        "Alokasi Biaya Gizi": Math.round(item.alokasi_biaya_gizi || 0),
+        "Unit Cost Per Kelas": Math.round(item.unit_cost_per_kelas || 0),
+      }));
 
-    toast({
-      title: "Success",
-      description: "Data berhasil diekspor ke Excel",
-    });
+      await downloadReport({
+        title: "Laporan Kalkulasi Biaya Kelas Akomodasi",
+        subtitle: subtitleParts.join(" • ") || undefined,
+        filename: `kalkulasi_biaya_kelas_akomodasi_${filters.tahun || 'all'}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast({
+        title: "Success",
+        description: "Laporan berhasil disiapkan",
+      });
+    } catch (error: any) {
+      console.error("Gagal mengunduh kalkulasi biaya kelas akomodasi:", error);
+      toast({
+        title: "Error",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   const getTotalUnitCost = () => {
@@ -307,12 +328,18 @@ const KalkulasiBiayaKelasAkomodasi = () => {
             className="flex-1 min-w-[200px]"
           />
           <Button
-            onClick={exportToExcel}
-            disabled={loading || filteredData.length === 0}
+            onClick={() => {
+              void handleDownloadReport();
+            }}
+            disabled={loading || filteredData.length === 0 || downloadingReport}
             variant="report"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Unduh Laporan
+            {downloadingReport ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
           </Button>
           <Button
             variant="ghost"
@@ -393,8 +420,8 @@ const KalkulasiBiayaKelasAkomodasi = () => {
         <CardContent>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-teal-700">
-                <TableRow>
+              <TableHeader className="bg-[#0f766e]">
+                <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                   <TableHead className="text-white font-semibold">Tahun</TableHead>
                   <TableHead className="text-white font-semibold">Unit Kerja</TableHead>
                   <TableHead className="text-white font-semibold">Kelas</TableHead>

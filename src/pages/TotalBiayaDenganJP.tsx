@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { useReportDownload } from "@/components/report";
 
 interface UnitOption {
   id: string;
@@ -53,6 +54,7 @@ const TotalBiayaDenganJP: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [downloading, setDownloading] = useState<boolean>(false);
+  const { downloadReport } = useReportDownload();
 
   const loadData = useCallback(
     async (selectedYear: number, opts?: { silent?: boolean }) => {
@@ -202,7 +204,7 @@ const TotalBiayaDenganJP: React.FC = () => {
     }
   }, [loadData, tahun]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (rows.length === 0) {
       toast.info("Tidak ada data yang dapat diunduh.");
       return;
@@ -210,56 +212,42 @@ const TotalBiayaDenganJP: React.FC = () => {
 
     try {
       setDownloading(true);
-      const header = [
-        "Kode Unit",
-        "Nama Unit",
-        "Alokasi Biaya Pertama",
-        "Alokasi Biaya Kedua",
-        "BTL - Biaya Tidak Langsung Terdistribusi",
-        "BTL - Total Biaya",
-      ];
-
       const data = filteredRows.length > 0 ? filteredRows : rows;
+      const records = data.map((row) => ({
+        "Kode Unit": row.kode,
+        "Nama Unit": row.nama,
+        "Alokasi Biaya Pertama": row.alokasiPertama,
+        "Alokasi Biaya Kedua": row.alokasiKedua,
+        "BTL - Biaya Tidak Langsung Terdistribusi": row.btlTidakLangsung,
+        "BTL - Total Biaya": row.btlTotal,
+      }));
 
-      const rowsCsv = data.map((row) => [
-        row.kode,
-        row.nama,
-        row.alokasiPertama,
-        row.alokasiKedua,
-        row.btlTidakLangsung,
-        row.btlTotal,
-      ]);
+      records.push({
+        "Kode Unit": "Total",
+        "Nama Unit": "",
+        "Alokasi Biaya Pertama": summaryTotals.alokasiPertama,
+        "Alokasi Biaya Kedua": summaryTotals.alokasiKedua,
+        "BTL - Biaya Tidak Langsung Terdistribusi": summaryTotals.btlTidakLangsung,
+        "BTL - Total Biaya": summaryTotals.btlTotal,
+      });
 
-      rowsCsv.push([
-        "Total",
-        "",
-        summaryTotals.alokasiPertama,
-        summaryTotals.alokasiKedua,
-        summaryTotals.btlTidakLangsung,
-        summaryTotals.btlTotal,
-      ]);
-
-      const csv = [header, ...rowsCsv]
-        .map((line) => line.map((value) => `"${value}"`).join(","))
-        .join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `total-biaya-dengan-jp-${tahun}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadReport({
+        title: "Laporan Total Biaya Dengan JP",
+        subtitle: `Tahun ${tahun}`,
+        filename: `total_biaya_dengan_jp_${tahun}`,
+        filters: {
+          "Unit Kerja": unitFilter === "all" ? "Semua" : unitFilter,
+        },
+        records,
+        orientation: "landscape",
+      });
     } catch (error) {
       console.error("Gagal mengunduh laporan Total Biaya dengan JP:", error);
       toast.error("Gagal mengunduh laporan Total Biaya dengan JP.");
     } finally {
       setDownloading(false);
     }
-  }, [filteredRows, rows, summaryTotals, tahun]);
+  }, [rows, filteredRows, summaryTotals, tahun, unitFilter, downloadReport]);
 
   return (
     <div className="space-y-6">
@@ -309,7 +297,9 @@ const TotalBiayaDenganJP: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3">
             <Button
-              onClick={handleDownload}
+              onClick={() => {
+                void handleDownload();
+              }}
               disabled={downloading || loading || rows.length === 0}
               className="bg-red-600 hover:bg-red-700 text-white"
             >

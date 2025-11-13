@@ -43,6 +43,7 @@ import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 const formSchema = z.object({
   Kode_UK: z.string().min(1, "Kode UK harus diisi"),
@@ -121,6 +122,7 @@ const validateJenisLabel = (label: string): string => {
 };
 
 export default function DataKegiatanFormTable() {
+  const { downloadReport } = useReportDownload();
   const [data, setData] = useState<(DataKegiatan & DataKegiatanExtra)[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -760,73 +762,72 @@ export default function DataKegiatanFormTable() {
     }
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (!data || data.length === 0) {
       toast.warning("Tidak ada data untuk laporan.");
       return;
     }
-    const rows = data.map((d) => ({
-      Tahun: d.tahun,
-      "Kode UK": d.Kode_UK,
-      "Nama Unit Kerja": d.Nama_Unit_Kerja,
-      // Kepegawaian
-      "SDM Dokter": d.SDM_dokter || 0,
-      "SDM Perawat": d.SDM_Perawat || 0,
-      "SDM Non": d.SDM_Non || 0,
-      "Jumlah SDM": d.Jumlah_SDM || 0,
-      "Diklat Jumlah Siswa": d.Diklat_Jumlah_Siswa || 0,
-      "Diklat Lama Hari": d.Diklat_Lama_Hari || 0,
-      "Total Diklat": d.Total_Diklat || 0,
-      "Jml Jam Praktek Harian": d.Jml_jam_Praktek_Harian || 0,
-      // Daya
-      "Listrik (kwh)": d.Listrik_kwh || 0,
-      "Air (m3)": d.Air_m3 || 0,
-      "Telepon Freq/Titik": d.Telepon_Freq_pakai_per_titik || 0,
-      "Komputer SIMRS User": d.Komputer_simrs_user || 0,
-      // Sarana
-      "TT SVIP": d.Tempat_Tidur_SVIP || 0,
-      "TT VIP": d.Tempat_Tidur_VIP || 0,
-      "TT I": d.Tempat_Tidur_I || 0,
-      "TT II": d.Tempat_Tidur_II || 0,
-      "TT III": d.Tempat_Tidur_III || 0,
-      "TT Khusus": d.Tempat_Tidur_Khusus || 0,
-      "Luas SVIP": (d as any).kamar_luas_svip || 0,
-      "Luas VIP": (d as any).kamar_luas_vip || 0,
-      "Luas I": (d as any).kamar_luas_i || 0,
-      "Luas II": (d as any).kamar_luas_ii || 0,
-      "Luas III": (d as any).kamar_luas_iii || 0,
-      // Kunjungan
-      "Kunjungan Lama": d.Kunjungan_Pasien_Lama || 0,
-      "Kunjungan Baru": d.Kunjungan_Pasien_Baru || 0,
-      "Total Kunjungan": d.Total_Kunjungan_Pasien || 0,
-      "Jumlah Tindakan": d.Jumlah_Tindakan || 0,
-      "Resep Lembar Resep": d.Resep_Lembar_Resep || 0,
-      "HR SVIP": d.Hari_Rawat_SVIP || 0,
-      "HR VIP": d.Hari_Rawat_VIP || 0,
-      "HR I": d.Hari_Rawat_I || 0,
-      "HR II": d.Hari_Rawat_II || 0,
-      "HR III": d.Hari_Rawat_III || 0,
-      "Jumlah Hari Rawat": d.Jumlah_Hari_Rawat || 0,
-      // Penunjang
-      "Cucian (kg)": d.Cucian_kg_Cucian || 0,
-      "Instrumen Besar": d.Instrumen_Besar || 0,
-      "Instrumen Sedang": d.Instrumen_Sedang || 0,
-      "Instrumen Kecil": d.Instrumen_Kecil || 0,
-      "Set Pack Besar": d.Set_Pack_Besar || 0,
-      "Set Pack Sedang": d.Set_Pack_Sedang || 0,
-      "Set Pack Kecil": d.Set_Pack_Kecil || 0,
-      "Makanan Karyawan (porsi)": d.Makanan_Karyawan_jml_Porsi || 0,
-      "Makanan Pasien (porsi)": d.Makanan_Pasien_jml_Porsi || 0,
-      "Porsi SVIP": (d as any).jumlah_porsi_svip || 0,
-      "Porsi VIP": (d as any).jumlah_porsi_vip || 0,
-      "Porsi I": (d as any).jumlah_porsi_i || 0,
-      "Porsi II": (d as any).jumlah_porsi_ii || 0,
-      "Porsi III": (d as any).jumlah_porsi_iii || 0,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Data Kegiatan");
-    XLSX.writeFile(wb, "laporan_data_kegiatan_lengkap.xlsx");
+
+    try {
+      const records = data.map((d) => ({
+        Tahun: d.tahun,
+        "Kode UK": d.Kode_UK,
+        "Nama Unit Kerja": d.Nama_Unit_Kerja,
+        "SDM Dokter": d.SDM_dokter || 0,
+        "SDM Perawat": d.SDM_Perawat || 0,
+        "SDM Non": d.SDM_Non || 0,
+        "Jumlah SDM": d.Jumlah_SDM || 0,
+        "Diklat Jumlah Siswa": d.Diklat_Jumlah_Siswa || 0,
+        "Diklat Lama Hari": d.Diklat_Lama_Hari || 0,
+        "Total Diklat": d.Total_Diklat || 0,
+        "Jam Praktek Harian": d.Jml_jam_Praktek_Harian || 0,
+        "Listrik (kwh)": d.Listrik_kwh || 0,
+        "Air (m3)": d.Air_m3 || 0,
+        "Telepon Freq/Titik": d.Telepon_Freq_pakai_per_titik || 0,
+        "Komputer SIMRS": d.Komputer_simrs_user || 0,
+        "TT SVIP": d.Tempat_Tidur_SVIP || 0,
+        "TT VIP": d.Tempat_Tidur_VIP || 0,
+        "TT I": d.Tempat_Tidur_I || 0,
+        "TT II": d.Tempat_Tidur_II || 0,
+        "TT III": d.Tempat_Tidur_III || 0,
+        "TT Khusus": d.Tempat_Tidur_Khusus || 0,
+        "Luas SVIP": (d as any).kamar_luas_svip || 0,
+        "Luas VIP": (d as any).kamar_luas_vip || 0,
+        "Luas I": (d as any).kamar_luas_i || 0,
+        "Luas II": (d as any).kamar_luas_ii || 0,
+        "Luas III": (d as any).kamar_luas_iii || 0,
+        "Kunjungan Lama": d.Kunjungan_Pasien_Lama || 0,
+        "Kunjungan Baru": d.Kunjungan_Pasien_Baru || 0,
+        "Total Kunjungan": d.Total_Kunjungan_Pasien || 0,
+        "Jumlah Tindakan": d.Jumlah_Tindakan || 0,
+        "Resep": d.Resep_Lembar_Resep || 0,
+        "Hari Rawat SVIP": d.Hari_Rawat_SVIP || 0,
+        "Hari Rawat VIP": d.Hari_Rawat_VIP || 0,
+        "Hari Rawat I": d.Hari_Rawat_I || 0,
+        "Hari Rawat II": d.Hari_Rawat_II || 0,
+        "Hari Rawat III": d.Hari_Rawat_III || 0,
+        "Cucian (kg)": d.Cucian_kg_Cucian || 0,
+        "Instrumen Besar": d.Instrumen_Besar || 0,
+        "Instrumen Sedang": d.Instrumen_Sedang || 0,
+        "Instrumen Kecil": d.Instrumen_Kecil || 0,
+        "Set Pack Besar": d.Set_Pack_Besar || 0,
+        "Set Pack Sedang": d.Set_Pack_Sedang || 0,
+        "Set Pack Kecil": d.Set_Pack_Kecil || 0,
+        "Porsi Karyawan": d.Makanan_Karyawan_jml_Porsi || 0,
+        "Porsi Pasien": d.Makanan_Pasien_jml_Porsi || 0,
+      }));
+
+      await downloadReport({
+        title: "Laporan Data Kegiatan",
+        subtitle: `Tahun ${selectedYear}`,
+        filename: `data_kegiatan_${selectedYear}_${selectedUnitName}`,
+        records,
+        orientation: "landscape",
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan data kegiatan:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   const getJenisBadgeVariant = (jenis: string | number | null | undefined) => {
@@ -1423,7 +1424,12 @@ export default function DataKegiatanFormTable() {
               <Upload className="h-4 w-4 mr-2" /> Import Data
             </Button>
             <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" onChange={handleImportData} className="hidden" />
-            <Button variant="outline" onClick={handleDownloadReport}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void handleDownloadReport();
+              }}
+            >
               <FileText className="h-4 w-4 mr-2" /> Unduh Laporan
             </Button>
           </div>

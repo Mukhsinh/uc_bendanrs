@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Download, Calculator, RefreshCw } from "lucide-react";
+import { useReportDownload } from "@/components/report";
 import { manualRecalculateCathlab, handleDatabaseError } from "@/utils/database-operations";
 import * as XLSX from "xlsx";
 
@@ -61,6 +62,8 @@ const KalkulasiBiayaCathlab: React.FC = () => {
   const [manualInputData, setManualInputData] = useState<any>({});
   const [showReportFilter, setShowReportFilter] = useState<boolean>(false);
   const [reportFilter, setReportFilter] = useState<{type: 'all' | 'tindakan', value: string}>({type: 'all', value: ''});
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const { downloadReport } = useReportDownload();
   const [tindakanList, setTindakanList] = useState<{kode: string, nama: string}[]>([]);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [recalcProgress, setRecalcProgress] = useState<{step: number, total: number, message: string}>({step: 0, total: 5, message: ''});
@@ -475,66 +478,34 @@ const KalkulasiBiayaCathlab: React.FC = () => {
 
   const handleDownloadReport = async () => {
     try {
-      if (!rows || rows.length === 0) {
-        toast.error("Tidak ada data untuk diunduh.");
+      setDownloadingReport(true);
+
+      const { data: latestData, error: fetchError } = await supabase
+        .from('kalkulasi_biaya_cathlab')
+        .select('*')
+        .eq('tahun', year)
+        .order('jenis_pemeriksaan');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const filteredRows = (latestData || []).filter((row) => {
+        if (reportFilter.type === 'tindakan' && reportFilter.value) {
+          return row.jenis_pemeriksaan === reportFilter.value;
+        }
+        if (selectedJenisFilters.length > 0) {
+          return selectedJenisFilters.includes(row.jenis_pemeriksaan);
+        }
+        return true;
+      });
+
+      if (filteredRows.length === 0) {
+        toast.error('Tidak ada data yang sesuai filter untuk diunduh.');
         return;
       }
 
-      let filteredRows = rows;
-      
-      if (reportFilter.type === 'tindakan' && reportFilter.value) {
-        filteredRows = rows.filter(row => row.kode === reportFilter.value);
-        if (filteredRows.length === 0) {
-          toast.error("Tidak ada data untuk tindakan yang dipilih.");
-          return;
-        }
-      }
-
-      const headers = [
-        "Kode",
-        "Kode Tindakan",
-        "Nama Tindakan",
-        "Unit Kerja",
-        "Nama Unit Kerja",
-        "Jumlah",
-        "Waktu Pemeriksaan",
-        "Profesionalisme",
-        "Tingkat Kesulitan",
-        "Hasil Kali",
-        "Hasil Kali Waktu",
-        "Dasar Alokasi Waktu",
-        "Dasar Alokasi Hasil Kali",
-        // 24 Komponen Biaya
-        "Biaya Gaji & Tunjangan",
-        "Biaya Jasa Pelayanan",
-        "Biaya Obat",
-        "Biaya BHP",
-        "Biaya Makan Karyawan",
-        "Biaya Makan Pasien",
-        "Biaya Rumah Tangga",
-        "Biaya Cetak",
-        "Biaya ATK",
-        "Biaya Listrik",
-        "Biaya Air",
-        "Biaya Telepon",
-        "Biaya Pemeliharaan Bangunan",
-        "Biaya Pemeliharaan Alat Medis",
-        "Biaya Pemeliharaan Alat Non Medis",
-        "Biaya Operasional Lainnya",
-        "Biaya Penyusutan Gedung",
-        "Biaya Penyusutan Jaringan",
-        "Biaya Penyusutan Alat Medis",
-        "Biaya Penyusutan Alat Non Medis",
-        "Biaya Pendidikan & Pelatihan",
-        "Biaya Laundry",
-        "Biaya Sterilisasi",
-        "Biaya Tidak Langsung Terdistribusi",
-        "Biaya Bahan Pemeriksaan",
-        // Hasil Akhir
-        "Unit Cost Per Tindakan"
-      ];
-
-      const rowsCsv = filteredRows.map((r: any) => ({
+      const records = filteredRows.map((r: any) => ({
         "Kode": r.kode,
         "Kode Tindakan": r.kode,
         "Nama Tindakan": r.jenis_pemeriksaan,
@@ -548,54 +519,60 @@ const KalkulasiBiayaCathlab: React.FC = () => {
         "Hasil Kali Waktu": r.hasil_kali_waktu,
         "Dasar Alokasi Waktu": r.dasar_alokasi_waktu,
         "Dasar Alokasi Hasil Kali": r.dasar_alokasi_hasil_kali,
-        // 24 Komponen Biaya
-        "Biaya Gaji & Tunjangan": r.biaya_gaji_tunjangan || 0,
-        "Biaya Jasa Pelayanan": r.biaya_jasa_pelayanan || 0,
-        "Biaya Obat": r.biaya_obat || 0,
-        "Biaya BHP": r.biaya_bhp || 0,
-        "Biaya Makan Karyawan": r.biaya_makan_karyawan || 0,
-        "Biaya Makan Pasien": r.biaya_makan_pasien || 0,
-        "Biaya Rumah Tangga": r.biaya_rumah_tangga || 0,
-        "Biaya Cetak": r.biaya_cetak || 0,
-        "Biaya ATK": r.biaya_atk || 0,
-        "Biaya Listrik": r.biaya_listrik || 0,
-        "Biaya Air": r.biaya_air || 0,
-        "Biaya Telepon": r.biaya_telp || 0,
-        "Biaya Pemeliharaan Bangunan": r.biaya_pemeliharaan_bangunan || 0,
-        "Biaya Pemeliharaan Alat Medis": r.biaya_pemeliharaan_alat_medis || 0,
-        "Biaya Pemeliharaan Alat Non Medis": r.biaya_pemeliharaan_alat_non_medis || 0,
-        "Biaya Operasional Lainnya": r.biaya_operasional_lainnya || 0,
-        "Biaya Penyusutan Gedung": r.biaya_penyusutan_gedung || 0,
-        "Biaya Penyusutan Jaringan": r.biaya_penyusutan_jaringan || 0,
-        "Biaya Penyusutan Alat Medis": r.biaya_penyusutan_alat_medis || 0,
-        "Biaya Penyusutan Alat Non Medis": r.biaya_penyusutan_alat_non_medis || 0,
-        "Biaya Pendidikan & Pelatihan": r.biaya_pendidikan_pelatihan || 0,
-        "Biaya Laundry": r.biaya_laundry || 0,
-        "Biaya Sterilisasi": r.biaya_sterilisasi || 0,
-        "Biaya Tidak Langsung Terdistribusi": r.biaya_tidak_langsung_terdistribusi || 0,
-        "Biaya Bahan Pemeriksaan": r.biaya_bahan_pemeriksaan_numeric || 0,
-        // Hasil Akhir
-        "Unit Cost Per Tindakan": r.unit_cost_per_tindakan || 0
+        "Biaya Gaji & Tunjangan": Math.round(r.biaya_gaji_tunjangan || 0),
+        "Biaya Jasa Pelayanan": Math.round(r.biaya_jasa_pelayanan || 0),
+        "Biaya Obat": Math.round(r.biaya_obat || 0),
+        "Biaya BHP": Math.round(r.biaya_bhp || 0),
+        "Biaya Makan Karyawan": Math.round(r.biaya_makan_karyawan || 0),
+        "Biaya Makan Pasien": Math.round(r.biaya_makan_pasien || 0),
+        "Biaya Rumah Tangga": Math.round(r.biaya_rumah_tangga || 0),
+        "Biaya Cetak": Math.round(r.biaya_cetak || 0),
+        "Biaya ATK": Math.round(r.biaya_atk || 0),
+        "Biaya Listrik": Math.round(r.biaya_listrik || 0),
+        "Biaya Air": Math.round(r.biaya_air || 0),
+        "Biaya Telepon": Math.round(r.biaya_telp || 0),
+        "Biaya Pemeliharaan Bangunan": Math.round(r.biaya_pemeliharaan_bangunan || 0),
+        "Biaya Pemeliharaan Alat Medis": Math.round(r.biaya_pemeliharaan_alat_medis || 0),
+        "Biaya Pemeliharaan Alat Non Medis": Math.round(r.biaya_pemeliharaan_alat_non_medis || 0),
+        "Biaya Operasional Lainnya": Math.round(r.biaya_operasional_lainnya || 0),
+        "Biaya Penyusutan Gedung": Math.round(r.biaya_penyusutan_gedung || 0),
+        "Biaya Penyusutan Jaringan": Math.round(r.biaya_penyusutan_jaringan || 0),
+        "Biaya Penyusutan Alat Medis": Math.round(r.biaya_penyusutan_alat_medis || 0),
+        "Biaya Penyusutan Alat Non Medis": Math.round(r.biaya_penyusutan_alat_non_medis || 0),
+        "Biaya Pendidikan & Pelatihan": Math.round(r.biaya_pendidikan_pelatihan || 0),
+        "Biaya Laundry": Math.round(r.biaya_laundry || 0),
+        "Biaya Sterilisasi": Math.round(r.biaya_sterilisasi || 0),
+        "Biaya Tidak Langsung Terdistribusi": Math.round(r.biaya_tidak_langsung_terdistribusi || 0),
+        "Biaya Bahan Pemeriksaan": Math.round(r.biaya_bahan_pemeriksaan_numeric || 0),
+        "Unit Cost Per Tindakan": Math.round(r.unit_cost_per_tindakan || 0),
       }));
 
-      const csv = Papa.unparse({ fields: headers, data: rowsCsv });
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      
       let filename = `laporan_kalkulasi_cathlab_${year}`;
-      if (reportFilter.type === 'tindakan') {
-        filename += `_tindakan_${reportFilter.value}`;
+      if (reportFilter.type === 'tindakan' && reportFilter.value) {
+        filename += `_tindakan_${reportFilter.value.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      } else if (selectedJenisFilters.length > 0) {
+        filename += `_selected_${selectedJenisFilters.length}`;
       }
-      filename += `.csv`;
-      
-      a.download = filename;
-      a.click();
-      
-      toast.success(`Laporan berisi ${rowsCsv.length} data berhasil diunduh.`);
+
+      await downloadReport({
+        title: "Laporan Kalkulasi Biaya Cathlab",
+        subtitle:
+          reportFilter.type === 'tindakan' && reportFilter.value
+            ? `Tahun ${year} • Tindakan ${reportFilter.value}`
+            : selectedJenisFilters.length > 0
+              ? `Tahun ${year} • ${selectedJenisFilters.length} jenis dipilih`
+              : `Tahun ${year}`,
+        filename,
+        records,
+        orientation: "landscape",
+      });
+
+      toast.success(`Laporan berisi ${records.length} data berhasil disiapkan.`);
       setShowReportFilter(false);
     } catch (e: any) {
-      toast.error(`Gagal membuat laporan: ${e.message}`);
+      toast.error(`Gagal membuat laporan: ${e.message || e}`);
+    } finally {
+      setDownloadingReport(false);
     }
   };
 
@@ -1131,11 +1108,18 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 Batal
               </Button>
               <Button 
-                onClick={handleDownloadReport}
-                disabled={reportFilter.type === 'tindakan' && !reportFilter.value}
+                onClick={() => {
+                  void handleDownloadReport();
+                }}
+                disabled={(reportFilter.type === 'tindakan' && !reportFilter.value) || downloadingReport}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                Unduh Laporan
+                {downloadingReport ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-2" />
+                )}
+                {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
               </Button>
             </DialogFooter>
           </DialogContent>

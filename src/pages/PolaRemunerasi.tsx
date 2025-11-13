@@ -21,7 +21,7 @@ import { Download, Search, Coins, BarChart3, TrendingUp, TrendingDown } from "lu
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 interface PolaRemunerasiData {
   id: string;
@@ -46,6 +46,7 @@ interface PolaRemunerasiData {
 
 const PolaRemunerasi = () => {
   const { toast } = useToast();
+  const { downloadReport } = useReportDownload();
   const [data, setData] = useState<PolaRemunerasiData[]>([]);
   const [filteredData, setFilteredData] = useState<PolaRemunerasiData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +159,7 @@ const PolaRemunerasi = () => {
     }).format(value);
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (filteredData.length === 0) {
       toast({
         title: "Tidak ada data",
@@ -187,14 +188,17 @@ const PolaRemunerasi = () => {
       "Total JP": item.total_jp
     }));
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pola Remunerasi");
-    XLSX.writeFile(wb, `pola_remunerasi_${tahun}.xlsx`);
-
-    toast({
-      title: "Berhasil",
-      description: "Laporan berhasil diunduh",
+    await downloadReport({
+      title: "Laporan Pola Remunerasi",
+      subtitle: `Data tahun ${tahun}`,
+      filename: `pola_remunerasi_${tahun}`,
+      filters: {
+        Tahun: tahun,
+        Jenis: jenisFilter === "all" ? "Semua" : jenisFilter,
+        Spesialisasi: spesialisasiFilter === "all" ? "Semua" : spesialisasiFilter,
+        Pencarian: searchTerm || "Tidak ada",
+      },
+      records: exportData,
     });
   };
 

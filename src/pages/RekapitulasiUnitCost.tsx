@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { FileDown, RefreshCw, TrendingUp, Package, Users, Clock3, Trophy, ListOrdered } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
+import { useToast } from "@/hooks/use-toast";
 
 interface RekapitulasiData {
   id: string;
@@ -47,6 +48,9 @@ const RekapitulasiUnitCost: React.FC = () => {
     nama_tindakan: "",
     tahun: currentYear,
   });
+  const { downloadReport } = useReportDownload();
+  const { toast } = useToast();
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   // Statistics
   const [stats, setStats] = useState({
@@ -260,45 +264,63 @@ const RekapitulasiUnitCost: React.FC = () => {
     }));
   };
 
-  const downloadExcel = () => {
-    // Prepare data for export
-    const exportData = filteredData.map((d) => ({
-      "Tahun": d.tahun,
-      "Kode Jenis": d.kode_jenis,
-      "Jenis": 
-        d.kode_jenis === 1 ? "Rawat Jalan" :
-        d.kode_jenis === 2 ? "Rawat Inap" :
-        d.kode_jenis === 3 ? "Operatif" : "Non Layanan",
-      "Kode Unit Kerja": d.kode_unit_kerja,
-      "Nama Unit Kerja": d.nama_unit_kerja,
-      "Kode Operator": d.kode_operator || "-",
-      "Nama Operator": d.nama_operator || "-",
-      "Kode Tindakan": d.kode_tindakan,
-      "Nama Tindakan": d.nama_tindakan,
-      "Biaya Bahan": d.biaya_bahan,
-      "Unit Cost per Tindakan": d.unit_cost_per_tindakan,
-      "Sumber Tabel": d.sumber_tabel,
-    }));
+  const handleDownloadReport = async () => {
+    if (filteredData.length === 0) {
+      toast({
+        title: "Tidak ada data",
+        description: "Belum ada data untuk diunduh.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    // Create workbook
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekapitulasi Unit Cost");
+    try {
+      setDownloadingReport(true);
 
-    // Auto-size columns
-    const maxWidth = 50;
-    const colWidths = Object.keys(exportData[0] || {}).map((key) => {
-      const maxLen = Math.max(
-        key.length,
-        ...exportData.map((row: any) => String(row[key] || "").length)
-      );
-      return { wch: Math.min(maxLen + 2, maxWidth) };
-    });
-    ws["!cols"] = colWidths;
+      const subtitleParts: string[] = [];
+      if (filters.tahun) subtitleParts.push(`Tahun ${filters.tahun}`);
+      if (filters.unit_kerja) subtitleParts.push(`Unit ${filters.unit_kerja}`);
+      if (filters.operator) subtitleParts.push(`Operator ${filters.operator}`);
 
-    // Download
-    const timestamp = new Date().toISOString().split("T")[0];
-    XLSX.writeFile(wb, `Rekapitulasi_Unit_Cost_${timestamp}.xlsx`);
+      const records = filteredData.map((item, index) => ({
+        "No": index + 1,
+        "Tahun": item.tahun,
+        "Jenis": getJenisLabel(item.kode_jenis),
+        "Kode Unit Kerja": item.kode_unit_kerja,
+        "Nama Unit Kerja": item.nama_unit_kerja,
+        "Kode Operator": item.kode_operator || "-",
+        "Nama Operator": item.nama_operator || "-",
+        "Kode Tindakan": item.kode_tindakan,
+        "Nama Tindakan": item.nama_tindakan,
+        "Jumlah": item.jumlah ?? 0,
+        "Waktu (menit)": item.waktu_pemeriksaan ?? 0,
+        "Biaya Bahan": Math.round(item.biaya_bahan ?? 0),
+        "Unit Cost per Tindakan": Math.round(item.unit_cost_per_tindakan ?? 0),
+        "Sumber": getSumberLabel(item.sumber_tabel),
+      }));
+
+      await downloadReport({
+        title: "Rekapitulasi Unit Cost",
+        subtitle: subtitleParts.join(" • ") || undefined,
+        filename: `rekapitulasi_unit_cost_${filters.tahun || "semua"}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast({
+        title: "Berhasil",
+        description: `Laporan berhasil disiapkan dengan ${records.length} baris data`,
+      });
+    } catch (error: any) {
+      console.error("Gagal mengunduh rekapitulasi unit cost:", error);
+      toast({
+        title: "Gagal mengunduh",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingReport(false);
+    }
   };
 
   const formatCurrency = (value?: number | null) => {
@@ -531,12 +553,18 @@ const RekapitulasiUnitCost: React.FC = () => {
             Filter
           </button>
           <button
-            onClick={downloadExcel}
-            disabled={filteredData.length === 0}
+            onClick={() => {
+              void handleDownloadReport();
+            }}
+            disabled={filteredData.length === 0 || downloadingReport}
             className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            <FileDown className="h-4 w-4" />
-            Unduh Laporan
+            {downloadingReport ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="h-4 w-4" />
+            )}
+            {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
           </button>
           <button
             onClick={() => fetchData(filters.tahun)}

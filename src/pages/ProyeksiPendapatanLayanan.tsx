@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { LineChart, Activity, TrendingUp, RefreshCcw, Crown, Award, Sparkles } from "lucide-react";
-import * as XLSX from "xlsx";
+import { useReportDownload } from "@/components/report";
 
 interface UnitOption { id: string; kode: string; nama: string; kategori?: string; jenis?: string }
 interface RowData {
@@ -72,6 +72,7 @@ const ProyeksiPendapatanLayanan: React.FC = () => {
   const [persenKunjungan, setPersenKunjungan] = useState<number>(5);
   const [persenHariRawat, setPersenHariRawat] = useState<number>(5);
   const [isDownloadOpen, setIsDownloadOpen] = useState<boolean>(false);
+  const { downloadReport } = useReportDownload();
 
   const normalizeJenis = (val: unknown): string => {
     if (typeof val === 'number') {
@@ -258,7 +259,7 @@ const ProyeksiPendapatanLayanan: React.FC = () => {
     await fetchStrukturBiaya();
   };
 
-  const downloadExcel = (scope: "all" | "rawat jalan" | "rawat inap") => {
+  const downloadExcel = async (scope: "all" | "rawat jalan" | "rawat inap") => {
     const scopedRows = filteredRows.filter(r => {
       if (scope === "all") return true;
       return normalizeJenis(r.jenis) === scope;
@@ -284,14 +285,22 @@ const ProyeksiPendapatanLayanan: React.FC = () => {
       Bulanan_RI: r.breakdown_bulanan_rawat_inap,
       Bulanan_Total: r.breakdown_bulanan_total,
     }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    const sheetName =
-      scope === "all"
-        ? `Proyeksi_${tahun}`
-        : `Proyeksi_${scope.replace(" ", "_")}_${tahun}`;
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, `proyeksi-pendapatan-${scope.replace(" ", "-")}-${tahun}.xlsx`);
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    await downloadReport({
+      title: "Proyeksi Pendapatan Layanan",
+      subtitle: scope === "all" ? "Seluruh layanan" : `Layanan ${scope}`,
+      filename: `proyeksi-pendapatan-${scope.replace(" ", "-")}-${tahun}`,
+      filters: {
+        Tahun: tahun,
+        Jenis: selectedJenis,
+        "Unit Kerja": selectedUnit,
+      },
+      records: rows,
+    });
   };
 
   const topRankByJenis = useMemo(() => {

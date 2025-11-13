@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -23,6 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Plus, X, Search, Loader2, Clock, Star, AlertTriangle } from "lucide-react";
+import { useReportDownload } from "@/components/report";
 
 interface BahanTindakan {
   nama: string;
@@ -69,6 +69,7 @@ const formSchema = z.object({
 });
 
 const DaftarTindakanFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [list, setList] = useState<DaftarTindakan[]>([]);
   const [editing, setEditing] = useState<DaftarTindakan | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -371,30 +372,42 @@ const DaftarTindakanFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
-    const data = list
-      .filter(item => {
+  const handleDownloadReport = async () => {
+    const records = list
+      .filter((item) => {
         if (filterPelaksana === "all") return true;
         if (filterPelaksana === "medis") return item.medis;
         if (filterPelaksana === "paramedis") return item.paramedis;
         return true;
       })
-      .map(item => ({ 
-        Kode: item.kode_tindakan, 
+      .map((item) => ({
+        Kode: item.kode_tindakan,
         Nama: item.nama_tindakan,
         Medis: item.medis ? "Ya" : "Tidak",
         Paramedis: item.paramedis ? "Ya" : "Tidak",
         "Waktu (menit)": item.waktu || 0,
         "Profesionalisme (1-4)": item.profesionalisme || 1,
         "Tingkat Kesulitan (1-5)": item.tingkat_kesulitan || 1,
-        "Biaya Bahan": item.biaya_bahan_tindakan || 0
+        "Biaya Bahan": item.biaya_bahan_tindakan || 0,
       }));
-    if (data.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Daftar Tindakan");
-    XLSX.writeFile(wb, `laporan_daftar_tindakan_${filterPelaksana}.xlsx`);
-    toast.info("Laporan diunduh.");
+
+    if (records.length === 0) {
+      toast.warning("Tidak ada data untuk laporan.");
+      return;
+    }
+
+    try {
+      await downloadReport({
+        title: "Laporan Daftar Tindakan",
+        subtitle: filterPelaksana === "all" ? undefined : `Pelaksana ${filterPelaksana}`,
+        filename: `laporan_daftar_tindakan_${filterPelaksana}`,
+        records,
+        orientation: "landscape",
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan daftar tindakan:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   const getProfesionalismeLabel = (level: number) => {
@@ -681,7 +694,13 @@ const DaftarTindakanFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          variant="report"
+          className="shadow-sm"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
         <Button onClick={() => fetchAll()} variant="outline" size="icon">
@@ -830,8 +849,8 @@ const DaftarTindakanFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode</TableHead>
               <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
               <TableHead className="text-center font-bold text-white">

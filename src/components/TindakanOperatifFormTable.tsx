@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -35,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { ImportProgressModal, UploadProgress } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface TindakanOperatif {
   id: string;
@@ -61,6 +61,7 @@ const formSchema = z.object({
 });
 
 const TindakanOperatifFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [list, setList] = useState<TindakanOperatif[]>([]);
   const [filteredList, setFilteredList] = useState<TindakanOperatif[]>([]);
   const [editing, setEditing] = useState<TindakanOperatif | null>(null);
@@ -326,20 +327,30 @@ const TindakanOperatifFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
-    const data = list.map(item => ({ 
-      "Kode Jenis": item.kode_jenis, 
-      "Kode Operator Spesialistik": item.kode_operator_spesialistik,
-      "Nama Operator Spesialistik": item.nama_operator_spesialistik,
-      "Kode Tindakan Operatif": item.kode_tindakan_operatif, 
-      "Nama Tindakan Operatif": item.nama_tindakan_operatif 
-    }));
-    if (data.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Tindakan Operatif");
-    XLSX.writeFile(wb, "laporan_tindakan_operatif.xlsx");
-    toast.info("Laporan diunduh.");
+  const handleDownloadReport = async () => {
+    if (list.length === 0) {
+      toast.warning("Tidak ada data untuk laporan.");
+      return;
+    }
+
+    try {
+      const records = list.map((item) => ({
+        "Kode Jenis": item.kode_jenis,
+        "Kode Operator Spesialistik": item.kode_operator_spesialistik,
+        "Nama Operator Spesialistik": item.nama_operator_spesialistik,
+        "Kode Tindakan Operatif": item.kode_tindakan_operatif,
+        "Nama Tindakan Operatif": item.nama_tindakan_operatif,
+      }));
+
+      await downloadReport({
+        title: "Laporan Tindakan Operatif",
+        filename: "laporan_tindakan_operatif",
+        records,
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan tindakan operatif:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   return (
@@ -490,7 +501,13 @@ const TindakanOperatifFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button onClick={handleDownloadReport} variant="report" className="shadow-sm">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          variant="report"
+          className="shadow-sm"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
         <Button onClick={() => fetchAll()} variant="outline" size="icon">
@@ -552,8 +569,8 @@ const TindakanOperatifFormTable: React.FC = () => {
 
       <div className="rounded-md border">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Jenis</TableHead>
               <TableHead className="font-bold text-white">Kode Operator</TableHead>
               <TableHead className="font-bold text-white">Nama Operator</TableHead>

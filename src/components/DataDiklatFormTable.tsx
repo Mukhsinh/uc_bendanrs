@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { LoadingButton } from "@/components/ui/loading-button";
@@ -51,6 +50,7 @@ import {
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface DataDiklat {
   id: string;
@@ -74,6 +74,7 @@ const formSchema = z.object({
 });
 
 const DataDiklatFormTable: React.FC = () => {
+  const { downloadReport } = useReportDownload();
   const [diklatList, setDiklatList] = useState<DataDiklat[]>([]);
   const [editing, setEditing] = useState<DataDiklat | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -411,21 +412,28 @@ const DataDiklatFormTable: React.FC = () => {
     });
   };
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (diklatList.length === 0) {
       toast.warning("Tidak ada data untuk laporan.");
       return;
     }
-    const dataToExport = diklatList.map((d) => ({ 
-      "Kode Strata": d.kode_strata, 
-      "Kode Materi": d.kode_materi,
-      "Nama Materi": d.nama_materi
-    }));
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Data Diklat");
-    XLSX.writeFile(wb, "laporan_data_diklat.xlsx");
-    toast.info("Laporan diunduh.");
+
+    try {
+      const records = diklatList.map((d) => ({
+        "Kode Strata": d.kode_strata,
+        "Kode Materi": d.kode_materi,
+        "Nama Materi": d.nama_materi,
+      }));
+
+      await downloadReport({
+        title: "Laporan Data Diklat",
+        filename: "laporan_data_diklat",
+        records,
+      });
+    } catch (error) {
+      console.error("Gagal mengunduh laporan data diklat:", error);
+      toast.error("Gagal mengunduh laporan.");
+    }
   };
 
   return (
@@ -572,7 +580,12 @@ const DataDiklatFormTable: React.FC = () => {
           <Upload className="mr-2 h-4 w-4" /> Impor Data
           <Input id="import-file-diklat" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
         </label>
-        <Button onClick={handleDownloadReport} variant="outline">
+        <Button
+          onClick={() => {
+            void handleDownloadReport();
+          }}
+          variant="outline"
+        >
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
       </div>

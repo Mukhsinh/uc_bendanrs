@@ -11,7 +11,6 @@ import { useFormOperations } from "@/hooks/use-form-operations";
 import { showError } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
-import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 
 import { Button } from "@/components/ui/button";
@@ -44,6 +43,7 @@ import {
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Search, X } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import { useReportDownload } from "@/components/report";
 
 interface BarangGizi {
   id: string;
@@ -69,6 +69,7 @@ const BarangGiziFormTable: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
+  const { downloadReport } = useReportDownload();
   
   // Use upload progress hook
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
@@ -501,24 +502,28 @@ const BarangGiziFormTable: React.FC = () => {
     return matchesSearch;
   });
 
-  const handleDownloadReport = () => {
+  const handleDownloadReport = async () => {
     if (barangGiziList.length === 0) {
       toast.warning("Tidak ada data untuk dibuat laporan.");
       return;
     }
 
-    const dataToExport = barangGiziList.map(item => ({
+    const dataToExport = barangGiziList.map((item) => ({
       "Kode Barang": item.kode_barang,
       "Nama Barang": item.nama_barang,
       "Satuan": item.satuan,
       "Harga": item.harga,
     }));
 
-    const ws = XLSX.utils.json_to_sheet(dataToExport);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Laporan Barang Gizi");
-    XLSX.writeFile(wb, "laporan_barang_gizi.xlsx");
-    toast.info("Laporan berhasil diunduh.");
+    await downloadReport({
+      title: "Laporan Barang Gizi",
+      subtitle: "Daftar barang gizi",
+      filename: "laporan_barang_gizi",
+      filters: {
+        Pencarian: searchTerm || "Tidak ada",
+      },
+      records: dataToExport,
+    });
   };
 
   return (
@@ -683,10 +688,10 @@ const BarangGiziFormTable: React.FC = () => {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border shadow-sm">
         <Table>
-          <TableHeader>
-            <TableRow className="bg-teal-700">
+          <TableHeader className="bg-[#0f766e]">
+            <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
               <TableHead className="font-bold text-white">Kode Barang</TableHead>
               <TableHead className="font-bold text-white">Nama Barang</TableHead>
               <TableHead className="font-bold text-white">Satuan</TableHead>
