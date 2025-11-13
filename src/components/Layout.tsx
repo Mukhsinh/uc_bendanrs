@@ -1,7 +1,7 @@
 "use client";
 
-import React, { Suspense } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import React, { Suspense, useMemo } from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Menu, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { SidebarToggleProvider } from "@/components/SidebarToggleContext";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { useAuth } from "@/contexts/AuthContext";
+import { ReportHeader, ReportToolbar } from "@/components/report";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,8 +29,105 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isMobile = useIsMobile();
   const [isSheetOpen, setIsSheetOpen] = React.useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { settings: brandingSettings } = useBrandingSettings();
   const { user, signOut, loading } = useAuth();
+
+  const segmentLabelMap: Record<string, string> = {
+    "data-master": "Data Master",
+    "unit-kerja": "Unit Kerja",
+    barang: "Barang Farmasi",
+    "barang-gizi": "Barang Gizi",
+    kamar: "Data Kamar",
+    klinik: "Data Klinik",
+    "data-dokter": "Data Dokter",
+    "menu-gizi": "Menu Gizi",
+    "daftar-tindakan": "Daftar Tindakan",
+    "tindakan-lab": "Tindakan Laboratorium",
+    "tindakan-radiologi": "Tindakan Radiologi",
+    "tindakan-operatif": "Tindakan Operatif",
+    "tindakan-bdrs": "Tindakan BDRS",
+    "tindakan-cathlab": "Tindakan Cathlab",
+    "data-operasional": "Data Operasional",
+    kegiatan: "Data Kegiatan",
+    "kegiatan-rs": "Data Kegiatan RS",
+    pendapatan: "Data Pendapatan",
+    biaya: "Data Biaya",
+    "unit-penunjang": "Unit Penunjang",
+    "kalkulasi-biaya-gizi": "Kalkulasi Biaya Gizi",
+    "kalkulasi-biaya-laboratorium": "Kalkulasi Biaya Laboratorium",
+    "kalkulasi-biaya-radiologi": "Kalkulasi Biaya Radiologi",
+    "kalkulasi-biaya-bdrs": "Kalkulasi BDRS",
+    "unit-keperawatan": "Unit Keperawatan",
+    "manajemen-tindakan-inap": "Manajemen Tindakan Inap",
+    "data-akomodasi-inap": "Data Akomodasi Inap",
+    "kalkulasi-tindakan-inap": "Kalkulasi Tindakan Inap",
+    "kalkulasi-biaya-kelas-akomodasi": "Kalkulasi Biaya Kelas Akomodasi",
+    "unit-pelayanan": "Unit Pelayanan",
+    "manajemen-tindakan-rawat-jalan": "Manajemen Tindakan Rawat Jalan",
+    "kalkulasi-tindakan-rawat-jalan": "Kalkulasi Tindakan Rawat Jalan",
+    "kalkulasi-pendaftaran-resep": "Kalkulasi Pendaftaran & Resep",
+    "kalkulasi-biaya-operatif": "Kalkulasi Biaya Operatif",
+    "kalkulasi-biaya-cathlab": "Kalkulasi Biaya Cathlab",
+    "unit-diklat": "Unit Diklat",
+    "kalkulasi-biaya-diklat": "Kalkulasi Biaya Diklat",
+    "kalkulasi-aktivitas": "Kalkulasi Aktivitas Diklat",
+    "rekapitulasi-unit-cost": "Rekapitulasi Unit Cost",
+    "skenario-tarif-tindakan": "Skenario Tarif Tindakan",
+    "skenario-tarif-akomodasi": "Skenario Tarif Akomodasi",
+    "skenario-tarif-visit": "Skenario Tarif Visit",
+    "distribusi-biaya": "Distribusi Biaya",
+    "distribusi-biaya-pertama": "Distribusi Biaya Pertama",
+    "distribusi-biaya-kedua": "Distribusi Biaya Kedua",
+    "distribusi-biaya-rekap": "Distribusi Biaya Rekap",
+    "analisis-revenue-cost": "Analisis Revenue Cost",
+    "total-biaya-jp": "Total Biaya dengan JP",
+    "cost-recovery": "Cost Recovery",
+    "struktur-biaya": "Struktur Biaya",
+    "proyeksi-pendapatan": "Proyeksi Pendapatan Layanan",
+    "budgeting-bhp": "Budgeting BHP",
+    rupiah: "Budgeting BHP (Rupiah)",
+    rincian: "Budgeting BHP (Rincian)",
+    "analisis-bisnis": "Analisis Bisnis",
+    "produk-layanan": "Produk Layanan",
+    "pola-remunerasi": "Pola Remunerasi",
+    "pengaturan-umum": "Pengaturan Umum",
+    "modul-teknis": "Modul Teknis",
+    "manajemen-akses": "Manajemen Akses",
+    "audit-trail": "Audit Trail",
+    "pengelompokan-data": "Pengelompokan Data",
+    "unit-pelayanan-lain": "Unit Pelayanan",
+  };
+
+  const formatSegment = (segment: string) => {
+    if (!segment) return "";
+    if (segmentLabelMap[segment]) return segmentLabelMap[segment];
+    return segment
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  };
+
+  const reportMeta = useMemo(() => {
+    const path = location.pathname;
+    if (path === "/" || path === "") {
+      return null;
+    }
+
+    const segments = path.split("/").filter(Boolean);
+    const labels = segments.map(formatSegment);
+    const title = labels.join(" · ");
+    const subtitle =
+      labels.length > 0
+        ? `Laporan ${labels[labels.length - 1]}`
+        : "Laporan sistem";
+
+    return {
+      title,
+      subtitle,
+      filename: segments.join("-") || "laporan",
+    };
+  }, [location.pathname]);
 
   const handleLinkClick = () => {
     if (isMobile) {
@@ -209,7 +307,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* Page Content */}
         <SidebarToggleProvider onOpen={() => setIsSheetOpen(true)}>
-          <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-transparent">
+          <main className="flex flex-1 flex-col gap-6 p-4 lg:gap-8 lg:p-6 bg-transparent">
+            {reportMeta && (
+              <ReportHeader title={reportMeta.title} subtitle={reportMeta.subtitle} />
+            )}
             <Suspense fallback={<div className="flex flex-1 items-center justify-center text-teal-800"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600 mr-3"></div><span>Memuat konten...</span></div>}>
               {children || <Outlet />}
             </Suspense>

@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { lazy, useEffect, useState } from "react";
+import { GeneralSettingsProvider } from "@/contexts/GeneralSettingsContext";
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Layout = lazy(() => import("./components/Layout"));
@@ -64,6 +65,7 @@ const ProyeksiPendapatanLayanan = lazy(() => import("./pages/ProyeksiPendapatanL
 const TestDasarAlokasi = lazy(() => import("./pages/TestDasarAlokasi"));
 const ManajemenAkses = lazy(() => import("./pages/ManajemenAkses"));
 const AuditTrail = lazy(() => import("./pages/AuditTrail"));
+const PengaturanUmum = lazy(() => import("./pages/PengaturanUmum"));
 const ModulTeknis = lazy(() => import("./pages/ModulTeknis"));
 const PengelompokanData = lazy(() => import("./pages/PengelompokanData"));
 const Login = lazy(() => import("./pages/Login"));
@@ -484,6 +486,11 @@ const AppContent = () => {
               <AuditTrail />
             </RoleProtectedRoute>
           } />
+          <Route path="/pengaturan-umum" element={
+            <RoleProtectedRoute allowedRoles={["Super Admin", "Admin"]} fallbackMessage="Hanya Super Admin dan Admin yang dapat mengakses halaman Pengaturan Umum.">
+              <PengaturanUmum />
+            </RoleProtectedRoute>
+          } />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
@@ -493,13 +500,15 @@ const AppContent = () => {
 
 const App = () => (
   <AuthProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppContent />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <GeneralSettingsProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppContent />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </GeneralSettingsProvider>
   </AuthProvider>
 );
 

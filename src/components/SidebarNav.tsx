@@ -25,6 +25,7 @@ import {
   Droplet,
   ActivitySquare,
   Settings,
+  Cog,
   Users,
   Building,
   BookOpen,
@@ -187,6 +188,14 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    title: "Pengaturan",
+    icon: Cog,
+    allowedRoles: ["Super Admin", "Admin"],
+    subItems: [
+      { title: "Pengaturan Umum", href: "/pengaturan-umum", icon: Settings },
+    ],
+  },
+  {
     title: "Modul Teknis",
     icon: BookOpenCheck,
     href: "/modul-teknis",
@@ -326,6 +335,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       "/unit-diklat/kalkulasi-aktivitas": () => import("@/pages/KalkulasiAktivitasDiklat"),
       "/analisis-revenue-cost/struktur-biaya": () => import("@/pages/StrukturBiaya"),
       "/analisis-revenue-cost/proyeksi-pendapatan": () => import("../pages/ProyeksiPendapatanLayanan"),
+      "/pengaturan-umum": () => import("@/pages/PengaturanUmum"),
     };
     const importer = routeMap[path];
     if (importer) importer().catch(() => {});
@@ -369,6 +379,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       if (currentPath.startsWith("/budgeting-bhp/")) return "Budgeting BHP";
       if (currentPath.startsWith("/analisis-revenue-cost/")) return "Analisis Revenue Cost";
       if (currentPath.startsWith("/produk-layanan") || currentPath.startsWith("/pola-remunerasi")) return "Analisis Bisnis";
+      if (currentPath.startsWith("/pengaturan-umum")) return "Pengaturan";
       return undefined;
     };
     setOpenGroup(resolveGroupForPath());

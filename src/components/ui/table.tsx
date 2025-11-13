@@ -10,6 +10,7 @@ const Table = React.forwardRef<
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}
+      data-report-table="true"
       {...props}
     />
   </div>
@@ -20,7 +21,14 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  <thead
+    ref={ref}
+    className={cn(
+      "bg-gradient-to-r from-teal-600 via-teal-500 to-cyan-500 text-white [&_tr]:border-none [&_th]:text-white [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-xs",
+      className,
+    )}
+    {...props}
+  />
 ));
 TableHeader.displayName = "TableHeader";
 
@@ -73,7 +81,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-12 px-4 text-left align-middle font-bold text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "h-12 px-4 text-left align-middle font-semibold [&:has([role=checkbox])]:pr-0",
       className,
     )}
     {...props}
