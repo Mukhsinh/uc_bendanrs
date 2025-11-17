@@ -148,7 +148,6 @@ const KalkulasiBiayaCathlab: React.FC = () => {
       const { data: existingData, error: checkError } = await supabase
         .from("kalkulasi_biaya_cathlab")
         .select("id")
-        .eq("user_id", currentUserId)
         .eq("tahun", year)
         .limit(1);
         
@@ -197,13 +196,10 @@ const KalkulasiBiayaCathlab: React.FC = () => {
     
     setLoading(true);
     try {
-      await generateInitialData(userIdToUse);
-      
       const { data, error } = await supabase
         .from("kalkulasi_biaya_cathlab")
         .select(`*`)
         .eq("tahun", year)
-        .eq("user_id", userIdToUse)
         .order("kode", { ascending: true });
         
       if (error) {
@@ -348,7 +344,6 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 .from("kalkulasi_biaya_cathlab")
                 .select("id")
                 .eq("tahun", year)
-                .eq("user_id", userId)
                 .eq("kode", kodeTindakan)
                 .maybeSingle();
 
@@ -844,8 +839,24 @@ const KalkulasiBiayaCathlab: React.FC = () => {
 
       {/* Dialog Bahan Farmasi */}
       {showBahanFarmasiForm && selectedRowForBahan && (
-        <Dialog open={showBahanFarmasiForm} onOpenChange={setShowBahanFarmasiForm}>
-          <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
+        <Dialog 
+          open={showBahanFarmasiForm} 
+          onOpenChange={() => {
+            // Jangan izinkan penutupan melalui onOpenChange
+            // Dialog hanya bisa ditutup melalui tombol Batal atau Simpan
+          }}
+        >
+          <DialogContent 
+            className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto" 
+            onInteractOutside={(e) => {
+              // Mencegah penutupan saat klik di luar dialog
+              e.preventDefault();
+            }} 
+            onEscapeKeyDown={(e) => {
+              // Mencegah penutupan saat tekan ESC
+              e.preventDefault();
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Update Bahan - {selectedRowForBahan.jenis_pemeriksaan}</DialogTitle>
               <DialogDescription>
@@ -865,7 +876,10 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                   setBahanFarmasiList(updatedList);
                   toast.success("Bahan berhasil ditambahkan!");
                 }}
-                onCancel={() => setShowBahanFarmasiForm(false)}
+                onCancel={() => {
+                  // Reset form state saat cancel
+                  // Dialog tetap terbuka, hanya reset form internal
+                }}
               />
               
               {bahanFarmasiList.length > 0 && (
@@ -912,7 +926,16 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>Batal</Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowBahanFarmasiForm(false);
+                      setBahanFarmasiList([]);
+                      setSelectedRowForBahan(null);
+                    }}
+                  >
+                    Batal
+                  </Button>
                   <Button 
                 onClick={async () => {
                   try {
@@ -926,8 +949,11 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                     if (error) throw error;
                     
                     toast.success("Bahan disimpan!");
+                    
+                    // Tutup dialog dan reset state setelah simpan berhasil
                     setShowBahanFarmasiForm(false);
-                    setBahanFarmasiList(normalizedList);
+                    setBahanFarmasiList([]);
+                    setSelectedRowForBahan(null);
                     await loadData(userId);
                     setAutoCalculating(false);
                   } catch (e: any) {

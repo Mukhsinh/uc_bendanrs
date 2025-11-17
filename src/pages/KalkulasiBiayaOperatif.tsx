@@ -178,13 +178,6 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
     setLoading(true);
     try {
-      let ownerId = dataOwnerId;
-      if (!ownerId) {
-        ownerId = await generateInitialData(userIdToUse);
-      }
-
-      const effectiveOwnerId = ownerId || userIdToUse;
-
       const startTime = performance.now();
 
       let query = supabase
@@ -207,8 +200,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
           updated_at,
           user_id
         `)
-        .eq("tahun", year)
-        .eq("user_id", effectiveOwnerId);
+        .eq("tahun", year);
 
       if (filterOperator !== 'all') {
         query = query.eq("kode_operator_spesialistik", filterOperator);
@@ -224,8 +216,6 @@ const KalkulasiBiayaOperatif: React.FC = () => {
         setRows([]);
       } else {
         setRows(data || []);
-        const detectedOwner = data?.find((item: any) => item?.user_id)?.user_id;
-        setDataOwnerId(detectedOwner || effectiveOwnerId);
       }
     } catch (err: any) {
       toast.error("Gagal memuat data kalkulasi.");
@@ -385,7 +375,6 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 .from("kalkulasi_biaya_operatif")
                 .select("id")
                 .eq("tahun", year)
-                .eq("user_id", ownerId)
                 .eq("kode", kodeTindakan)
                 .maybeSingle();
 
@@ -879,6 +868,17 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 ) : filteredRows.map((r) => {
                   const hasBahan = r.bahan_pemeriksaan && Array.isArray(r.bahan_pemeriksaan) && r.bahan_pemeriksaan.length > 0;
                   
+                  // Hitung total biaya bahan dari array bahan_pemeriksaan jika nilai database tidak ada atau 0
+                  let totalBiayaBahan = r.biaya_bahan_pemeriksaan_numeric || 0;
+                  if ((!totalBiayaBahan || totalBiayaBahan === 0) && hasBahan) {
+                    totalBiayaBahan = r.bahan_pemeriksaan.reduce((sum: number, item: any) => {
+                      const hargaTotal = Number(
+                        item?.harga_total ?? item?.hargaTotal ?? ((Number(item?.qty || 0)) * (Number(item?.harga_satuan || item?.hargaSatuan || 0)))
+                      );
+                      return sum + (isNaN(hargaTotal) ? 0 : hargaTotal);
+                    }, 0);
+                  }
+                  
                   return (
                     <TableRow key={r.id}>
                       <TableCell className="font-mono text-xs bg-blue-50 font-semibold">{r.kode}</TableCell>
@@ -901,7 +901,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                           {hasBahan ? `✓ ${r.bahan_pemeriksaan.length}` : 'Tambah'}
                         </Button>
                       </TableCell>
-                      <TableCell className="text-right font-semibold">{r.biaya_bahan_pemeriksaan_numeric?.toLocaleString() || 0}</TableCell>
+                      <TableCell className="text-right font-semibold">{totalBiayaBahan.toLocaleString()}</TableCell>
                       <TableCell className="text-right font-semibold text-blue-600">{r.unit_cost_per_tindakan?.toLocaleString() || 0}</TableCell>
                       <TableCell className="w-[140px]">
                         <div className="flex items-center justify-center gap-2">
@@ -936,8 +936,24 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
       {/* Dialog Bahan Farmasi */}
       {showBahanFarmasiForm && selectedRowForBahan && (
-        <Dialog open={showBahanFarmasiForm} onOpenChange={setShowBahanFarmasiForm}>
-          <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
+        <Dialog 
+          open={showBahanFarmasiForm} 
+          onOpenChange={() => {
+            // Jangan izinkan penutupan melalui onOpenChange
+            // Dialog hanya bisa ditutup melalui tombol Batal atau Simpan
+          }}
+        >
+          <DialogContent 
+            className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto" 
+            onInteractOutside={(e) => {
+              // Mencegah penutupan saat klik di luar dialog
+              e.preventDefault();
+            }} 
+            onEscapeKeyDown={(e) => {
+              // Mencegah penutupan saat tekan ESC
+              e.preventDefault();
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Update Bahan - {selectedRowForBahan.jenis_pemeriksaan}</DialogTitle>
               <DialogDescription>
@@ -995,7 +1011,16 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                   <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>Batal</Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowBahanFarmasiForm(false);
+                      setBahanFarmasiList([]);
+                      setSelectedRowForBahan(null);
+                    }}
+                  >
+                    Batal
+                  </Button>
                   <Button 
                 onClick={async () => {
                   const ownerId = dataOwnerId || userId;
@@ -1020,6 +1045,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                     
                     toast.success("Bahan disimpan dan biaya dihitung ulang!");
                     setShowBahanFarmasiForm(false);
+                    setBahanFarmasiList([]);
+                    setSelectedRowForBahan(null);
                     await loadData(userId);
                     setAutoCalculating(false);
                   } catch (e: any) {

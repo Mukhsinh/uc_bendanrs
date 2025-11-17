@@ -299,7 +299,18 @@ export const BahanFarmasiForm: React.FC<BahanFarmasiFormProps> = ({
           >
             Tambah Bahan Farmasi
           </Button>
-          <Button variant="outline" onClick={onCancel}>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              // Reset form state
+              setSelectedBarang(null);
+              setSearchTerm('');
+              setFormData({ qty: 1, hargaSatuan: 0, hargaTotal: 0 });
+              setShowResults(false);
+              // Call onCancel
+              onCancel();
+            }}
+          >
             Batal
           </Button>
         </div>

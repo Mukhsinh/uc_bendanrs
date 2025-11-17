@@ -90,7 +90,6 @@ const PolaRemunerasi = () => {
           jp_konsultasi,
           created_at
         `)
-        .eq("user_id", user.id)
         .eq("tahun", tahun)
         .order("created_at", { ascending: false });
 

@@ -122,7 +122,6 @@ const ProdukLayanan = () => {
       const { data: produkLayanan, error } = await supabase
         .from("produk_layanan")
         .select("*")
-        .eq("user_id", user.id)
         .eq("tahun", tahun)
         .order("created_at", { ascending: false });
 

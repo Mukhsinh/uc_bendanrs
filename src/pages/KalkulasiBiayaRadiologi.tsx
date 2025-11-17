@@ -579,9 +579,11 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       }
       
       toast.success("Semua bahan farmasi disimpan. Memperbarui data...");
+      
+      // Tutup dialog dan reset state setelah simpan berhasil
       setShowBahanFarmasiForm(false);
-      setSelectedRowForBahan(null);
       setBahanFarmasiList([]);
+      setSelectedRowForBahan(null);
       
       // Trigger automatic calculations after save bahan farmasi
       console.log("🔄 Running automatic calculations after save bahan farmasi...");
@@ -733,7 +735,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
         const { data: dbCheck, error: dbCheckError } = await supabase
           .from("kalkulasi_biaya_radiologi")
           .select("id, kode, jenis_pemeriksaan")
-          .eq("user_id", userId)
           .eq("tahun", year)
           .eq("kode", tindakan.kode_tindakan)
           .single();
@@ -1127,7 +1128,6 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                 .from("kalkulasi_biaya_radiologi")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
-                .eq("user_id", userId)
                 .eq("jenis_pemeriksaan", targetJenis)
                 .maybeSingle();
               
@@ -1519,8 +1519,24 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       </Card>
       {/* Dialog Bahan Farmasi */}
       {showBahanFarmasiForm && selectedRowForBahan && (
-        <Dialog open={showBahanFarmasiForm} onOpenChange={setShowBahanFarmasiForm}>
-          <DialogContent className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto">
+        <Dialog 
+          open={showBahanFarmasiForm} 
+          onOpenChange={() => {
+            // Jangan izinkan penutupan melalui onOpenChange
+            // Dialog hanya bisa ditutup melalui tombol Batal atau Simpan
+          }}
+        >
+          <DialogContent 
+            className="sm:max-w-[900px] max-h-[80vh] overflow-y-auto" 
+            onInteractOutside={(e) => {
+              // Mencegah penutupan saat klik di luar dialog
+              e.preventDefault();
+            }} 
+            onEscapeKeyDown={(e) => {
+              // Mencegah penutupan saat tekan ESC
+              e.preventDefault();
+            }}
+          >
             <DialogHeader>
               <DialogTitle>Update Bahan Farmasi - {selectedRowForBahan.jenis_pemeriksaan}</DialogTitle>
               <DialogDescription>
@@ -1534,7 +1550,10 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                 kode={selectedRowForBahan.kode}
                 jenisPemeriksaan={selectedRowForBahan.jenis_pemeriksaan}
                 onSave={handleSaveBahanFarmasi}
-                onCancel={() => setShowBahanFarmasiForm(false)}
+                onCancel={() => {
+                  // Reset form state saat cancel
+                  // Dialog tetap terbuka, hanya reset form internal
+                }}
               />
 
               {/* Daftar bahan yang sudah ditambahkan */}
@@ -1574,7 +1593,14 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
                   <div className="text-xs text-gray-500 mt-1">Total {bahanFarmasiList.length} item</div>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setShowBahanFarmasiForm(false)}>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowBahanFarmasiForm(false);
+                      setBahanFarmasiList([]);
+                      setSelectedRowForBahan(null);
+                    }}
+                  >
                     Batal
                   </Button>
                   <Button 

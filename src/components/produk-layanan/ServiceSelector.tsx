@@ -132,7 +132,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
           const result = await supabase
             .from("skenario_tarif")
             .select("*")
-            .eq("user_id", user.id)
             .eq("tahun", tahun)
             .eq("sumber_tabel", sumberTabel)
             .order("nama_tindakan");
@@ -146,7 +145,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         let query = supabase
           .from("skenario_tarif")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
           .eq("sumber_tabel", "kalkulasi_tindakan_operatif");
 
@@ -162,7 +160,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         const result = await supabase
           .from("skenario_tarif")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
           .eq("sumber_tabel", "kalkulasi_biaya_laboratorium")
           .order("nama_tindakan");
@@ -174,7 +171,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         const result = await supabase
           .from("skenario_tarif")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
           .eq("sumber_tabel", "kalkulasi_biaya_radiologi")
           .order("nama_tindakan");
@@ -235,7 +231,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         const result = await supabase
           .from("skenario_tarif_akomodasi")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun);
         
         if (result.data && result.data.length > 0) {
@@ -285,7 +280,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         const result = await supabase
           .from("skenario_tarif_visit")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
           .maybeSingle();
         
@@ -325,7 +319,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         const result = await supabase
           .from("skenario_tarif_visit")
           .select("*")
-          .eq("user_id", user.id)
           .eq("tahun", tahun)
           .maybeSingle();
         

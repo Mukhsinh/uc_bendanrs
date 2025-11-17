@@ -495,19 +495,18 @@ const JenisTindakanRawatJalanFormTable: React.FC = () => {
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-1">
                                 <Button
-                                  variant="ghost"
+                                  variant="edit"
                                   size="icon"
-                                  className="text-blue-600 hover:text-blue-700"
                                   onClick={() => handleEditJumlah(tindakan)}
                                 >
                                   <Edit2 className="h-4 w-4" />
                                 </Button>
                                 <Button
-                                  variant="ghost"
+                                  variant="destructive"
                                   size="icon"
                                   onClick={() => handleDeleteTindakan(tindakan.id, tindakan.jenis_tindakan)}
                                 >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </TableCell>

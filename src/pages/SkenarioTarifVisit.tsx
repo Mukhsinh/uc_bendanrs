@@ -76,7 +76,6 @@ const SkenarioTarifVisit = () => {
       const { data: existingData, error } = await supabase
         .from("skenario_tarif_visit")
         .select("*")
-        .eq("user_id", user.id)
         .eq("tahun", tahun)
         .maybeSingle();
 

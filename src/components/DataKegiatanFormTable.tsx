@@ -639,7 +639,6 @@ export default function DataKegiatanFormTable() {
                   .eq('tahun', row.tahun)
                   .eq('Kode_UK', row.Kode_UK)
                   .eq('Nama_Unit_Kerja', row.Nama_Unit_Kerja)
-                  .eq('user_id', user.id)
                   .maybeSingle();
 
                 if (findErr) {
@@ -650,8 +649,7 @@ export default function DataKegiatanFormTable() {
                   const { error: updErr } = await supabase
                     .from('data_kegiatan')
                     .update(rowWithUser)
-                    .eq('id', (existingRec as any).id)
-                    .eq('user_id', user.id);
+                    .eq('id', (existingRec as any).id);
                   if (updErr) {
                     console.error(`Update-by-id error for row ${myIndex + 1}:`, updErr);
                     failed++;

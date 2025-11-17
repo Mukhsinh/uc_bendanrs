@@ -180,8 +180,7 @@ const BarangGiziFormTable: React.FC = () => {
     let query = supabase
       .from('data_barang_gizi')
       .select('id')
-      .eq('kode_barang', kode)
-      .eq('user_id', currentUserId);
+      .eq('kode_barang', kode);
       
     if (excludeId) {
       query = query.neq('id', excludeId);
@@ -304,11 +303,10 @@ const BarangGiziFormTable: React.FC = () => {
               let duplicateInFileCount = 0;
               
               // First, get all existing kode barang from database to avoid duplicates
-              console.log("Fetching existing data for user:", userId);
+              console.log("Fetching existing data");
               const { data: existingData, error: fetchError } = await supabase
                 .from('data_barang_gizi')
-                .select('kode_barang')
-                .eq('user_id', userId);
+                .select('kode_barang');
               
               console.log("Existing data fetch result:", { existingData, fetchError });
               if (fetchError) throw fetchError;

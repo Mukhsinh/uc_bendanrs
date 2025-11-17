@@ -460,30 +460,7 @@ const BiayaFormTable: React.FC = () => {
   // Fallback method for admin users using direct table access
   const tryFallbackDataAccess = async (currentUserId: string) => {
     try {
-      console.log('[FALLBACK] Checking if user is admin for fallback access...');
-      
-      // Check if user is admin
-      const { data: userRoles, error: roleError } = await supabase
-        .from('user_roles')
-        .select(`
-          role_id,
-          is_active,
-          role_akses_aplikasi!inner (
-            role_name,
-            is_active
-          )
-        `)
-        .eq('user_id', currentUserId)
-        .eq('is_active', true)
-        .in('role_akses_aplikasi.role_name', ['Admin', 'Super Admin'])
-        .eq('role_akses_aplikasi.is_active', true);
-
-      if (roleError || !userRoles || userRoles.length === 0) {
-        console.log('[FALLBACK] User is not admin, fallback not available');
-        return { success: false, error: 'Not admin user' };
-      }
-
-      console.log('[FALLBACK] User is admin, attempting direct table access...');
+      console.log('[FALLBACK] Attempting direct table access...');
       
       // For admin users, try to get all data directly
       const { data: allBiayaData, error: directError } = await supabase

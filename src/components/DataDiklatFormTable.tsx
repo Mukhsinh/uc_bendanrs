@@ -161,7 +161,6 @@ const DataDiklatFormTable: React.FC = () => {
     const { data, error } = await supabase
       .from("data_diklat")
       .select("id, kode_strata, kode_materi, nama_materi")
-      .eq("user_id", user.id)
       .order("kode_strata", { ascending: true })
       .order("kode_materi", { ascending: true });
     
@@ -191,7 +190,6 @@ const DataDiklatFormTable: React.FC = () => {
           const { data: existingData } = await supabase
             .from("data_diklat")
             .select("id")
-            .eq("user_id", user.id)
             .eq("kode_materi", values.kode_materi)
             .neq("id", editing.id)
             .maybeSingle();
@@ -221,7 +219,6 @@ const DataDiklatFormTable: React.FC = () => {
         const { data: existingData } = await supabase
           .from("data_diklat")
           .select("id")
-          .eq("user_id", user.id)
           .eq("kode_materi", values.kode_materi)
           .maybeSingle();
         
@@ -328,11 +325,10 @@ const DataDiklatFormTable: React.FC = () => {
             // Start upload progress
             startUpload(totalRows, "Sedang mengimpor data diklat...");
 
-            // Get existing kode_materi for current user to check duplicates
+            // Get existing kode_materi to check duplicates
             const { data: existingData } = await supabase
               .from("data_diklat")
-              .select("kode_materi")
-              .eq("user_id", user.id);
+              .select("kode_materi");
 
             const existingKodeMateri = new Set(existingData?.map(item => item.kode_materi) || []);
             const rows: any[] = [];

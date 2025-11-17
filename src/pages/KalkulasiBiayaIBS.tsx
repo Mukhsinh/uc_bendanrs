@@ -169,7 +169,6 @@ const KalkulasiBiayaIBS: React.FC = () => {
       const { data: existingData, error: checkError } = await supabase
         .from("kalkulasi_biaya_ibs")
         .select("id")
-        .eq("user_id", currentUserId)
         .eq("tahun", year)
         .limit(1);
         
@@ -257,8 +256,8 @@ const KalkulasiBiayaIBS: React.FC = () => {
         return;
       }
 
-    const { data, error } = await supabase
-      .from("kalkulasi_biaya_ibs")
+      const { data, error } = await supabase
+        .from("kalkulasi_biaya_ibs")
         .select(`
         id, kode, kode_unit_kerja, jenis_pemeriksaan, jumlah, waktu_pemeriksaan, profesionalisme, tingkat_kesulitan, 
         hasil_kali_waktu, dasar_alokasi_waktu, hasil_kali, dasar_alokasi_hasil_kali, 
@@ -270,7 +269,6 @@ const KalkulasiBiayaIBS: React.FC = () => {
         biaya_pendidikan_pelatihan, biaya_laundry, biaya_sterilisasi, biaya_tidak_langsung_terdistribusi
       `)
       .eq("tahun", year)
-      .eq("user_id", userIdToUse)
       .order("jenis_pemeriksaan", { ascending: true });
         
       console.log("Load query result:", { data, error });
@@ -817,7 +815,6 @@ const KalkulasiBiayaIBS: React.FC = () => {
                 .from("kalkulasi_biaya_ibs")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
-                .eq("user_id", userId)
                 .eq("jenis_pemeriksaan", targetJenis)
                 .maybeSingle();
               
