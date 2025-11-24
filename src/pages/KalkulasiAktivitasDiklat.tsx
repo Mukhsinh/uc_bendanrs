@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useReportDownload } from "@/components/report";
 
 interface DataDiklat {
   id: string;
@@ -64,6 +65,8 @@ export default function KalkulasiAktivitasDiklat() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [isProcessingImport, setIsProcessingImport] = useState(false);
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const { downloadReport } = useReportDownload();
   const [formData, setFormData] = useState({
     kode_strata: '',
     nama_strata: '',
@@ -548,6 +551,47 @@ export default function KalkulasiAktivitasDiklat() {
     }
   };
 
+  const handleDownloadReport = async () => {
+    if (dataDiklat.length === 0) {
+      toast.error('Tidak ada data untuk diunduh');
+      return;
+    }
+
+    try {
+      setDownloadingReport(true);
+
+      // Records untuk PDF dan Excel: menggunakan data frontend (sesuai tabel yang ditampilkan)
+      const records = dataDiklat.map((item) => ({
+        "Nama Strata": item.nama_strata,
+        "Nama Materi": item.nama_materi,
+        "Lama Hari": item.lama_hari,
+        "Total UC": Math.round(item.total_uc || 0),
+        "Biaya Bahan": Math.round(item.biaya_bahan || 0),
+        "Jasa Sarana": Math.round(item.jasa_sarana || item.unit_cost_per_hari || 0),
+        "Jasa Pel. Medis": Math.round(item.jasa_pel_medis || 0),
+        "Jasa Pel. Non Medis": Math.round(item.jasa_pel_non_medis || 0),
+        "Jasa Pelayanan": Math.round(item.jasa_pelayanan || 0),
+        "% Jasa Pel.": (item.persen_jasa_pel || 0).toFixed(1),
+        "% Profit": (item.persen_profit || 0).toFixed(1),
+        "Tarif": Math.round(item.tarif || item.jasa_sarana || item.unit_cost_per_hari || 0),
+      }));
+
+      await downloadReport({
+        title: "Laporan Kalkulasi Aktivitas Diklat",
+        filename: `laporan_kalkulasi_aktivitas_diklat_${new Date().toISOString().split('T')[0]}`,
+        records,
+        orientation: "landscape",
+      });
+
+      toast.success('Laporan berhasil disiapkan');
+    } catch (error: any) {
+      console.error('Gagal mengunduh laporan:', error);
+      toast.error(`Gagal mengunduh laporan: ${error?.message || 'Unknown error'}`);
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -562,6 +606,23 @@ export default function KalkulasiAktivitasDiklat() {
           <h1 className="text-3xl font-bold text-gray-900">Kalkulasi Aktivitas Diklat</h1>
           <p className="text-gray-600 mt-2">Kelola aktivitas diklat dengan perhitungan unit cost otomatis</p>
         <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button
+            onClick={handleDownloadReport}
+            className="bg-rose-600 text-white hover:bg-rose-700"
+            disabled={downloadingReport || dataDiklat.length === 0}
+          >
+            {downloadingReport ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Memproses...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Unduh Laporan
+              </>
+            )}
+          </Button>
           <Button
             onClick={handleDownloadTemplate}
             className="bg-orange-500 text-white hover:bg-orange-600"

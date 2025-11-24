@@ -376,7 +376,30 @@ const KalkulasiBiayaGizi: React.FC = () => {
     try {
       setDownloadingDetail(true);
 
-      const records = data.map((d) => ({
+      // Records untuk PDF: menggunakan data frontend (sesuai tabel yang ditampilkan)
+      const recordsForPdf = data.map((d) => ({
+        "Jenis Makanan": d.jenis_makanan,
+        "Total Porsi": calculateTotalPorsi(d),
+        "Waktu (Meracik/Memasak/Menata)": `${d.waktu_meracik}m / ${d.waktu_memasak}m / ${d.waktu_menata}m (Total: ${d.waktu_total}m)`,
+        "Bahan Porsi": d.bahan_porsi && Array.isArray(d.bahan_porsi) && d.bahan_porsi.length > 0
+          ? d.bahan_porsi.slice(0, 2).map((b: any) => `${b.nama_barang}: ${b.konsumsi} ${b.satuan}`).join(", ") + (d.bahan_porsi.length > 2 ? ` +${d.bahan_porsi.length - 2} lainnya` : "")
+          : "Belum ada bahan",
+        "Biaya Bahan Porsi": Math.round(d.biaya_bahan_porsi_numeric || 0),
+        "Unit Cost/Porsi": Math.round(d.unit_cost_per_porsi || 0),
+      }));
+
+      // Records untuk Excel: menggunakan data database (fetch langsung dari database)
+      const { data: dbData, error: fetchError } = await supabase
+        .from('kalkulasi_biaya_gizi')
+        .select('*')
+        .eq('tahun', currentYear)
+        .order('jenis_makanan');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const recordsForExcel = (dbData || []).map((d: any) => ({
         "Tahun": d.tahun,
         "Kode": d.kode,
         "Jenis Makanan": d.jenis_makanan,
@@ -386,7 +409,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
         "Jumlah Kelas I": d.jumlah_kelas_i,
         "Jumlah Kelas II": d.jumlah_kelas_ii,
         "Jumlah Kelas III": d.jumlah_kelas_iii,
-        "Unit Cost per Porsi": Math.round(d.unit_cost_per_porsi || 0),
+        "Waktu Meracik": d.waktu_meracik,
+        "Waktu Memasak": d.waktu_memasak,
+        "Waktu Menata": d.waktu_menata,
+        "Waktu Total": d.waktu_total,
         "Biaya Gaji & Tunjangan": Math.round(d.biaya_gaji_tunjangan || 0),
         "Biaya Jasa Pelayanan": Math.round(d.biaya_jasa_pelayanan || 0),
         "Biaya Obat": Math.round(d.biaya_obat || 0),
@@ -412,13 +438,15 @@ const KalkulasiBiayaGizi: React.FC = () => {
         "Biaya Sterilisasi": Math.round(d.biaya_sterilisasi || 0),
         "Biaya Tidak Langsung Terdistribusi": Math.round(d.biaya_tidak_langsung_terdistribusi || 0),
         "Biaya Bahan per Porsi": Math.round(d.biaya_bahan_porsi_numeric || 0),
+        "Unit Cost per Porsi": Math.round(d.unit_cost_per_porsi || 0),
       }));
 
       await downloadReport({
         title: "Detail Kalkulasi Biaya Gizi",
         subtitle: `Tahun ${currentYear}`,
         filename: `detail_kalkulasi_gizi_${currentYear}`,
-        records,
+        recordsForPdf,
+        recordsForExcel,
         orientation: "landscape",
       });
 

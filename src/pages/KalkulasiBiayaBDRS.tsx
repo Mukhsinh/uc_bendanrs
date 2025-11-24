@@ -783,6 +783,19 @@ const KalkulasiBiayaBDRS: React.FC = () => {
     try {
       setDownloadingReport(true);
 
+      // Records untuk PDF: menggunakan data frontend (filteredRows yang ditampilkan di tabel)
+      const recordsForPdf = filteredRows.map((r: any) => ({
+        "Jenis Pemeriksaan": r.jenis_pemeriksaan || '',
+        "Jumlah": r.jumlah || 0,
+        "Waktu": r.waktu_pemeriksaan || 0,
+        "Prof": r.profesionalisme || 1,
+        "Kesulitan": r.tingkat_kesulitan || 1,
+        "Bahan Rp": Math.round(r.biaya_bahan_pemeriksaan_numeric || 0),
+        "Biaya Tidak Langsung Terdistribusi": Math.round(r.biaya_tidak_langsung_terdistribusi || 0),
+        "Unit Cost": Math.round(r.unit_cost_per_pemeriksaan || 0),
+      }));
+
+      // Records untuk Excel: menggunakan data database (fetch langsung dari database)
       const { data: latestData, error: fetchError } = await supabase
         .from('kalkulasi_bdrs')
         .select('*')
@@ -793,19 +806,19 @@ const KalkulasiBiayaBDRS: React.FC = () => {
         throw fetchError;
       }
 
-      const filteredRows = (latestData || []).filter((row) => {
+      const filteredRowsDb = (latestData || []).filter((row) => {
         if (reportFilter.type === 'specific' && reportFilter.jenisPemeriksaan) {
           return row.jenis_pemeriksaan === reportFilter.jenisPemeriksaan;
         }
         return true;
       });
 
-      if (filteredRows.length === 0) {
+      if (filteredRowsDb.length === 0) {
         toast.error('Tidak ada data yang sesuai filter untuk diunduh.');
         return;
       }
 
-      const records = filteredRows.map((row: any) => ({
+      const recordsForExcel = filteredRowsDb.map((row: any) => ({
         "Kode": row.kode || '',
         "Kode Unit Kerja": row.kode_unit_kerja || 'UK044',
         "Jenis Pemeriksaan": row.jenis_pemeriksaan || '',
@@ -852,12 +865,13 @@ const KalkulasiBiayaBDRS: React.FC = () => {
             ? `Tahun ${year} • Jenis ${reportFilter.jenisPemeriksaan}`
             : `Tahun ${year}`,
         filename: `laporan_kalkulasi_biaya_bdrs_${year}${filterSuffix}`,
-        records,
+        recordsForPdf,
+        recordsForExcel,
         orientation: "landscape",
       });
 
       const filterText = reportFilter.type === 'specific' ? `untuk ${reportFilter.jenisPemeriksaan}` : 'semua data';
-      toast.success(`Laporan ${filterText} berisi ${records.length} data berhasil disiapkan.`);
+      toast.success(`Laporan ${filterText} berisi ${recordsForExcel.length} data berhasil disiapkan.`);
 
       setShowReportFilter(false);
     } catch (e: any) {

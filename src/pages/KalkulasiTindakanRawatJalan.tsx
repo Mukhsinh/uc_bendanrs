@@ -297,7 +297,45 @@ const KalkulasiTindakanRawatJalan = () => {
     }
 
     try {
-      const records = filteredData.map((item) => ({
+      // Records untuk PDF: menggunakan data frontend (filteredData yang ditampilkan di tabel)
+      const recordsForPdf = filteredData.map((item) => ({
+        Tahun: item.tahun,
+        "Unit Kerja": `${item.nama_unit_kerja} (${item.kode_unit_kerja})`,
+        "Jenis Tindakan": `${item.jenis_tindakan} (${item.kode_jenis_tindakan})`,
+        Jumlah: item.jumlah,
+        "Biaya Bahan Tindakan": item.biaya_bahan_tindakan,
+        "Unit Cost Tindakan Rawat Jalan": item.unit_cost_tindakan_rawat_jalan,
+      }));
+
+      // Records untuk Excel: menggunakan data database (fetch langsung dari database)
+      const { data: dbData, error: fetchError } = await supabase
+        .from('kalkulasi_tindakan_rawat_jalan')
+        .select('*')
+        .order('tahun', { ascending: false })
+        .order('nama_unit_kerja')
+        .order('jenis_tindakan');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Apply same filters as frontend
+      let filteredDbData = dbData || [];
+      if (filters.tahun) {
+        filteredDbData = filteredDbData.filter((item: any) => item.tahun.toString() === filters.tahun);
+      }
+      if (filters.nama_unit_kerja) {
+        filteredDbData = filteredDbData.filter((item: any) =>
+          item.nama_unit_kerja?.toLowerCase().includes(filters.nama_unit_kerja.toLowerCase())
+        );
+      }
+      if (filters.jenis_tindakan) {
+        filteredDbData = filteredDbData.filter((item: any) =>
+          item.jenis_tindakan?.toLowerCase().includes(filters.jenis_tindakan.toLowerCase())
+        );
+      }
+
+      const recordsForExcel = filteredDbData.map((item: any) => ({
         Tahun: item.tahun,
         "Kode Unit Kerja": item.kode_unit_kerja,
         "Nama Unit Kerja": item.nama_unit_kerja,
@@ -308,6 +346,27 @@ const KalkulasiTindakanRawatJalan = () => {
         "Profesionalisme": item.profesionalisme,
         "Tingkat Kesulitan": item.tingkat_kesulitan,
         "Biaya Bahan Tindakan": item.biaya_bahan_tindakan,
+        "Biaya Gaji & Tunjangan": item.biaya_gaji_tunjangan || 0,
+        "Biaya BHP": item.biaya_bhp || 0,
+        "Biaya Makan Karyawan": item.biaya_makan_karyawan || 0,
+        "Biaya Rumah Tangga": item.biaya_rumah_tangga || 0,
+        "Biaya Cetak": item.biaya_cetak || 0,
+        "Biaya ATK": item.biaya_atk || 0,
+        "Biaya Listrik": item.biaya_listrik || 0,
+        "Biaya Air": item.biaya_air || 0,
+        "Biaya Telepon": item.biaya_telp || 0,
+        "Biaya Pemeliharaan Bangunan": item.biaya_pemeliharaan_bangunan || 0,
+        "Biaya Pemeliharaan Alat Medis": item.biaya_pemeliharaan_alat_medis || 0,
+        "Biaya Pemeliharaan Alat Non Medis": item.biaya_pemeliharaan_alat_non_medis || 0,
+        "Biaya Operasional Lainnya": item.biaya_operasional_lainnya || 0,
+        "Biaya Penyusutan Gedung": item.biaya_penyusutan_gedung || 0,
+        "Biaya Penyusutan Jaringan": item.biaya_penyusutan_jaringan || 0,
+        "Biaya Penyusutan Alat Medis": item.biaya_penyusutan_alat_medis || 0,
+        "Biaya Penyusutan Alat Non Medis": item.biaya_penyusutan_alat_non_medis || 0,
+        "Biaya Pendidikan & Pelatihan": item.biaya_pendidikan_pelatihan || 0,
+        "Biaya Laundry": item.biaya_laundry || 0,
+        "Biaya Sterilisasi": item.biaya_sterilisasi || 0,
+        "Biaya Tidak Langsung Terdistribusi": item.biaya_tidak_langsung_terdistribusi || 0,
         "Unit Cost Tindakan Rawat Jalan": item.unit_cost_tindakan_rawat_jalan,
       }));
 
@@ -319,7 +378,8 @@ const KalkulasiTindakanRawatJalan = () => {
         title: "Laporan Kalkulasi Tindakan Rawat Jalan",
         subtitle: filters.tahun ? `Tahun ${filters.tahun}` : undefined,
         filename: fileName,
-        records,
+        recordsForPdf,
+        recordsForExcel,
         orientation: "landscape",
       });
 

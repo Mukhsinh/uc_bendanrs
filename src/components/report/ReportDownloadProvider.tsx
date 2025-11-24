@@ -29,6 +29,11 @@ interface ReportDownloadRequest {
   filters?: ReportFilters;
   dataset?: ReportDataset<Record<string, unknown>>;
   records?: Record<string, unknown>[];
+  // Untuk mendukung dataset berbeda antara PDF (frontend) dan Excel (database)
+  recordsForPdf?: Record<string, unknown>[];
+  recordsForExcel?: Record<string, unknown>[];
+  datasetForPdf?: ReportDataset<Record<string, unknown>>;
+  datasetForExcel?: ReportDataset<Record<string, unknown>>;
   orientation?: PdfOrientation;
 }
 
@@ -38,7 +43,8 @@ interface ReportDownloadContextValue {
 
 interface PendingRequest {
   request: ReportDownloadRequest;
-  dataset: ReportDataset<Record<string, unknown>>;
+  datasetForPdf: ReportDataset<Record<string, unknown>>;
+  datasetForExcel: ReportDataset<Record<string, unknown>>;
   resolve: () => void;
   reject: (reason?: unknown) => void;
 }
@@ -53,14 +59,35 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
   const [loadingFormat, setLoadingFormat] = useState<DownloadFormat | null>(null);
 
   const downloadReport = async (request: ReportDownloadRequest) => {
-    const dataset =
-      request.dataset ??
-      (request.records ? buildDatasetFromRecords(request.records) : { columns: [], rows: [] });
+    // Jika ada recordsForPdf atau recordsForExcel, gunakan dataset terpisah
+    // Jika tidak, gunakan dataset/records yang sama untuk keduanya
+    const datasetForPdf =
+      request.datasetForPdf ??
+      (request.recordsForPdf
+        ? buildDatasetFromRecords(request.recordsForPdf)
+        : request.dataset ??
+          (request.records ? buildDatasetFromRecords(request.records) : { columns: [], rows: [] }));
 
-    if (!dataset.columns.length || !dataset.rows.length) {
+    const datasetForExcel =
+      request.datasetForExcel ??
+      (request.recordsForExcel
+        ? buildDatasetFromRecords(request.recordsForExcel)
+        : request.dataset ??
+          (request.records ? buildDatasetFromRecords(request.records) : { columns: [], rows: [] }));
+
+    if (!datasetForPdf.columns.length || !datasetForPdf.rows.length) {
       toast({
         title: "Tidak ada data",
-        description: "Tidak ada data yang siap untuk diunduh.",
+        description: "Tidak ada data yang siap untuk diunduh (PDF).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!datasetForExcel.columns.length || !datasetForExcel.rows.length) {
+      toast({
+        title: "Tidak ada data",
+        description: "Tidak ada data yang siap untuk diunduh (Excel).",
         variant: "destructive",
       });
       return;
@@ -69,7 +96,8 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
     await new Promise<void>((resolve, reject) => {
       setPending({
         request,
-        dataset,
+        datasetForPdf,
+        datasetForExcel,
         resolve,
         reject,
       });
@@ -93,12 +121,15 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
     if (!pending) return;
     setLoadingFormat(format);
     try {
+      // Gunakan dataset yang sesuai berdasarkan format
+      const dataset = format === "pdf" ? pending.datasetForPdf : pending.datasetForExcel;
+
       const commonOptions = {
         title: pending.request.title,
         subtitle: pending.request.subtitle,
         filename: pending.request.filename,
-        columns: pending.dataset.columns,
-        rows: pending.dataset.rows,
+        columns: dataset.columns,
+        rows: dataset.rows,
         filters: pending.request.filters,
         settings,
         orientation: pending.request.orientation,

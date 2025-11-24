@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Download, RefreshCcw, ClipboardList, Scale, Building, Loader2 } from "lucide-react";
+import { Download, RefreshCcw, ClipboardList, Scale, Building, Loader2, Check, ChevronDown } from "lucide-react";
 import { useReportDownload } from "@/components/report";
 import * as XLSX from 'xlsx';
 
@@ -51,8 +53,6 @@ interface KalkulasiBiayaKelasAkomodasiData {
   rata_rata_uc_kelas_i: number;
   rata_rata_uc_kelas_ii: number;
   rata_rata_uc_kelas_iii: number;
-  dasar_alokasi_tempat_tidur: number;
-  dasar_alokasi_luas_kamar: number;
 }
 
 const KalkulasiBiayaKelasAkomodasi = () => {
@@ -62,10 +62,11 @@ const KalkulasiBiayaKelasAkomodasi = () => {
   const [filteredData, setFilteredData] = useState<KalkulasiBiayaKelasAkomodasiData[]>([]);
   const [filters, setFilters] = useState({
     tahun: new Date().getFullYear().toString(),
-    nama_unit_kerja: "",
+    selected_unit_kerja: [] as string[],
     kelas: "",
     search: ""
   });
+  const [unitKerjaFilterOpen, setUnitKerjaFilterOpen] = useState(false);
   const { toast } = useToast();
   const { downloadReport } = useReportDownload();
   const [downloadingReport, setDownloadingReport] = useState(false);
@@ -124,9 +125,9 @@ const KalkulasiBiayaKelasAkomodasi = () => {
       filtered = filtered.filter(item => item.tahun.toString() === filters.tahun);
     }
 
-    if (filters.nama_unit_kerja) {
+    if (filters.selected_unit_kerja.length > 0) {
       filtered = filtered.filter(item => 
-        item.nama_unit_kerja.toLowerCase().includes(filters.nama_unit_kerja.toLowerCase())
+        filters.selected_unit_kerja.includes(item.kode_unit_kerja)
       );
     }
 
@@ -157,6 +158,36 @@ const KalkulasiBiayaKelasAkomodasi = () => {
     }));
   };
 
+  // Get unique unit kerja options for filter
+  const unitKerjaOptions = useMemo(() => {
+    const unique = Array.from(new Set(data.map(item => ({
+      kode: item.kode_unit_kerja,
+      nama: item.nama_unit_kerja
+    }))));
+    return unique.sort((a, b) => a.kode.localeCompare(b.kode));
+  }, [data]);
+
+  const toggleUnitKerjaFilter = (kodeUnitKerja: string) => {
+    setFilters(prev => {
+      const current = prev.selected_unit_kerja;
+      const isSelected = current.includes(kodeUnitKerja);
+      const updated = isSelected
+        ? current.filter(kode => kode !== kodeUnitKerja)
+        : [...current, kodeUnitKerja];
+      return {
+        ...prev,
+        selected_unit_kerja: updated
+      };
+    });
+  };
+
+  const clearUnitKerjaFilters = () => {
+    setFilters(prev => ({
+      ...prev,
+      selected_unit_kerja: []
+    }));
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -181,7 +212,16 @@ const KalkulasiBiayaKelasAkomodasi = () => {
 
       const subtitleParts: string[] = [];
       if (filters.tahun) subtitleParts.push(`Tahun ${filters.tahun}`);
-      if (filters.nama_unit_kerja) subtitleParts.push(`Unit ${filters.nama_unit_kerja}`);
+      if (filters.selected_unit_kerja.length > 0) {
+        const unitKerjaNames = filteredData
+          .filter(item => filters.selected_unit_kerja.includes(item.kode_unit_kerja))
+          .map(item => item.nama_unit_kerja)
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .slice(0, 3);
+        if (unitKerjaNames.length > 0) {
+          subtitleParts.push(`Unit ${unitKerjaNames.join(', ')}${filters.selected_unit_kerja.length > 3 ? '...' : ''}`);
+        }
+      }
       if (filters.kelas) subtitleParts.push(`Kelas ${filters.kelas}`);
 
       const records = filteredData.map((item) => ({
@@ -309,12 +349,54 @@ const KalkulasiBiayaKelasAkomodasi = () => {
             placeholder="Tahun"
             className="w-24"
           />
-          <Input
-            value={filters.nama_unit_kerja}
-            onChange={(e) => handleFilterChange('nama_unit_kerja', e.target.value)}
-            placeholder="Filter unit kerja"
-            className="w-48"
-          />
+          <Popover open={unitKerjaFilterOpen} onOpenChange={setUnitKerjaFilterOpen}>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="w-48 justify-between"
+              >
+                {filters.selected_unit_kerja.length > 0
+                  ? `Unit Kerja (${filters.selected_unit_kerja.length})`
+                  : "Filter Unit Kerja"}
+                <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Cari unit kerja..." />
+                <CommandList>
+                  <CommandEmpty>Tidak ada unit kerja</CommandEmpty>
+                  <CommandGroup>
+                    {unitKerjaOptions.map((unit) => {
+                      const isSelected = filters.selected_unit_kerja.includes(unit.kode);
+                      return (
+                        <CommandItem
+                          key={unit.kode}
+                          value={`${unit.kode} ${unit.nama}`}
+                          onSelect={() => toggleUnitKerjaFilter(unit.kode)}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="truncate">{unit.kode} - {unit.nama}</span>
+                          {isSelected && <Check className="h-4 w-4 text-emerald-600" />}
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+              {filters.selected_unit_kerja.length > 0 && (
+                <div className="border-t border-slate-100 px-3 py-2">
+                  <Button
+                    variant="link"
+                    className="px-0 text-sm text-rose-600"
+                    onClick={clearUnitKerjaFilters}
+                  >
+                    Bersihkan pilihan
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
           <Input
             value={filters.kelas}
             onChange={(e) => handleFilterChange('kelas', e.target.value)}

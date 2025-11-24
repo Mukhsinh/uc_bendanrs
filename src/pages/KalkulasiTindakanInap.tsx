@@ -321,14 +321,76 @@ const KalkulasiTindakanInap = () => {
       if (filters.nama_unit_kerja) subtitleParts.push(`Unit ${filters.nama_unit_kerja}`);
       if (filters.jenis_tindakan) subtitleParts.push(`Jenis ${filters.jenis_tindakan}`);
 
-      const records = filteredData.map((item) => ({
+      // Records untuk PDF: menggunakan data frontend (filteredData yang ditampilkan di tabel)
+      const recordsForPdf = filteredData.map((item) => ({
+        "Tahun": item.tahun,
+        "Unit Kerja": `${item.nama_unit_kerja} (${item.kode_unit_kerja})`,
+        "Jenis Tindakan": `${item.jenis_tindakan} (${item.kode_jenis_tindakan})`,
+        "Jumlah": safeNumber(item.jumlah),
+        "Biaya Bahan Tindakan": safeNumber(item.biaya_bahan_tindakan),
+        "Unit Cost (exclude BHP)": safeNumber(item.unit_cost_tindakan_inap),
+      }));
+
+      // Records untuk Excel: menggunakan data database (fetch langsung dari database)
+      const { data: dbData, error: fetchError } = await supabase
+        .from('kalkulasi_tindakan_inap')
+        .select('*')
+        .order('tahun', { ascending: false })
+        .order('nama_unit_kerja')
+        .order('jenis_tindakan');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Apply same filters as frontend
+      let filteredDbData = dbData || [];
+      if (filters.tahun) {
+        filteredDbData = filteredDbData.filter((item: any) => item.tahun.toString() === filters.tahun);
+      }
+      if (filters.nama_unit_kerja) {
+        filteredDbData = filteredDbData.filter((item: any) =>
+          item.nama_unit_kerja?.toLowerCase().includes(filters.nama_unit_kerja.toLowerCase())
+        );
+      }
+      if (filters.jenis_tindakan) {
+        filteredDbData = filteredDbData.filter((item: any) =>
+          item.jenis_tindakan?.toLowerCase().includes(filters.jenis_tindakan.toLowerCase())
+        );
+      }
+
+      const recordsForExcel = filteredDbData.map((item: any) => ({
         "Tahun": item.tahun,
         "Kode Unit Kerja": item.kode_unit_kerja,
         "Nama Unit Kerja": item.nama_unit_kerja,
         "Kode Jenis Tindakan": item.kode_jenis_tindakan,
         "Jenis Tindakan": item.jenis_tindakan,
         "Jumlah": safeNumber(item.jumlah),
+        "Waktu": safeNumber(item.waktu),
+        "Profesionalisme": safeNumber(item.profesionalisme),
+        "Tingkat Kesulitan": safeNumber(item.tingkat_kesulitan),
         "Biaya Bahan Tindakan": safeNumber(item.biaya_bahan_tindakan),
+        "Biaya Gaji & Tunjangan": safeNumber(item.biaya_gaji_tunjangan),
+        "Biaya BHP": safeNumber(item.biaya_bhp),
+        "Biaya Makan Karyawan": safeNumber(item.biaya_makan_karyawan),
+        "Biaya Rumah Tangga": safeNumber(item.biaya_rumah_tangga),
+        "Biaya Cetak": safeNumber(item.biaya_cetak),
+        "Biaya ATK": safeNumber(item.biaya_atk),
+        "Biaya Listrik": safeNumber(item.biaya_listrik),
+        "Biaya Air": safeNumber(item.biaya_air),
+        "Biaya Telepon": safeNumber(item.biaya_telp),
+        "Biaya Pemeliharaan Bangunan": safeNumber(item.biaya_pemeliharaan_bangunan),
+        "Biaya Pemeliharaan Alat Medis": safeNumber(item.biaya_pemeliharaan_alat_medis),
+        "Biaya Pemeliharaan Alat Non Medis": safeNumber(item.biaya_pemeliharaan_alat_non_medis),
+        "Biaya Operasional Lainnya": safeNumber(item.biaya_operasional_lainnya),
+        "Biaya Penyusutan Gedung": safeNumber(item.biaya_penyusutan_gedung),
+        "Biaya Penyusutan Jaringan": safeNumber(item.biaya_penyusutan_jaringan),
+        "Biaya Penyusutan Alat Medis": safeNumber(item.biaya_penyusutan_alat_medis),
+        "Biaya Penyusutan Alat Non Medis": safeNumber(item.biaya_penyusutan_alat_non_medis),
+        "Biaya Pendidikan & Pelatihan": safeNumber(item.biaya_pendidikan_pelatihan),
+        "Biaya Laundry": safeNumber(item.biaya_laundry),
+        "Biaya Sterilisasi": safeNumber(item.biaya_sterilisasi),
+        "Biaya Tidak Langsung Terdistribusi": safeNumber(item.biaya_tidak_langsung_terdistribusi),
         "Unit Cost Tindakan Inap": safeNumber(item.unit_cost_tindakan_inap),
       }));
 
@@ -336,7 +398,8 @@ const KalkulasiTindakanInap = () => {
         title: "Laporan Kalkulasi Tindakan Rawat Inap",
         subtitle: subtitleParts.join(" • ") || undefined,
         filename: `kalkulasi_tindakan_inap_${filters.tahun || 'all'}`,
-        records,
+        recordsForPdf,
+        recordsForExcel,
         orientation: "landscape",
       });
 
@@ -571,7 +634,10 @@ const KalkulasiTindakanInap = () => {
                   <TableHead className="text-white font-semibold">Jumlah</TableHead>
                   <TableHead className="text-white font-semibold">Biaya Bahan Tindakan</TableHead>
                   <TableHead className="text-white font-semibold">
-                    <span>Unit Cost</span>
+                    <div>
+                      <div>Unit Cost</div>
+                      <div className="text-xs italic font-normal opacity-90">exclude BHP</div>
+                    </div>
                   </TableHead>
                 </TableRow>
               </TableHeader>

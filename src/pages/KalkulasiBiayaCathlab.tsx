@@ -475,6 +475,22 @@ const KalkulasiBiayaCathlab: React.FC = () => {
     try {
       setDownloadingReport(true);
 
+      // Records untuk PDF: menggunakan data frontend (filteredRows yang ditampilkan di tabel)
+      const recordsForPdf = filteredRows.map((r: any) => ({
+        "Kode": r.kode,
+        "Nama Tindakan": r.jenis_pemeriksaan,
+        "Jumlah": r.jumlah,
+        "Waktu": r.waktu_pemeriksaan,
+        "Prof": r.profesionalisme,
+        "Kesulitan": r.tingkat_kesulitan,
+        "Bahan": r.bahan_pemeriksaan && Array.isArray(r.bahan_pemeriksaan) && r.bahan_pemeriksaan.length > 0
+          ? `${r.bahan_pemeriksaan.length} item`
+          : "Tambah",
+        "Bahan Rp": Math.round(r.biaya_bahan_pemeriksaan_numeric || 0),
+        "Unit Cost": Math.round(r.unit_cost_per_tindakan || 0),
+      }));
+
+      // Records untuk Excel: menggunakan data database (fetch langsung dari database)
       const { data: latestData, error: fetchError } = await supabase
         .from('kalkulasi_biaya_cathlab')
         .select('*')
@@ -485,7 +501,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
         throw fetchError;
       }
 
-      const filteredRows = (latestData || []).filter((row) => {
+      const filteredRowsDb = (latestData || []).filter((row) => {
         if (reportFilter.type === 'tindakan' && reportFilter.value) {
           return row.jenis_pemeriksaan === reportFilter.value;
         }
@@ -495,12 +511,12 @@ const KalkulasiBiayaCathlab: React.FC = () => {
         return true;
       });
 
-      if (filteredRows.length === 0) {
+      if (filteredRowsDb.length === 0) {
         toast.error('Tidak ada data yang sesuai filter untuk diunduh.');
         return;
       }
 
-      const records = filteredRows.map((r: any) => ({
+      const recordsForExcel = filteredRowsDb.map((r: any) => ({
         "Kode": r.kode,
         "Kode Tindakan": r.kode,
         "Nama Tindakan": r.jenis_pemeriksaan,
@@ -558,11 +574,12 @@ const KalkulasiBiayaCathlab: React.FC = () => {
               ? `Tahun ${year} • ${selectedJenisFilters.length} jenis dipilih`
               : `Tahun ${year}`,
         filename,
-        records,
+        recordsForPdf,
+        recordsForExcel,
         orientation: "landscape",
       });
 
-      toast.success(`Laporan berisi ${records.length} data berhasil disiapkan.`);
+      toast.success(`Laporan berisi ${recordsForExcel.length} data berhasil disiapkan.`);
       setShowReportFilter(false);
     } catch (e: any) {
       toast.error(`Gagal membuat laporan: ${e.message || e}`);

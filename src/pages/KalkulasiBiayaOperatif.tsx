@@ -542,6 +542,22 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     try {
       setDownloadingReport(true);
 
+      // Records untuk PDF: menggunakan data frontend (filteredRows yang ditampilkan di tabel)
+      const recordsForPdf = filteredRows.map((r: any) => ({
+        "Kode": r.kode || '',
+        "Nama Tindakan": r.jenis_pemeriksaan || '',
+        "Jumlah": r.jumlah || 0,
+        "Waktu": r.waktu_pemeriksaan || 0,
+        "Prof": r.profesionalisme || 1,
+        "Kesulitan": r.tingkat_kesulitan || 1,
+        "Bahan": r.bahan_pemeriksaan && Array.isArray(r.bahan_pemeriksaan) && r.bahan_pemeriksaan.length > 0
+          ? `${r.bahan_pemeriksaan.length} item`
+          : "Tambah",
+        "Bahan Rp": Math.round(r.biaya_bahan_pemeriksaan_numeric || 0),
+        "Unit Cost": Math.round(r.unit_cost_per_tindakan || 0),
+      }));
+
+      // Records untuk Excel: menggunakan data database (fetch langsung dari database)
       const { data: latestData, error: fetchError } = await supabase
         .from('kalkulasi_biaya_operatif')
         .select('*')
@@ -553,7 +569,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       }
 
       const allRows = latestData || [];
-      const filteredRows = allRows.filter((row) => {
+      const filteredRowsDb = allRows.filter((row) => {
         if (reportFilter.type === 'operator' && reportFilter.value) {
           return row.kode_operator_spesialistik === reportFilter.value;
         }
@@ -563,12 +579,12 @@ const KalkulasiBiayaOperatif: React.FC = () => {
         return true;
       });
 
-      if (filteredRows.length === 0) {
+      if (filteredRowsDb.length === 0) {
         toast.error('Tidak ada data yang sesuai filter untuk diunduh.');
         return;
       }
 
-      const records = filteredRows.map((row: any) => ({
+      const recordsForExcel = filteredRowsDb.map((row: any) => ({
         "Kode": row.kode || '',
         "Kode Unit Kerja": row.kode_unit_kerja || 'UK041',
         "Jenis Pemeriksaan": row.jenis_pemeriksaan || '',
@@ -605,7 +621,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
         "Biaya Laundry": Math.round(row.biaya_laundry || 0),
         "Biaya Sterilisasi": Math.round(row.biaya_sterilisasi || 0),
         "Biaya Tidak Langsung Terdistribusi": Math.round(row.biaya_tidak_langsung_terdistribusi || 0),
-        "Unit Cost": Math.round(row.unit_cost_per_pemeriksaan || 0),
+        "Unit Cost": Math.round(row.unit_cost_per_tindakan || 0),
       }));
 
       let filename = `laporan_kalkulasi_operatif_${year}`;
@@ -627,11 +643,12 @@ const KalkulasiBiayaOperatif: React.FC = () => {
               ? `Tahun ${year} • Tindakan ${tindakanLabel ? `${reportFilter.value} - ${tindakanLabel}` : reportFilter.value}`
               : `Tahun ${year}`,
         filename,
-        records,
+        recordsForPdf,
+        recordsForExcel,
         orientation: "landscape",
       });
 
-      toast.success(`Laporan kalkulasi operatif dengan ${records.length} data berhasil disiapkan.`);
+      toast.success(`Laporan kalkulasi operatif dengan ${recordsForExcel.length} data berhasil disiapkan.`);
 
       setShowReportFilter(false);
     } catch (e: any) {
