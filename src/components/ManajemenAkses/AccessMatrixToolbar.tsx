@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,9 +33,11 @@ export const AccessMatrixToolbar = ({
   const [localSearch, setLocalSearch] = useState(searchQuery);
   
   // Debounce search input
-  useDebounce(() => {
-    onSearchChange(localSearch);
-  }, 300, [localSearch]);
+  const debouncedSearch = useDebounce(localSearch, 300);
+  
+  useEffect(() => {
+    onSearchChange(debouncedSearch);
+  }, [debouncedSearch, onSearchChange]);
 
   const handleSearchChange = (value: string) => {
     setLocalSearch(value);

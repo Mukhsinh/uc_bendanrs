@@ -86,12 +86,14 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       };
 
       // Set tenant_id in Supabase session for RLS policies
-      await supabase.rpc('set_config', {
-        setting: 'app.current_tenant_id',
-        value: tenantInfo.id
-      }).catch(err => {
+      try {
+        await supabase.rpc('set_config', {
+          setting: 'app.current_tenant_id',
+          value: tenantInfo.id
+        });
+      } catch (err) {
         console.warn('Failed to set tenant context in database:', err);
-      });
+      }
 
       // Also store in sessionStorage for tenantAwareClient
       sessionStorage.setItem('tenant_id', tenantInfo.id);

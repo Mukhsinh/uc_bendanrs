@@ -59,6 +59,7 @@
     "file-saver": "^2.0.5",
     "input-otp": "^1.2.4",
     "jspdf": "^2.5.1",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.312.0",
     "next-themes": "^0.2.1",
     "papaparse": "^5.4.1",

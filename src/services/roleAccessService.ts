@@ -224,7 +224,7 @@ export const buildAccessMatrix = (
   const flatMenus = flattenMenus(menus);
 
   return flatMenus.map(menu => {
-    const accessByRole = new Map<number, AccessLevel>();
+    const accessByRole = new Map<string, AccessLevel>();
     
     roles.forEach(role => {
       const key = `${role.id}-${menu.id}`;
