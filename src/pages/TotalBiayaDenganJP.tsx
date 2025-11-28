@@ -231,7 +231,7 @@ const TotalBiayaDenganJP: React.FC = () => {
         "BTL - Total Biaya": summaryTotals.btlTotal,
       });
 
-      await downloadReport({
+      const result = await downloadReport({
         title: "Laporan Total Biaya Dengan JP",
         subtitle: `Tahun ${tahun}`,
         filename: `total_biaya_dengan_jp_${tahun}`,
@@ -241,6 +241,11 @@ const TotalBiayaDenganJP: React.FC = () => {
         records,
         orientation: "landscape",
       });
+      
+      // Cek apakah dibatalkan
+      if (result?.cancelled) {
+        return;
+      }
     } catch (error) {
       console.error("Gagal mengunduh laporan Total Biaya dengan JP:", error);
       toast.error("Gagal mengunduh laporan Total Biaya dengan JP.");

@@ -183,7 +183,9 @@ const KalkulasiTindakanInap = () => {
         });
 
         if (!Number.isFinite(normalizedItem.unit_cost_tindakan_inap) || normalizedItem.unit_cost_tindakan_inap <= 0) {
-          const computedUnitCost = biayaFields.reduce((sum, field) => sum + safeNumber(item[field]), 0);
+          // Hitung unit cost termasuk biaya bahan tindakan
+          const computedUnitCost = biayaFields.reduce((sum, field) => sum + safeNumber(item[field]), 0) 
+            + safeNumber(item.biaya_bahan_tindakan);
           if (computedUnitCost > 0) {
             normalizedItem.unit_cost_tindakan_inap = computedUnitCost;
           } else if (!Number.isFinite(normalizedItem.unit_cost_tindakan_inap)) {
@@ -328,7 +330,7 @@ const KalkulasiTindakanInap = () => {
         "Jenis Tindakan": `${item.jenis_tindakan} (${item.kode_jenis_tindakan})`,
         "Jumlah": safeNumber(item.jumlah),
         "Biaya Bahan Tindakan": safeNumber(item.biaya_bahan_tindakan),
-        "Unit Cost (exclude BHP)": safeNumber(item.unit_cost_tindakan_inap),
+        "Unit Cost": safeNumber(item.unit_cost_tindakan_inap),
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
@@ -633,12 +635,7 @@ const KalkulasiTindakanInap = () => {
                   <TableHead className="text-white font-semibold">Jenis Tindakan</TableHead>
                   <TableHead className="text-white font-semibold">Jumlah</TableHead>
                   <TableHead className="text-white font-semibold">Biaya Bahan Tindakan</TableHead>
-                  <TableHead className="text-white font-semibold">
-                    <div>
-                      <div>Unit Cost</div>
-                      <div className="text-xs italic font-normal opacity-90">exclude BHP</div>
-                    </div>
-                  </TableHead>
+                  <TableHead className="text-white font-semibold">Unit Cost</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

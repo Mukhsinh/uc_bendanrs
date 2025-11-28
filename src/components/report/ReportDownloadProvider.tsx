@@ -38,14 +38,14 @@ interface ReportDownloadRequest {
 }
 
 interface ReportDownloadContextValue {
-  downloadReport: (request: ReportDownloadRequest) => Promise<void>;
+  downloadReport: (request: ReportDownloadRequest) => Promise<{ cancelled?: boolean }>;
 }
 
 interface PendingRequest {
   request: ReportDownloadRequest;
   datasetForPdf: ReportDataset<Record<string, unknown>>;
   datasetForExcel: ReportDataset<Record<string, unknown>>;
-  resolve: () => void;
+  resolve: (value?: { cancelled?: boolean }) => void;
   reject: (reason?: unknown) => void;
 }
 
@@ -58,7 +58,7 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
   const [pending, setPending] = useState<PendingRequest | null>(null);
   const [loadingFormat, setLoadingFormat] = useState<DownloadFormat | null>(null);
 
-  const downloadReport = async (request: ReportDownloadRequest) => {
+  const downloadReport = async (request: ReportDownloadRequest): Promise<{ cancelled?: boolean }> => {
     // Jika ada recordsForPdf atau recordsForExcel, gunakan dataset terpisah
     // Jika tidak, gunakan dataset/records yang sama untuk keduanya
     const datasetForPdf =
@@ -81,7 +81,7 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
         description: "Tidak ada data yang siap untuk diunduh (PDF).",
         variant: "destructive",
       });
-      return;
+      return { cancelled: true };
     }
 
     if (!datasetForExcel.columns.length || !datasetForExcel.rows.length) {
@@ -90,10 +90,10 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
         description: "Tidak ada data yang siap untuk diunduh (Excel).",
         variant: "destructive",
       });
-      return;
+      return { cancelled: true };
     }
 
-    await new Promise<void>((resolve, reject) => {
+    return await new Promise<{ cancelled?: boolean }>((resolve, reject) => {
       setPending({
         request,
         datasetForPdf,
@@ -113,7 +113,8 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
 
   const handleClose = () => {
     if (loadingFormat) return;
-    pending?.reject(new Error("Pengunduhan dibatalkan."));
+    // Resolve dengan flag cancelled alih-alih reject untuk menghindari unhandled promise rejection
+    pending?.resolve({ cancelled: true });
     setPending(null);
   };
 
@@ -145,7 +146,7 @@ export const ReportDownloadProvider = ({ children }: { children: React.ReactNode
         title: "Berhasil",
         description: `Laporan ${format === "pdf" ? "PDF" : "Excel"} berhasil diunduh.`,
       });
-      pending.resolve();
+      pending.resolve({ cancelled: false });
       setPending(null);
     } catch (error) {
       console.error("Gagal mengunduh laporan:", error);

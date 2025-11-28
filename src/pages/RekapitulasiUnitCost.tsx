@@ -51,6 +51,7 @@ const RekapitulasiUnitCost: React.FC = () => {
   const { downloadReport } = useReportDownload();
   const { toast } = useToast();
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [refreshingData, setRefreshingData] = useState(false);
 
   // Statistics
   const [stats, setStats] = useState({
@@ -264,6 +265,53 @@ const RekapitulasiUnitCost: React.FC = () => {
     }));
   };
 
+  const handleRefreshData = async () => {
+    if (!Number.isFinite(filters.tahun)) {
+      toast({
+        title: "Error",
+        description: "Tahun tidak valid",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setRefreshingData(true);
+      
+      toast({
+        title: "Memperbarui data...",
+        description: "Sedang menyinkronkan data dari tabel sumber",
+      });
+
+      // Panggil fungsi refresh_rekapitulasi_unit_cost
+      const { error: refreshError } = await supabase.rpc('refresh_rekapitulasi_unit_cost', {
+        p_user_id: null, // null untuk refresh semua data
+        p_tahun: filters.tahun
+      });
+
+      if (refreshError) {
+        throw refreshError;
+      }
+
+      // Reload data setelah refresh
+      await fetchData(filters.tahun);
+
+      toast({
+        title: "Berhasil",
+        description: `Data tahun ${filters.tahun} berhasil diperbarui dari tabel sumber`,
+      });
+    } catch (error: any) {
+      console.error("Gagal memperbarui data rekapitulasi:", error);
+      toast({
+        title: "Gagal memperbarui data",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setRefreshingData(false);
+    }
+  };
+
   const handleDownloadReport = async () => {
     if (filteredData.length === 0) {
       toast({
@@ -299,13 +347,18 @@ const RekapitulasiUnitCost: React.FC = () => {
         "Sumber": getSumberLabel(item.sumber_tabel),
       }));
 
-      await downloadReport({
+      const result = await downloadReport({
         title: "Rekapitulasi Unit Cost",
         subtitle: subtitleParts.join(" • ") || undefined,
         filename: `rekapitulasi_unit_cost_${filters.tahun || "semua"}`,
         records,
         orientation: "landscape",
       });
+
+      // Cek apakah dibatalkan
+      if (result?.cancelled) {
+        return;
+      }
 
       toast({
         title: "Berhasil",
@@ -550,7 +603,18 @@ const RekapitulasiUnitCost: React.FC = () => {
             onClick={() => setShowFilters((prev) => !prev)}
             className="min-w-[110px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition"
           >
-            Filter
+            {showFilters ? "Sembunyikan Filter" : "Tampilkan Filter"}
+          </button>
+          <button
+            onClick={() => {
+              void handleRefreshData();
+            }}
+            disabled={refreshingData}
+            className="flex items-center gap-2 rounded-md bg-blue-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+            title="Perbarui data dari tabel sumber"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshingData ? "animate-spin" : ""}`} />
+            {refreshingData ? "Memperbarui..." : "Perbarui Data"}
           </button>
           <button
             onClick={() => {
@@ -568,7 +632,8 @@ const RekapitulasiUnitCost: React.FC = () => {
           </button>
           <button
             onClick={() => fetchData(filters.tahun)}
-            aria-label="Muat ulang data"
+            aria-label="Muat ulang tampilan"
+            title="Muat ulang tampilan data"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

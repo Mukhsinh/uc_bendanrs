@@ -79,6 +79,7 @@ const VercelDebug = lazy(() => import("./pages/VercelDebug"));
 const SupabaseDebug = lazy(() => import("./pages/SupabaseDebug"));
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { TenantProvider } from "@/contexts/TenantContext";
 
 const queryClient = new QueryClient();
 
@@ -501,17 +502,19 @@ const AppContent = () => {
 
 const App = () => (
   <AuthProvider>
-    <GeneralSettingsProvider>
-      <ReportDownloadProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <AppContent />
-          </TooltipProvider>
-        </QueryClientProvider>
-      </ReportDownloadProvider>
-    </GeneralSettingsProvider>
+    <TenantProvider>
+      <GeneralSettingsProvider>
+        <ReportDownloadProvider>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <AppContent />
+            </TooltipProvider>
+          </QueryClientProvider>
+        </ReportDownloadProvider>
+      </GeneralSettingsProvider>
+    </TenantProvider>
   </AuthProvider>
 );
 

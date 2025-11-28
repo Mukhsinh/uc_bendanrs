@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { SidebarToggleProvider } from "@/components/SidebarToggleContext";
 import { useBrandingSettings } from "@/hooks/useBrandingSettings";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTenant } from "@/contexts/TenantContext";
+import { TenantBranding } from "@/components/TenantBranding";
 import { ReportHeader, ReportToolbar } from "@/components/report";
 import {
   DropdownMenu,
@@ -32,6 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { settings: brandingSettings } = useBrandingSettings();
   const { user, signOut, loading } = useAuth();
+  const { tenant } = useTenant();
 
   const segmentLabelMap: Record<string, string> = {
     "data-master": "Data Master",
@@ -244,7 +247,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </Button>
         </header>
 
-        {/* Header dengan nama user */}
+        {/* Header dengan nama user dan tenant branding */}
         <header className="hidden md:flex h-14 items-center justify-between border-b bg-sidebar px-6 shadow-sm will-change-transform">
           <div className="flex items-center gap-4">
             <Button
@@ -255,6 +258,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             >
               <Menu className="h-5 w-5" />
             </Button>
+            {/* Tenant Branding - Tenant selector dipindahkan ke halaman Manajemen Akses */}
+            <TenantBranding showLogo={true} showName={true} className="ml-2" />
           </div>
           
           <div className="flex items-center gap-4">

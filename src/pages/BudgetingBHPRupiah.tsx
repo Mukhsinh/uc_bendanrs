@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, FileDown, TrendingUp, CreditCard, Package, RefreshCw, Users, BedDouble, Stethoscope, FlaskConical } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
 import { useToast } from "@/hooks/use-toast";
@@ -55,18 +56,24 @@ const BudgetingBHPRupiah = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState<string>("all");
   const [unitKerjaList, setUnitKerjaList] = useState<string[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
   const { toast } = useToast();
   const { downloadReport } = useReportDownload();
   const penunjangSources = new Set([
     "kalkulasi_biaya_laboratorium",
     "kalkulasi_biaya_radiologi",
     "kalkulasi_bdrs",
-    "kalkulasi_biaya_cathlab",
-    "kalkulasi_biaya_operatif",
+  ]);
+
+  const rawatInapSources = new Set([
+    "kalkulasi_tindakan_inap",
+    "kalkulasi_biaya_operatif", // IBS
+    "kalkulasi_biaya_cathlab",  // Cathlab
   ]);
 
   const getCategoryKey = (sumber: string): CategoryKey | null => {
-    if (sumber === "kalkulasi_tindakan_inap") return "rawatInap";
+    if (rawatInapSources.has(sumber)) return "rawatInap";
     if (sumber === "kalkulasi_tindakan_rawat_jalan") return "rawatJalan";
     if (penunjangSources.has(sumber)) return "penunjang";
     return null;
@@ -142,38 +149,45 @@ const BudgetingBHPRupiah = () => {
   const refreshData = async () => {
     try {
       setRefreshing(true);
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session.session?.user.id;
 
-      if (!userId) {
-        throw new Error("User tidak terautentikasi");
-      }
+      toast({
+        title: "Memproses...",
+        description: "Sedang memperbarui data budgeting BHP. Proses ini mungkin memakan waktu beberapa menit.",
+      });
 
-      const { error } = await supabase.rpc("populate_budgeting_bhp_farmasi", {
-        p_user_id: userId,
+      // Gunakan fungsi optimized yang menggabungkan kedua proses
+      // Fungsi ini tenant-aware dan tidak memerlukan user_id
+      const { data: result, error } = await supabase.rpc("refresh_budgeting_bhp_complete", {
         p_tahun: 2025,
       });
 
       if (error) throw error;
 
-      const { error: rincianError } = await supabase.rpc("populate_rincian_budgeting_bhp", {
-        p_user_id: userId,
-        p_tahun: 2025,
-      });
-
-      if (rincianError) throw rincianError;
+      if (result && !result.success) {
+        throw new Error(result.error || "Gagal memperbarui data");
+      }
 
       toast({
         title: "Berhasil",
-        description: "Data berhasil diperbarui",
+        description: result?.message || "Data berhasil diperbarui",
       });
 
       await fetchData();
     } catch (error: any) {
       console.error("Error refreshing data:", error);
+      
+      // Berikan pesan error yang lebih informatif
+      let errorMessage = error.message || "Gagal memperbarui data";
+      
+      if (error.message?.includes("timeout") || error.message?.includes("statement timeout")) {
+        errorMessage = "Proses timeout. Data terlalu besar. Silakan coba lagi atau hubungi administrator.";
+      } else if (error.message?.includes("schema cache")) {
+        errorMessage = "Fungsi belum tersedia. Silakan jalankan migrasi database terlebih dahulu.";
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Gagal memperbarui data",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -261,11 +275,14 @@ const BudgetingBHPRupiah = () => {
     }
   });
 
-  const pendapatanTracker = new Set<string>();
-  const categoryAccumulator: Record<CategoryKey, { budgeting: number; pendapatan: number }> = {
-    rawatInap: { budgeting: 0, pendapatan: 0 },
-    rawatJalan: { budgeting: 0, pendapatan: 0 },
-    penunjang: { budgeting: 0, pendapatan: 0 },
+  // Hitung total pendapatan keseluruhan (dari semua unit kerja, tidak duplikat)
+  const totalPendapatanKeseluruhan = Array.from(pendapatanByUnit.values())
+    .reduce((sum, value) => sum + value, 0);
+
+  const categoryAccumulator: Record<CategoryKey, { budgeting: number }> = {
+    rawatInap: { budgeting: 0 },
+    rawatJalan: { budgeting: 0 },
+    penunjang: { budgeting: 0 },
   };
 
   filteredData.forEach(item => {
@@ -273,20 +290,14 @@ const BudgetingBHPRupiah = () => {
     if (!category) return;
 
     categoryAccumulator[category].budgeting += item.total_budgeting_bhp;
-
-    const trackerKey = `${category}-${item.kode_unit_kerja}`;
-    if (!pendapatanTracker.has(trackerKey)) {
-      categoryAccumulator[category].pendapatan += item.pendapatan;
-      pendapatanTracker.add(trackerKey);
-    }
   });
 
-  const categoryStats: CategoryStatCard[] = (Object.entries(categoryAccumulator) as [CategoryKey, { budgeting: number; pendapatan: number }][]).map(([key, value]) => ({
+  const categoryStats: CategoryStatCard[] = (Object.entries(categoryAccumulator) as [CategoryKey, { budgeting: number }][]).map(([key, value]) => ({
     key,
     label: key === "rawatInap" ? "Rawat Inap" : key === "rawatJalan" ? "Rawat Jalan" : "Penunjang",
     totalBudgeting: value.budgeting,
-    totalPendapatan: value.pendapatan,
-    rasio: value.pendapatan > 0 ? (value.budgeting / value.pendapatan) * 100 : 0,
+    totalPendapatan: totalPendapatanKeseluruhan,
+    rasio: totalPendapatanKeseluruhan > 0 ? (value.budgeting / totalPendapatanKeseluruhan) * 100 : 0,
   }));
 
   const topVolume = filteredData.length > 0 
@@ -299,11 +310,10 @@ const BudgetingBHPRupiah = () => {
 
   const totalBudgeting = filteredData.reduce((sum, item) => sum + item.total_budgeting_bhp, 0);
   const totalTindakan = filteredData.reduce((sum, item) => sum + item.jumlah_tindakan, 0);
-  const totalPendapatan = Array.from(pendapatanByUnit.values()).reduce((sum, value) => sum + value, 0);
   const totalUnitKerjaAvailable = unitKerjaList.length;
   const pieData = [
     { name: 'Budgeting BHP', value: totalBudgeting },
-    { name: 'Pendapatan', value: Math.max(totalPendapatan - totalBudgeting, 0) },
+    { name: 'Pendapatan', value: Math.max(totalPendapatanKeseluruhan - totalBudgeting, 0) },
   ];
   const pieColors = ['#0f766e', '#cbd5e1'];
 
@@ -335,8 +345,8 @@ const BudgetingBHPRupiah = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-gray-900">{formatNumber(filteredData.length)}</p>
-            <p className="text-xs text-gray-500 mt-1">Jenis tindakan</p>
+            <p className="text-2xl font-bold text-gray-900">1.294</p>
+            <p className="text-xs text-gray-500 mt-1">Total barang farmasi tersedia</p>
           </CardContent>
         </Card>
 
@@ -385,7 +395,14 @@ const BudgetingBHPRupiah = () => {
           const IconComponent = stat.key === "rawatInap" ? BedDouble : stat.key === "rawatJalan" ? Stethoscope : FlaskConical;
           const iconColor = stat.key === "rawatInap" ? "text-emerald-600" : stat.key === "rawatJalan" ? "text-sky-600" : "text-purple-600";
           return (
-            <Card key={stat.key} className="border-t-4 border-t-teal-600">
+            <Card 
+              key={stat.key} 
+              className="border-t-4 border-t-teal-600 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => {
+                setSelectedCategory(stat.key);
+                setDialogOpen(true);
+              }}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <IconComponent className={`h-5 w-5 ${iconColor}`} />
@@ -393,7 +410,7 @@ const BudgetingBHPRupiah = () => {
                     {stat.label}
                   </CardTitle>
                 </div>
-                <CardDescription>Rasio BHP vs Pendapatan</CardDescription>
+                <CardDescription>Rasio BHP vs Pendapatan (Klik untuk detail)</CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-teal-700">{stat.rasio.toFixed(2)}%</p>
@@ -493,8 +510,8 @@ const BudgetingBHPRupiah = () => {
                   <div className="text-xl font-bold text-teal-700">{formatCurrency(totalBudgeting)}</div>
                 </div>
                 <div className="p-4 rounded border">
-                  <div className="text-xs text-gray-600">Total Pendapatan</div>
-                  <div className="text-xl font-bold text-slate-700">{formatCurrency(totalPendapatan)}</div>
+                  <div className="text-xs text-gray-600">Total Pendapatan Keseluruhan</div>
+                  <div className="text-xl font-bold text-slate-700">{formatCurrency(totalPendapatanKeseluruhan)}</div>
                 </div>
               </div>
             </div>
@@ -565,7 +582,7 @@ const BudgetingBHPRupiah = () => {
               <Button
                 onClick={refreshData}
                 disabled={refreshing}
-                className={`flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700 ${refreshing ? "opacity-80" : ""}`}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               </Button>
@@ -654,6 +671,97 @@ const BudgetingBHPRupiah = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog Rincian Unit Kerja */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Rincian Unit Kerja - {selectedCategory === "rawatInap" ? "Rawat Inap" : selectedCategory === "rawatJalan" ? "Rawat Jalan" : "Penunjang"}
+            </DialogTitle>
+            <DialogDescription>
+              Daftar unit kerja dan total budgeting BHP per unit
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            {selectedCategory && (() => {
+              const categoryData = filteredData.filter(item => getCategoryKey(item.sumber_tabel) === selectedCategory);
+              const unitSummary = new Map<string, { kode: string; total: number; count: number }>();
+              
+              categoryData.forEach(item => {
+                const existing = unitSummary.get(item.nama_unit_kerja);
+                if (existing) {
+                  existing.total += item.total_budgeting_bhp;
+                  existing.count += 1;
+                } else {
+                  unitSummary.set(item.nama_unit_kerja, {
+                    kode: item.kode_unit_kerja,
+                    total: item.total_budgeting_bhp,
+                    count: 1
+                  });
+                }
+              });
+
+              const sortedUnits = Array.from(unitSummary.entries())
+                .sort((a, b) => b[1].total - a[1].total);
+
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Total Unit Kerja</p>
+                      <p className="text-2xl font-bold text-gray-900">{sortedUnits.length}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Total Budgeting BHP</p>
+                      <p className="text-2xl font-bold text-teal-700">
+                        {formatCurrency(Array.from(unitSummary.values()).reduce((sum, u) => sum + u.total, 0))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[50px]">No</TableHead>
+                        <TableHead>Kode</TableHead>
+                        <TableHead>Nama Unit Kerja</TableHead>
+                        <TableHead className="text-right">Jumlah Tindakan</TableHead>
+                        <TableHead className="text-right">Total BHP</TableHead>
+                        <TableHead className="text-right">% dari Kategori</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sortedUnits.map(([nama, data], index) => {
+                        const totalKategori = Array.from(unitSummary.values()).reduce((sum, u) => sum + u.total, 0);
+                        const persentase = (data.total / totalKategori) * 100;
+                        return (
+                          <TableRow key={nama}>
+                            <TableCell className="font-medium">{index + 1}</TableCell>
+                            <TableCell className="font-mono text-xs">{data.kode}</TableCell>
+                            <TableCell className="font-medium">{nama}</TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="outline">{data.count}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right font-semibold text-teal-600">
+                              {formatCurrency(data.total)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge className="bg-teal-100 text-teal-800">
+                                {persentase.toFixed(2)}%
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, FileDown, TrendingUp, CreditCard, Package, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useReportDownload } from "@/components/report";
+import { calculateTotalBudgeting } from "@/utils/calculations";
 
 interface RincianData {
   id: string;
@@ -45,6 +47,10 @@ const BudgetingBHPRincian = () => {
   const [selectedUnit, setSelectedUnit] = useState<string>("all");
   const [unitKerjaList, setUnitKerjaList] = useState<string[]>([]);
   const [activeYear, setActiveYear] = useState<number | null>(null);
+  const [totalItemTersedia, setTotalItemTersedia] = useState<number>(0);
+  const [totalItemDigunakan, setTotalItemDigunakan] = useState<number>(0);
+  const [totalItemValid, setTotalItemValid] = useState<number>(0);
+  const [showItemDialog, setShowItemDialog] = useState(false);
   const { toast } = useToast();
   const { downloadReport } = useReportDownload();
 
@@ -93,37 +99,21 @@ const BudgetingBHPRincian = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data: latestYearRows, error: latestYearError } = await supabase
-        .from("rincian_budgeting_bhp_public")
-        .select("tahun")
-        .order("tahun", { ascending: false })
-        .limit(1);
-
-      if (latestYearError) throw latestYearError;
-
-      const latestYear = latestYearRows?.[0]?.tahun;
-
-      if (!latestYear) {
-        setRawData([]);
-        setData([]);
-        setFilteredData([]);
-        setUnitKerjaList([]);
-        setActiveYear(null);
-        return;
-      }
+      
+      // Gunakan tahun 2025 yang sama dengan halaman Rupiah untuk konsistensi
+      const tahun = 2025;
 
       const { data: rincianData, error } = await supabase
         .from("rincian_budgeting_bhp_public")
         .select("*")
-        .eq("tahun", latestYear)
-        .order("total_rupiah", { ascending: false })
-        .range(0, 9999);
+        .eq("tahun", tahun)
+        .order("total_rupiah", { ascending: false });
 
       if (error) throw error;
 
       const safeData = rincianData || [];
 
-      setActiveYear(latestYear);
+      setActiveYear(tahun);
       setRawData(safeData);
       const aggregatedAll = aggregateByBarang(safeData);
       setData(aggregatedAll);
@@ -131,6 +121,11 @@ const BudgetingBHPRincian = () => {
       
       const units = Array.from(new Set(safeData.map(item => item.nama_unit_kerja)));
       setUnitKerjaList(units.sort());
+
+      // Set nilai statis untuk total item tersedia (tidak perlu fungsi database)
+      setTotalItemTersedia(1294); // Total barang farmasi
+      setTotalItemDigunakan(aggregatedAll.length); // Jenis barang yang digunakan
+      setTotalItemValid(0); // Tidak digunakan untuk sekarang
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast({
@@ -146,17 +141,18 @@ const BudgetingBHPRincian = () => {
   const refreshData = async () => {
     try {
       setRefreshing(true);
-      const { data: session } = await supabase.auth.getSession();
-      
-      const userId = session.session?.user.id;
 
-      if (!userId) {
-        throw new Error("User tidak terautentikasi");
-      }
+      toast({
+        title: "Memproses...",
+        description: "Sedang memperbarui data rincian BHP. Proses ini mungkin memakan waktu beberapa menit.",
+      });
 
-      const { error } = await supabase.rpc("populate_rincian_budgeting_bhp", {
-        p_user_id: userId,
-        p_tahun: activeYear ?? new Date().getFullYear(),
+      // Gunakan tahun 2025 yang sama dengan halaman Rupiah
+      const tahun = 2025;
+
+      // Gunakan fungsi optimized yang tenant-aware
+      const { data: result, error } = await supabase.rpc("populate_rincian_budgeting_bhp_optimized", {
+        p_tahun: tahun,
       });
 
       if (error) throw error;
@@ -169,9 +165,16 @@ const BudgetingBHPRincian = () => {
       await fetchData();
     } catch (error: any) {
       console.error("Error refreshing data:", error);
+      
+      let errorMessage = error.message || "Gagal memperbarui data";
+      
+      if (error.message?.includes("timeout") || error.message?.includes("statement timeout")) {
+        errorMessage = "Proses timeout. Data terlalu besar. Silakan coba lagi atau hubungi administrator.";
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Gagal memperbarui data",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -192,11 +195,6 @@ const BudgetingBHPRincian = () => {
       setFilteredData(aggregateByBarang(filteredRaw));
     }
   }, [rawData, selectedUnit]);
-
-  useEffect(() => {
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     fetchData();
@@ -259,7 +257,12 @@ const BudgetingBHPRincian = () => {
     ? filteredData.reduce((prev, current) => prev.total_rupiah > current.total_rupiah ? prev : current)
     : null;
 
-  const totalBudgeting = filteredData.reduce((sum, item) => sum + item.total_rupiah, 0);
+  // Hitung total budgeting dari raw data (sebelum agregasi) untuk sinkronisasi dengan halaman Rupiah
+  // Menggunakan shared utility function untuk konsistensi
+  const totalBudgeting = useMemo(() => 
+    calculateTotalBudgeting(rawData, selectedUnit),
+    [rawData, selectedUnit]
+  );
 
   if (loading) {
     return (
@@ -296,19 +299,12 @@ const BudgetingBHPRincian = () => {
           <Button
             onClick={refreshData}
             disabled={refreshing}
-            variant="outline"
-            className="border-teal-600 text-teal-600 hover:bg-teal-50"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {refreshing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Memperbarui...
-              </>
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Perbarui
-              </>
+              <RefreshCw className="h-4 w-4" />
             )}
           </Button>
           <Button
@@ -324,13 +320,16 @@ const BudgetingBHPRincian = () => {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-l-4 border-l-teal-500">
+        <Card 
+          className="border-l-4 border-l-teal-500 cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setShowItemDialog(true)}
+        >
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Items Bahan</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Total Jenis Barang</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-gray-900">{formatNumber(filteredData.length)}</p>
-            <p className="text-xs text-gray-500 mt-1">Detail bahan</p>
+            <p className="text-xs text-gray-500 mt-1">Jenis barang unik yang digunakan (klik untuk detail)</p>
           </CardContent>
         </Card>
 
@@ -346,13 +345,23 @@ const BudgetingBHPRincian = () => {
 
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Unique Barang</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Rasio Varians</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold text-gray-900">
-              {new Set(filteredData.map(item => item.kode_barang)).size}
+              {(() => {
+                // Rasio = jenis barang digunakan (filteredData.length) / total barang farmasi (1294)
+                const totalFarmasi = 1294;
+                const jenisBarangDigunakan = filteredData.length;
+                const rasioVarians = totalFarmasi > 0 
+                  ? ((jenisBarangDigunakan / totalFarmasi) * 100).toFixed(2) 
+                  : "0.00";
+                return `${rasioVarians}%`;
+              })()}
             </p>
-            <p className="text-xs text-gray-500 mt-1">Jenis barang</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {filteredData.length.toLocaleString('id-ID')} item digunakan / 1.294 total item tersedia
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -463,6 +472,90 @@ const BudgetingBHPRincian = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog Detail Item Barang */}
+      <Dialog open={showItemDialog} onOpenChange={setShowItemDialog}>
+        <DialogContent className="max-w-5xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gray-900">
+              Detail Jenis Barang Digunakan
+            </DialogTitle>
+            <DialogDescription>
+              Menampilkan {filteredData.length} jenis barang yang digunakan dengan total budgeting dan jumlah penggunaan
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mt-4">
+            <div className="rounded-md border overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-teal-600 hover:bg-teal-600">
+                    <TableHead className="w-[50px] text-white">No</TableHead>
+                    <TableHead className="text-white">Kode Barang</TableHead>
+                    <TableHead className="text-white">Nama Barang</TableHead>
+                    <TableHead className="text-white">Satuan</TableHead>
+                    <TableHead className="text-right text-white">Jumlah Digunakan</TableHead>
+                    <TableHead className="text-right text-white">Harga Satuan</TableHead>
+                    <TableHead className="text-right text-white">Total Budgeting</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                        <Package className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                        <p>Belum ada data item barang</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((item, index) => (
+                      <TableRow key={`dialog-${item.kode_barang}-${index}`}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-mono text-xs">{item.kode_barang}</TableCell>
+                        <TableCell>
+                          <p className="text-sm font-medium">{item.nama_barang}</p>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">{item.satuan}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="outline" className="font-semibold">
+                            {formatNumber(item.total_qty)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(item.harga_satuan || 0)}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-purple-600">
+                          {formatCurrency(item.total_rupiah || 0)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            
+            {/* Summary di bagian bawah dialog */}
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-gray-600">Total Jenis Barang</p>
+                  <p className="text-xl font-bold text-teal-600">{formatNumber(filteredData.length)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Total Quantity</p>
+                  <p className="text-xl font-bold text-blue-600">
+                    {formatNumber(filteredData.reduce((sum, item) => sum + item.total_qty, 0))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Total Budgeting</p>
+                  <p className="text-xl font-bold text-purple-600">{formatCurrency(totalBudgeting)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

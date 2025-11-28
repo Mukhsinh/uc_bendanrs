@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp?project_ref=koepzicdtovtknsqlnac",
+      "disabled": false,
+      "autoApprove": [
+        "list_tables",
+        "search_docs",
+        "get_project_url",
+        "execute_sql",
+        "apply_migration",
+        "get_logs"
+      ]
+    }
+  }
+}

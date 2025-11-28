@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ChartContainer } from "@/components/ui/chart";
@@ -18,6 +20,7 @@ import {
   Calculator,
   Pencil,
   Check,
+  ChevronsUpDown,
   ArrowDownCircle,
   ArrowUpCircle,
   Activity,
@@ -119,7 +122,9 @@ const recalculateRow = (
   const unitCost = toNumber(merged.unit_cost_per_tindakan);
 
   const jasaPelayanan = jasaPelayananMedis + jasaPelayananNonMedis;
-  const tarifPerTindakan = jasaSarana + biayaBahan + jasaPelayanan;
+  // PERBAIKAN: Tarif tidak termasuk biaya_bahan karena unit_cost sudah termasuk biaya bahan
+  // Rumus baru: tarif = jasa_sarana + jasa_pelayanan (tanpa biaya_bahan)
+  const tarifPerTindakan = jasaSarana + jasaPelayanan;
   const prosentaseJasaPelayanan =
     tarifPerTindakan > 0 ? roundToTwoDecimals((jasaPelayanan / tarifPerTindakan) * 100) : 0;
   const prosentaseProfit =
@@ -153,11 +158,72 @@ const SkenarioTarif = () => {
     jasa_pelayanan_non_medis: 0,
   });
   const [namaTindakanFilter, setNamaTindakanFilter] = useState<string>("");
+  const [namaOperatorFilter, setNamaOperatorFilter] = useState<string>("all");
   const [showFilters, setShowFilters] = useState<boolean>(true);
   const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
+  const [openUnitKerjaCombobox, setOpenUnitKerjaCombobox] = useState<boolean>(false);
+  const [openOperatorCombobox, setOpenOperatorCombobox] = useState<boolean>(false);
 
   const queryClient = useQueryClient();
   const { downloadReport } = useReportDownload();
+
+  // Fetch unit kerja dari rekapitulasi_unit_cost untuk dropdown filter
+  // Hanya unit kerja yang memiliki data di rekapitulasi yang akan muncul
+  const { data: unitKerjaList } = useQuery({
+    queryKey: ["unit_kerja_from_rekapitulasi", tahun],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rekapitulasi_unit_cost")
+        .select("kode_unit_kerja, nama_unit_kerja")
+        .eq("tahun", tahun)
+        .order("nama_unit_kerja", { ascending: true });
+
+      if (error) throw error;
+      
+      // Get unique unit kerja
+      const uniqueMap = new Map<string, string>();
+      (data || []).forEach(item => {
+        if (item.kode_unit_kerja && !uniqueMap.has(item.kode_unit_kerja)) {
+          uniqueMap.set(item.kode_unit_kerja, item.nama_unit_kerja);
+        }
+      });
+      
+      return Array.from(uniqueMap.entries()).map(([kode, nama]) => ({
+        kode,
+        nama
+      }));
+    },
+    enabled: !!tahun,
+  });
+
+  // Fetch distinct operators dari skenario_tarif
+  const { data: operatorList } = useQuery({
+    queryKey: ["operators_from_skenario", tahun],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("skenario_tarif")
+        .select("kode_operator, nama_operator")
+        .eq("tahun", tahun)
+        .not("kode_operator", "is", null)
+        .order("nama_operator", { ascending: true });
+
+      if (error) throw error;
+      
+      // Get unique operators
+      const uniqueMap = new Map<string, string>();
+      (data || []).forEach(item => {
+        if (item.kode_operator && !uniqueMap.has(item.kode_operator)) {
+          uniqueMap.set(item.kode_operator, item.nama_operator || item.kode_operator);
+        }
+      });
+      
+      return Array.from(uniqueMap.entries()).map(([kode, nama]) => ({
+        kode,
+        nama
+      }));
+    },
+    enabled: !!tahun,
+  });
 
   // Fetch data skenario tarif
   const { data: skenarioData, isLoading } = useQuery({
@@ -424,7 +490,7 @@ const SkenarioTarif = () => {
     enabled: !!tahun,
   });
 
-  // Filter data berdasarkan unit kerja
+  // Filter data berdasarkan unit kerja, nama tindakan, dan nama operator
   const filteredData = React.useMemo(() => {
     if (!skenarioData) return [];
 
@@ -442,15 +508,33 @@ const SkenarioTarif = () => {
       );
     }
 
-    return data;
-  }, [skenarioData, selectedUnitKerja, namaTindakanFilter]);
+    if (namaOperatorFilter !== "all") {
+      data = data.filter(item => item.kode_operator === namaOperatorFilter);
+    }
 
-  // Get unique unit kerja untuk filter
+    return data;
+  }, [skenarioData, selectedUnitKerja, namaTindakanFilter, namaOperatorFilter]);
+
+  // Get unit kerja options dari tabel unit_kerja (bukan dari skenario_tarif)
+  // Ini memastikan semua unit kerja tampil di dropdown, termasuk yang belum ada data skenario
   const unitKerjaOptions = React.useMemo(() => {
-    if (!skenarioData) return [];
-    const unique = [...new Set(skenarioData.map(item => `${item.kode_unit_kerja} - ${item.nama_unit_kerja}`))];
-    return unique.sort();
-  }, [skenarioData]);
+    if (!unitKerjaList) return [];
+    
+    return unitKerjaList.map(uk => ({
+      value: uk.kode,
+      label: `${uk.kode} - ${uk.nama}`
+    }));
+  }, [unitKerjaList]);
+
+  // Get operator options
+  const operatorOptions = React.useMemo(() => {
+    if (!operatorList) return [];
+    
+    return operatorList.map(op => ({
+      value: op.kode,
+      label: `${op.kode} - ${op.nama}`
+    }));
+  }, [operatorList]);
 
   const unitKerjaBadgeColor = React.useMemo(() => {
     const fallbackColor = "bg-gray-200 text-gray-700";
@@ -552,15 +636,36 @@ const SkenarioTarif = () => {
   });
 
 
-  // Update individual row
+  // Update individual row - MANUAL UPDATE tanpa trigger otomatis
   const updateRowMutation = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: typeof editValues }) => {
+      // Kalkulasi dilakukan di frontend sebelum save
+      const jasaPelayanan = values.jasa_pelayanan_medis + values.jasa_pelayanan_non_medis;
+      const tarifPerTindakan = values.jasa_sarana + jasaPelayanan;
+      
+      // Get current row data untuk unit_cost
+      const currentRow = skenarioData?.find(item => item.id === id);
+      const unitCost = currentRow?.unit_cost_per_tindakan || 0;
+      
+      const prosentaseJasaPelayanan = tarifPerTindakan > 0 
+        ? roundToTwoDecimals((jasaPelayanan / tarifPerTindakan) * 100) 
+        : 0;
+      const prosentaseProfit = unitCost > 0 
+        ? roundToTwoDecimals(((values.jasa_sarana - unitCost) / unitCost) * 100) 
+        : 0;
+
+      // Update dengan semua field yang sudah dikalkulasi
       const { error } = await supabase
         .from("skenario_tarif")
         .update({
           jasa_sarana: values.jasa_sarana,
           jasa_pelayanan_medis: values.jasa_pelayanan_medis,
           jasa_pelayanan_non_medis: values.jasa_pelayanan_non_medis,
+          jasa_pelayanan: jasaPelayanan,
+          tarif_per_tindakan: tarifPerTindakan,
+          prosentase_jasa_pelayanan: prosentaseJasaPelayanan,
+          prosentase_profit: prosentaseProfit,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", id);
 
@@ -575,6 +680,8 @@ const SkenarioTarif = () => {
       toast.error("Gagal update data: " + error.message);
     },
   });
+
+
 
   const handleEditRow = (item: SkenarioTarifData) => {
     setEditingRow(item.id);
@@ -794,19 +901,56 @@ const SkenarioTarif = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit-kerja">Unit Kerja</Label>
-              <Select value={selectedUnitKerja} onValueChange={setSelectedUnitKerja}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih Unit Kerja" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Unit Kerja</SelectItem>
-                  {unitKerjaOptions.map((option: string) => (
-                    <SelectItem key={option} value={option.split(" - ")[0]}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={openUnitKerjaCombobox} onOpenChange={setOpenUnitKerjaCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openUnitKerjaCombobox}
+                    className="w-full justify-between"
+                  >
+                    {selectedUnitKerja === "all"
+                      ? "Semua Unit Kerja"
+                      : unitKerjaOptions.find((option) => option.value === selectedUnitKerja)?.label || "Pilih Unit Kerja"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Cari unit kerja..." />
+                    <CommandEmpty>Unit kerja tidak ditemukan.</CommandEmpty>
+                    <CommandGroup className="max-h-[300px] overflow-auto">
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          setSelectedUnitKerja("all");
+                          setOpenUnitKerjaCombobox(false);
+                        }}
+                      >
+                        <Check
+                          className={`mr-2 h-4 w-4 ${selectedUnitKerja === "all" ? "opacity-100" : "opacity-0"}`}
+                        />
+                        Semua Unit Kerja
+                      </CommandItem>
+                      {unitKerjaOptions.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.label}
+                          onSelect={() => {
+                            setSelectedUnitKerja(option.value);
+                            setOpenUnitKerjaCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${selectedUnitKerja === option.value ? "opacity-100" : "opacity-0"}`}
+                          />
+                          {option.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2 md:col-span-2 lg:col-span-1">
               <Label htmlFor="nama-tindakan">Nama Tindakan</Label>
@@ -816,6 +960,59 @@ const SkenarioTarif = () => {
                 value={namaTindakanFilter}
                 onChange={(e) => setNamaTindakanFilter(e.target.value)}
               />
+            </div>
+            <div className="space-y-2 md:col-span-2 lg:col-span-1">
+              <Label htmlFor="nama-operator">Nama Operator</Label>
+              <Popover open={openOperatorCombobox} onOpenChange={setOpenOperatorCombobox}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openOperatorCombobox}
+                    className="w-full justify-between"
+                  >
+                    {namaOperatorFilter === "all"
+                      ? "Semua Operator"
+                      : operatorOptions.find((option) => option.value === namaOperatorFilter)?.label || "Pilih Operator"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Cari operator..." />
+                    <CommandEmpty>Operator tidak ditemukan.</CommandEmpty>
+                    <CommandGroup className="max-h-[300px] overflow-auto">
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          setNamaOperatorFilter("all");
+                          setOpenOperatorCombobox(false);
+                        }}
+                      >
+                        <Check
+                          className={`mr-2 h-4 w-4 ${namaOperatorFilter === "all" ? "opacity-100" : "opacity-0"}`}
+                        />
+                        Semua Operator
+                      </CommandItem>
+                      {operatorOptions.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.label}
+                          onSelect={() => {
+                            setNamaOperatorFilter(option.value);
+                            setOpenOperatorCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={`mr-2 h-4 w-4 ${namaOperatorFilter === option.value ? "opacity-100" : "opacity-0"}`}
+                          />
+                          {option.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </CardContent>
@@ -927,6 +1124,7 @@ const SkenarioTarif = () => {
                 <TableHeader className="bg-[#0f766e]">
                   <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
                     <TableHead className="w-[200px] text-white">Unit Kerja</TableHead>
+                    <TableHead className="w-[150px] text-white">Operator</TableHead>
                     <TableHead className="w-[150px] text-white">Tindakan</TableHead>
                     <TableHead className="text-right w-[100px] text-white">Unit Cost</TableHead>
                     <TableHead className="text-right w-[100px] text-white">Biaya Bahan</TableHead>
@@ -973,6 +1171,16 @@ const SkenarioTarif = () => {
                           </Badge>
                           <span className="text-[11px] text-muted-foreground">{item.kode_unit_kerja}</span>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {item.kode_operator && item.nama_operator ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm font-medium">{item.nama_operator}</span>
+                            <span className="text-[11px] text-muted-foreground">{item.kode_operator}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">-</span>
+                        )}
                       </TableCell>
                       <TableCell
                         className={

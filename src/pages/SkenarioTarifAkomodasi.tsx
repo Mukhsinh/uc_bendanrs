@@ -13,43 +13,66 @@ import { Loader2, Download, Upload, Calculator, Pencil, Check, X } from "lucide-
 import { useReportDownload } from "@/components/report";
 import { formatCurrency } from "@/lib/utils";
 
-interface SkenarioTarifAkomodasiData {
+// Helper function untuk warna kelas
+const getKelasColor = (kelas: string) => {
+  switch (kelas) {
+    case 'VVIP': return 'bg-red-600 text-white border-red-600';
+    case 'VIP': return 'bg-purple-600 text-white border-purple-600';
+    case 'I': return 'bg-blue-600 text-white border-blue-600';
+    case 'II': return 'bg-yellow-600 text-white border-yellow-600'; // Ubah dari green ke yellow untuk kontras
+    case 'III': return 'bg-orange-600 text-white border-orange-600';
+    default: return 'bg-gray-600 text-white border-gray-600';
+  }
+};
+
+interface SkenarioTarifAkomodasiRow {
   id: string;
   tahun: number;
-  rata_rata_uc_vvip: number;
-  rata_rata_uc_vip: number;
-  rata_rata_uc_i: number;
-  rata_rata_uc_ii: number;
-  rata_rata_uc_iii: number;
+  kode_unit_kerja: string;
+  nama_unit_kerja: string;
+  unit_cost_vvip: number;
+  unit_cost_vip: number;
+  unit_cost_i: number;
+  unit_cost_ii: number;
+  unit_cost_iii: number;
+  profit_vvip: number;
+  profit_vip: number;
+  profit_i: number;
+  profit_ii: number;
+  profit_iii: number;
   tarif_vvip: number;
   tarif_vip: number;
   tarif_i: number;
   tarif_ii: number;
   tarif_iii: number;
-  profit_rupiah_vvip: number;
-  profit_rupiah_vip: number;
-  profit_rupiah_i: number;
-  profit_rupiah_ii: number;
-  profit_rupiah_iii: number;
-  profit_persen_vvip: number;
-  profit_persen_vip: number;
-  profit_persen_i: number;
-  profit_persen_ii: number;
-  profit_persen_iii: number;
-}
-
-interface KelasData {
-  kelas: string;
-  rataRataUc: number;
-  tarif: number;
-  profitRupiah: number;
-  profitPersen: number;
+  average_unit_cost_vvip: number;
+  average_unit_cost_vip: number;
+  average_unit_cost_i: number;
+  average_unit_cost_ii: number;
+  average_unit_cost_iii: number;
+  average_profit_vvip: number;
+  average_profit_vip: number;
+  average_profit_i: number;
+  average_profit_ii: number;
+  average_profit_iii: number;
 }
 
 const SkenarioTarifAkomodasi = () => {
   const [tahun, setTahun] = useState<number>(2025);
-  const [editingKelas, setEditingKelas] = useState<string | null>(null);
-  const [editTarif, setEditTarif] = useState<number>(0);
+  const [editingRow, setEditingRow] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{
+    tarif_vvip: number;
+    tarif_vip: number;
+    tarif_i: number;
+    tarif_ii: number;
+    tarif_iii: number;
+  }>({
+    tarif_vvip: 0,
+    tarif_vip: 0,
+    tarif_i: 0,
+    tarif_ii: 0,
+    tarif_iii: 0,
+  });
   const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
 
   const queryClient = useQueryClient();
@@ -63,76 +86,77 @@ const SkenarioTarifAkomodasi = () => {
         .from("skenario_tarif_akomodasi")
         .select("*")
         .eq("tahun", tahun)
-        .single();
+        .order("kode_unit_kerja");
 
-      if (error && error.code !== "PGRST116") throw error;
-      return data as SkenarioTarifAkomodasiData | null;
+      if (error) throw error;
+      return data as SkenarioTarifAkomodasiRow[];
     },
     enabled: !!tahun,
   });
 
-  // Transform data into table format
-  const kelasDataArray: KelasData[] = React.useMemo(() => {
-    if (!skenarioData) return [];
-    
-    return [
-      {
-        kelas: "VVIP",
-        rataRataUc: skenarioData.rata_rata_uc_vvip,
-        tarif: skenarioData.tarif_vvip,
-        profitRupiah: skenarioData.profit_rupiah_vvip,
-        profitPersen: skenarioData.profit_persen_vvip,
-      },
-      {
-        kelas: "VIP",
-        rataRataUc: skenarioData.rata_rata_uc_vip,
-        tarif: skenarioData.tarif_vip,
-        profitRupiah: skenarioData.profit_rupiah_vip,
-        profitPersen: skenarioData.profit_persen_vip,
-      },
-      {
-        kelas: "I",
-        rataRataUc: skenarioData.rata_rata_uc_i,
-        tarif: skenarioData.tarif_i,
-        profitRupiah: skenarioData.profit_rupiah_i,
-        profitPersen: skenarioData.profit_persen_i,
-      },
-      {
-        kelas: "II",
-        rataRataUc: skenarioData.rata_rata_uc_ii,
-        tarif: skenarioData.tarif_ii,
-        profitRupiah: skenarioData.profit_rupiah_ii,
-        profitPersen: skenarioData.profit_persen_ii,
-      },
-      {
-        kelas: "III",
-        rataRataUc: skenarioData.rata_rata_uc_iii,
-        tarif: skenarioData.tarif_iii,
-        profitRupiah: skenarioData.profit_rupiah_iii,
-        profitPersen: skenarioData.profit_persen_iii,
-      },
-    ];
+  // Calculate averages
+  const averages = React.useMemo(() => {
+    if (!skenarioData || skenarioData.length === 0) {
+      return {
+        unit_cost_vvip: 0,
+        unit_cost_vip: 0,
+        unit_cost_i: 0,
+        unit_cost_ii: 0,
+        unit_cost_iii: 0,
+        profit_vvip: 0,
+        profit_vip: 0,
+        profit_i: 0,
+        profit_ii: 0,
+        profit_iii: 0,
+      };
+    }
+
+    const firstRow = skenarioData[0];
+    return {
+      unit_cost_vvip: firstRow.average_unit_cost_vvip || 0,
+      unit_cost_vip: firstRow.average_unit_cost_vip || 0,
+      unit_cost_i: firstRow.average_unit_cost_i || 0,
+      unit_cost_ii: firstRow.average_unit_cost_ii || 0,
+      unit_cost_iii: firstRow.average_unit_cost_iii || 0,
+      profit_vvip: firstRow.average_profit_vvip || 0,
+      profit_vip: firstRow.average_profit_vip || 0,
+      profit_i: firstRow.average_profit_i || 0,
+      profit_ii: firstRow.average_profit_ii || 0,
+      profit_iii: firstRow.average_profit_iii || 0,
+    };
   }, [skenarioData]);
 
-  // Calculate average profit
-  const averageProfit = React.useMemo(() => {
-    if (kelasDataArray.length === 0) return 0;
-    const total = kelasDataArray.reduce((sum, item) => sum + item.profitPersen, 0);
-    return total / kelasDataArray.length;
-  }, [kelasDataArray]);
+  // Calculate average tarif
+  const averageTarif = React.useMemo(() => {
+    return {
+      vvip: averages.unit_cost_vvip + averages.profit_vvip,
+      vip: averages.unit_cost_vip + averages.profit_vip,
+      i: averages.unit_cost_i + averages.profit_i,
+      ii: averages.unit_cost_ii + averages.profit_ii,
+      iii: averages.unit_cost_iii + averages.profit_iii,
+    };
+  }, [averages]);
+
+  // Calculate total profit dan % profit per row
+  const calculateRowTotals = (row: SkenarioTarifAkomodasiRow) => {
+    const totalProfit = (row.profit_vvip || 0) + (row.profit_vip || 0) + (row.profit_i || 0) + (row.profit_ii || 0) + (row.profit_iii || 0);
+    const totalUnitCost = (row.unit_cost_vvip || 0) + (row.unit_cost_vip || 0) + (row.unit_cost_i || 0) + (row.unit_cost_ii || 0) + (row.unit_cost_iii || 0);
+    const profitPercentage = totalUnitCost > 0 ? (totalProfit / totalUnitCost) * 100 : 0;
+    return { totalProfit, profitPercentage };
+  };
 
   // Populate data dari kalkulasi_biaya_kelas_akomodasi
   const populateMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.rpc("populate_skenario_tarif_akomodasi", {
-        p_user_id: (await supabase.auth.getUser()).data.user?.id,
+        p_tenant_id: null,
         p_tahun: tahun,
       });
 
       if (error) throw error;
       return data;
     },
-    onSuccess: (count) => {
+    onSuccess: () => {
       toast.success(`Berhasil memuat data skenario tarif akomodasi`);
       queryClient.invalidateQueries({ queryKey: ["skenario_tarif_akomodasi"] });
     },
@@ -141,22 +165,38 @@ const SkenarioTarifAkomodasi = () => {
     },
   });
 
-  // Update tarif for a specific kelas
+  // Update tarif untuk row tertentu (profit akan dihitung otomatis via trigger)
   const updateTarifMutation = useMutation({
-    mutationFn: async ({ kelas, tarif }: { kelas: string; tarif: number }) => {
-      if (!skenarioData) throw new Error("No data found");
-      
-      const updateField = `tarif_${kelas.toLowerCase().replace("vvip", "vvip")}`;
+    mutationFn: async ({ 
+      id, 
+      values 
+    }: { 
+      id: string; 
+      values: { 
+        tarif_vvip: number; 
+        tarif_vip: number; 
+        tarif_i: number; 
+        tarif_ii: number; 
+        tarif_iii: number;
+      } 
+    }) => {
       const { error } = await supabase
         .from("skenario_tarif_akomodasi")
-        .update({ [updateField]: tarif })
-        .eq("id", skenarioData.id);
+        .update({
+          tarif_vvip: values.tarif_vvip,
+          tarif_vip: values.tarif_vip,
+          tarif_i: values.tarif_i,
+          tarif_ii: values.tarif_ii,
+          tarif_iii: values.tarif_iii,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Berhasil update tarif");
-      setEditingKelas(null);
+      setEditingRow(null);
       queryClient.invalidateQueries({ queryKey: ["skenario_tarif_akomodasi"] });
     },
     onError: (error) => {
@@ -164,21 +204,27 @@ const SkenarioTarifAkomodasi = () => {
     },
   });
 
-  const handleEditKelas = (kelas: string, currentTarif: number) => {
-    setEditingKelas(kelas);
-    setEditTarif(currentTarif);
+  const handleEditRow = (row: SkenarioTarifAkomodasiRow) => {
+    setEditingRow(row.id);
+    setEditValues({
+      tarif_vvip: row.tarif_vvip || 0,
+      tarif_vip: row.tarif_vip || 0,
+      tarif_i: row.tarif_i || 0,
+      tarif_ii: row.tarif_ii || 0,
+      tarif_iii: row.tarif_iii || 0,
+    });
   };
 
-  const handleSaveTarif = (kelas: string) => {
-    updateTarifMutation.mutate({ kelas, tarif: editTarif });
+  const handleSaveRow = (id: string) => {
+    updateTarifMutation.mutate({ id, values: editValues });
   };
 
   const handleCancelEdit = () => {
-    setEditingKelas(null);
+    setEditingRow(null);
   };
 
   const handleDownloadReport = async () => {
-    if (!kelasDataArray || kelasDataArray.length === 0) {
+    if (!skenarioData || skenarioData.length === 0) {
       toast.error("Belum ada data untuk diunduh");
       return;
     }
@@ -186,13 +232,24 @@ const SkenarioTarifAkomodasi = () => {
     try {
       setDownloadingReport(true);
 
-      const records = kelasDataArray.map((item) => ({
-        "Tahun": tahun,
-        "Kelas": item.kelas,
-        "Rata-rata Unit Cost": Math.round(item.rataRataUc || 0),
-        "Tarif": Math.round(item.tarif || 0),
-        "Profit (Rp)": Math.round(item.profitRupiah || 0),
-        "Profit (%)": Number((item.profitPersen || 0).toFixed(2)),
+      const records = skenarioData.map((row) => ({
+        "Kode Unit": row.kode_unit_kerja,
+        "Nama Unit": row.nama_unit_kerja,
+        "UC VVIP": Math.round(row.unit_cost_vvip || 0),
+        "UC VIP": Math.round(row.unit_cost_vip || 0),
+        "UC I": Math.round(row.unit_cost_i || 0),
+        "UC II": Math.round(row.unit_cost_ii || 0),
+        "UC III": Math.round(row.unit_cost_iii || 0),
+        "Profit VVIP": Math.round(row.profit_vvip || 0),
+        "Profit VIP": Math.round(row.profit_vip || 0),
+        "Profit I": Math.round(row.profit_i || 0),
+        "Profit II": Math.round(row.profit_ii || 0),
+        "Profit III": Math.round(row.profit_iii || 0),
+        "Tarif VVIP": Math.round(row.tarif_vvip || 0),
+        "Tarif VIP": Math.round(row.tarif_vip || 0),
+        "Tarif I": Math.round(row.tarif_i || 0),
+        "Tarif II": Math.round(row.tarif_ii || 0),
+        "Tarif III": Math.round(row.tarif_iii || 0),
       }));
 
       await downloadReport({
@@ -200,7 +257,7 @@ const SkenarioTarifAkomodasi = () => {
         subtitle: `Tahun ${tahun}`,
         filename: `skenario_tarif_akomodasi_${tahun}`,
         records,
-        orientation: "portrait",
+        orientation: "landscape",
       });
 
       toast.success("Laporan berhasil disiapkan");
@@ -218,14 +275,14 @@ const SkenarioTarifAkomodasi = () => {
         <div>
           <h1 className="text-3xl font-bold">Skenario Tarif Akomodasi</h1>
           <p className="text-muted-foreground">
-            Kelola tarif akomodasi per kelas dengan perhitungan profit otomatis
+            Kelola tarif akomodasi per unit kerja dengan profit yang dapat diedit manual
           </p>
         </div>
       </div>
 
       {/* Configuration Panel */}
       <Card>
-        <CardContent className="space-y-4">
+        <CardContent className="pt-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="tahun">Tahun</Label>
@@ -247,22 +304,22 @@ const SkenarioTarifAkomodasi = () => {
               <Button 
                 onClick={() => populateMutation.mutate()} 
                 disabled={populateMutation.isPending}
-                className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white/80"
+                className="bg-blue-600 text-white hover:bg-blue-700"
               >
                 {populateMutation.isPending ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <Upload className="h-4 w-4 mr-2" />
                 )}
-                Update Data
+                Perbarui Data
               </Button>
               
               <Button 
                 onClick={() => {
                   void handleDownloadReport();
                 }} 
-                disabled={!kelasDataArray.length || downloadingReport}
-                className="bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed"
+                disabled={!skenarioData?.length || downloadingReport}
+                className="bg-red-600 text-white hover:bg-red-700"
               >
                 {downloadingReport ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -271,14 +328,6 @@ const SkenarioTarifAkomodasi = () => {
                 )}
                 {downloadingReport ? "Menyiapkan..." : "Unduh Laporan"}
               </Button>
-              
-              {/* Average Profit Badge */}
-              {kelasDataArray.length > 0 && (
-                <Badge className="px-3 py-1 bg-green-600 text-white">
-                  <span className="font-medium">Rata-rata Profit:</span>
-                  <span className="ml-2 text-sm font-bold">{averageProfit.toFixed(2)}%</span>
-                </Badge>
-              )}
             </div>
           </div>
         </CardContent>
@@ -287,9 +336,9 @@ const SkenarioTarifAkomodasi = () => {
       {/* Data Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Data Skenario Tarif Akomodasi per Kelas</CardTitle>
+          <CardTitle>Data Skenario Tarif Akomodasi</CardTitle>
           <CardDescription>
-            {kelasDataArray.length > 0 ? `${kelasDataArray.length} kelas akomodasi` : "Belum ada data"}
+            {skenarioData?.length ? `${skenarioData.length} unit kerja` : "Belum ada data"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -298,129 +347,258 @@ const SkenarioTarifAkomodasi = () => {
               <Loader2 className="h-8 w-8 animate-spin" />
               <span className="ml-2">Memuat data...</span>
             </div>
-          ) : kelasDataArray.length === 0 ? (
+          ) : !skenarioData || skenarioData.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Calculator className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Belum ada data skenario tarif akomodasi untuk tahun {tahun}</p>
-              <p className="text-sm">Klik "Update Data dari Kalkulasi" untuk memulai</p>
+              <p className="text-sm">Klik "Perbarui Data" untuk memulai</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-[#0f766e]">
                   <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
-                    <TableHead className="w-[120px] font-bold text-white">Kelas</TableHead>
-                    <TableHead className="text-right w-[150px] text-white">Rata-rata UC</TableHead>
-                    <TableHead className="text-right w-[150px] text-white">
-                      <div className="flex items-center justify-end gap-1">
-                        Tarif
-                        {editingKelas && (
-                          <Pencil className="h-3 w-3 text-white/80" />
-                        )}
-                      </div>
+                    <TableHead className="w-[60px] font-bold text-white text-xs px-2">Kode</TableHead>
+                    <TableHead className="w-[150px] text-white text-xs px-2">Ruang</TableHead>
+                    <TableHead className="text-center text-white text-xs px-1" colSpan={5}>Tarif (Manual)</TableHead>
+                    <TableHead className="text-center text-white text-xs px-1" colSpan={5}>Unit Cost (UC)</TableHead>
+                    <TableHead className="text-center text-white text-xs px-1" colSpan={5}>Profit (Auto)</TableHead>
+                    <TableHead className="w-[60px] text-center text-white text-xs px-1">Aksi</TableHead>
+                  </TableRow>
+                  <TableRow className="bg-[#0d9488]">
+                    <TableHead className="text-white px-2"></TableHead>
+                    <TableHead className="text-white px-2"></TableHead>
+                    {/* Tarif Headers */}
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('VVIP')} text-xs px-1 py-0`}>VVIP</Badge>
                     </TableHead>
-                    <TableHead className="text-right w-[150px] text-white">Profit (Rp)</TableHead>
-                    <TableHead className="text-right w-[120px] text-white">Profit (%)</TableHead>
-                    <TableHead className="w-[100px] text-center text-white">Aksi</TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('VIP')} text-xs px-1 py-0`}>VIP</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('I')} text-xs px-1 py-0`}>I</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('II')} text-xs px-1 py-0`}>II</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('III')} text-xs px-1 py-0`}>III</Badge>
+                    </TableHead>
+                    {/* UC Headers */}
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('VVIP')} text-xs px-1 py-0`}>VVIP</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('VIP')} text-xs px-1 py-0`}>VIP</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('I')} text-xs px-1 py-0`}>I</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('II')} text-xs px-1 py-0`}>II</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('III')} text-xs px-1 py-0`}>III</Badge>
+                    </TableHead>
+                    {/* Profit Headers */}
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('VVIP')} text-xs px-1 py-0`}>VVIP</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('VIP')} text-xs px-1 py-0`}>VIP</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('I')} text-xs px-1 py-0`}>I</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('II')} text-xs px-1 py-0`}>II</Badge>
+                    </TableHead>
+                    <TableHead className="text-right text-white text-xs px-1">
+                      <Badge className={`${getKelasColor('III')} text-xs px-1 py-0`}>III</Badge>
+                    </TableHead>
+                    <TableHead className="text-white px-1"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {kelasDataArray.map((item) => (
-                    <TableRow key={item.kelas}>
-                      <TableCell className="font-bold text-lg">
-                        <Badge 
-                          variant="outline" 
-                          className={`text-base px-3 py-1 ${
-                            item.kelas === 'VVIP' ? 'bg-red-500 text-white border-red-500' :
-                            item.kelas === 'VIP' ? 'bg-purple-500 text-white border-purple-500' :
-                            item.kelas === 'I' ? 'bg-blue-500 text-white border-blue-500' :
-                            item.kelas === 'II' ? 'bg-green-500 text-white border-green-500' :
-                            item.kelas === 'III' ? 'bg-orange-500 text-white border-orange-500' :
-                            'bg-gray-500 text-white border-gray-500'
-                          }`}
-                        >
-                          Kelas {item.kelas}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(item.rataRataUc)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {editingKelas === item.kelas ? (
-                          <div className="flex items-center justify-end gap-2">
+                  {/* Average Row */}
+                  <TableRow className="bg-yellow-50 font-bold">
+                    <TableCell colSpan={2} className="text-center text-xs px-2 py-2">Average</TableCell>
+                    {/* Average Tarif */}
+                    <TableCell className="text-right text-xs font-bold text-blue-600 px-1 py-2">{formatCurrency(averageTarif.vvip)}</TableCell>
+                    <TableCell className="text-right text-xs font-bold text-blue-600 px-1 py-2">{formatCurrency(averageTarif.vip)}</TableCell>
+                    <TableCell className="text-right text-xs font-bold text-blue-600 px-1 py-2">{formatCurrency(averageTarif.i)}</TableCell>
+                    <TableCell className="text-right text-xs font-bold text-blue-600 px-1 py-2">{formatCurrency(averageTarif.ii)}</TableCell>
+                    <TableCell className="text-right text-xs font-bold text-blue-600 px-1 py-2">{formatCurrency(averageTarif.iii)}</TableCell>
+                    {/* Average UC */}
+                    <TableCell className="text-right text-xs px-1 py-2">{formatCurrency(averages.unit_cost_vvip)}</TableCell>
+                    <TableCell className="text-right text-xs px-1 py-2">{formatCurrency(averages.unit_cost_vip)}</TableCell>
+                    <TableCell className="text-right text-xs px-1 py-2">{formatCurrency(averages.unit_cost_i)}</TableCell>
+                    <TableCell className="text-right text-xs px-1 py-2">{formatCurrency(averages.unit_cost_ii)}</TableCell>
+                    <TableCell className="text-right text-xs px-1 py-2">{formatCurrency(averages.unit_cost_iii)}</TableCell>
+                    {/* Average Profit */}
+                    <TableCell className="text-right text-xs text-green-600 px-1 py-2">{formatCurrency(averages.profit_vvip)}</TableCell>
+                    <TableCell className="text-right text-xs text-green-600 px-1 py-2">{formatCurrency(averages.profit_vip)}</TableCell>
+                    <TableCell className="text-right text-xs text-green-600 px-1 py-2">{formatCurrency(averages.profit_i)}</TableCell>
+                    <TableCell className="text-right text-xs text-green-600 px-1 py-2">{formatCurrency(averages.profit_ii)}</TableCell>
+                    <TableCell className="text-right text-xs text-green-600 px-1 py-2">{formatCurrency(averages.profit_iii)}</TableCell>
+                    <TableCell className="px-1 py-2"></TableCell>
+                  </TableRow>
+
+                  {/* Data Rows */}
+                  {skenarioData.map((row) => {
+                    const isEditing = editingRow === row.id;
+                    
+                    // Calculate preview profit saat edit tarif
+                    const previewProfit = isEditing ? {
+                      vvip: editValues.tarif_vvip - row.unit_cost_vvip,
+                      vip: editValues.tarif_vip - row.unit_cost_vip,
+                      i: editValues.tarif_i - row.unit_cost_i,
+                      ii: editValues.tarif_ii - row.unit_cost_ii,
+                      iii: editValues.tarif_iii - row.unit_cost_iii,
+                    } : null;
+                    
+                    const rowTotals = calculateRowTotals(row);
+                    
+                    return (
+                      <TableRow key={row.id} className={row.unit_cost_vvip > 0 || row.unit_cost_vip > 0 ? "bg-yellow-100" : ""}>
+                        <TableCell className="font-medium text-xs px-2 py-2">{row.kode_unit_kerja}</TableCell>
+                        <TableCell className="text-xs font-semibold px-2 py-2">{row.nama_unit_kerja}</TableCell>
+                        
+                        {/* Tarif - Editable */}
+                        <TableCell className="text-right px-1 py-2">
+                          {isEditing && row.unit_cost_vvip > 0 ? (
                             <Input
                               type="number"
-                              value={editTarif}
-                              onChange={(e) => setEditTarif(parseInt(e.target.value) || 0)}
-                              className="w-32 text-right"
+                              value={editValues.tarif_vvip}
+                              onChange={(e) => setEditValues(prev => ({ ...prev, tarif_vvip: parseFloat(e.target.value) || 0 }))}
+                              className="w-20 text-right text-xs h-7 px-1"
                             />
-                          </div>
-                        ) : (
-                          <span className="font-bold text-primary text-lg">
-                            {formatCurrency(item.tarif)}
+                          ) : (
+                            <span className="text-xs font-bold">{row.unit_cost_vvip > 0 ? formatCurrency(row.tarif_vvip) : "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          {isEditing && row.unit_cost_vip > 0 ? (
+                            <Input
+                              type="number"
+                              value={editValues.tarif_vip}
+                              onChange={(e) => setEditValues(prev => ({ ...prev, tarif_vip: parseFloat(e.target.value) || 0 }))}
+                              className="w-20 text-right text-xs h-7 px-1"
+                            />
+                          ) : (
+                            <span className="text-xs font-bold">{row.unit_cost_vip > 0 ? formatCurrency(row.tarif_vip) : "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          {isEditing && row.unit_cost_i > 0 ? (
+                            <Input
+                              type="number"
+                              value={editValues.tarif_i}
+                              onChange={(e) => setEditValues(prev => ({ ...prev, tarif_i: parseFloat(e.target.value) || 0 }))}
+                              className="w-20 text-right text-xs h-7 px-1"
+                            />
+                          ) : (
+                            <span className="text-xs font-bold">{row.unit_cost_i > 0 ? formatCurrency(row.tarif_i) : "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          {isEditing && row.unit_cost_ii > 0 ? (
+                            <Input
+                              type="number"
+                              value={editValues.tarif_ii}
+                              onChange={(e) => setEditValues(prev => ({ ...prev, tarif_ii: parseFloat(e.target.value) || 0 }))}
+                              className="w-20 text-right text-xs h-7 px-1"
+                            />
+                          ) : (
+                            <span className="text-xs font-bold">{row.unit_cost_ii > 0 ? formatCurrency(row.tarif_ii) : "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          {isEditing && row.unit_cost_iii > 0 ? (
+                            <Input
+                              type="number"
+                              value={editValues.tarif_iii}
+                              onChange={(e) => setEditValues(prev => ({ ...prev, tarif_iii: parseFloat(e.target.value) || 0 }))}
+                              className="w-20 text-right text-xs h-7 px-1"
+                            />
+                          ) : (
+                            <span className="text-xs font-bold">{row.unit_cost_iii > 0 ? formatCurrency(row.tarif_iii) : "-"}</span>
+                          )}
+                        </TableCell>
+                        
+                        {/* Unit Cost - Read Only */}
+                        <TableCell className="text-right text-xs px-1 py-2">{row.unit_cost_vvip > 0 ? formatCurrency(row.unit_cost_vvip) : "-"}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2">{row.unit_cost_vip > 0 ? formatCurrency(row.unit_cost_vip) : "-"}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2">{row.unit_cost_i > 0 ? formatCurrency(row.unit_cost_i) : "-"}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2">{row.unit_cost_ii > 0 ? formatCurrency(row.unit_cost_ii) : "-"}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2">{row.unit_cost_iii > 0 ? formatCurrency(row.unit_cost_iii) : "-"}</TableCell>
+                        
+                        {/* Profit - Auto Calculated (Preview saat edit) */}
+                        <TableCell className="text-right px-1 py-2">
+                          <span className={`text-xs text-green-600 ${isEditing ? 'font-bold' : ''}`}>
+                            {row.unit_cost_vvip > 0 ? formatCurrency(isEditing ? previewProfit!.vvip : row.profit_vvip) : "-"}
                           </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <span className={`font-semibold ${item.profitRupiah >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(item.profitRupiah)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Badge 
-                          variant={item.profitPersen >= 0 ? "default" : "destructive"} 
-                          className={`text-sm font-bold px-3 py-1 ${
-                            item.profitPersen >= 0 
-                              ? item.kelas === 'VVIP' ? 'bg-red-500 text-white border-red-500' :
-                                item.kelas === 'VIP' ? 'bg-purple-500 text-white border-purple-500' :
-                                item.kelas === 'I' ? 'bg-blue-500 text-white border-blue-500' :
-                                item.kelas === 'II' ? 'bg-green-500 text-white border-green-500' :
-                                item.kelas === 'III' ? 'bg-orange-500 text-white border-orange-500' :
-                                'bg-gray-500 text-white border-gray-500'
-                              : 'bg-red-500 text-white border-red-500'
-                          }`}
-                        >
-                          {item.profitPersen.toFixed(2)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {editingKelas === item.kelas ? (
-                          <div className="flex items-center justify-center gap-1">
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          <span className={`text-xs text-green-600 ${isEditing ? 'font-bold' : ''}`}>
+                            {row.unit_cost_vip > 0 ? formatCurrency(isEditing ? previewProfit!.vip : row.profit_vip) : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          <span className={`text-xs text-green-600 ${isEditing ? 'font-bold' : ''}`}>
+                            {row.unit_cost_i > 0 ? formatCurrency(isEditing ? previewProfit!.i : row.profit_i) : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          <span className={`text-xs text-green-600 ${isEditing ? 'font-bold' : ''}`}>
+                            {row.unit_cost_ii > 0 ? formatCurrency(isEditing ? previewProfit!.ii : row.profit_ii) : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right px-1 py-2">
+                          <span className={`text-xs text-green-600 ${isEditing ? 'font-bold' : ''}`}>
+                            {row.unit_cost_iii > 0 ? formatCurrency(isEditing ? previewProfit!.iii : row.profit_iii) : "-"}
+                          </span>
+                        </TableCell>
+                        
+                        {/* Aksi */}
+                        <TableCell className="text-center px-1 py-2">
+                          {isEditing ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleSaveRow(row.id)}
+                                disabled={updateTarifMutation.isPending}
+                                className="h-6 w-6 p-0 hover:bg-green-100"
+                              >
+                                {updateTarifMutation.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin text-green-600" />
+                                ) : (
+                                  <Check className="h-3 w-3 text-green-600" />
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={handleCancelEdit}
+                                className="h-6 w-6 p-0 hover:bg-red-100"
+                              >
+                                <X className="h-3 w-3 text-red-600" />
+                              </Button>
+                            </div>
+                          ) : (
                             <Button
                               size="sm"
-                              variant="ghost"
-                              onClick={() => handleSaveTarif(item.kelas)}
-                              disabled={updateTarifMutation.isPending}
-                              className="h-8 w-8 p-0"
+                              onClick={() => handleEditRow(row)}
+                              className="h-6 w-6 p-0 bg-blue-600 hover:bg-blue-700 text-white"
                             >
-                              {updateTarifMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Check className="h-4 w-4 text-green-600" />
-                              )}
+                              <Pencil className="h-3 w-3" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={handleCancelEdit}
-                              className="h-8 w-8 p-0"
-                            >
-                              <X className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditKelas(item.kelas, item.tarif)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -432,4 +610,3 @@ const SkenarioTarifAkomodasi = () => {
 };
 
 export default SkenarioTarifAkomodasi;
-
