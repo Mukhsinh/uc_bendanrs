@@ -38,6 +38,7 @@ interface SkenarioTarifData {
   nama_operator?: string;
   kode_tindakan: string;
   nama_tindakan: string;
+  tingkat_kesulitan?: number;
   biaya_bahan: number;
   unit_cost_per_tindakan: number;
   prosentase_jasa_pelayanan: number;
@@ -97,6 +98,7 @@ const normalizeSkenarioItem = (item: any): SkenarioTarifData => ({
   nama_operator: item.nama_operator ?? undefined,
   kode_tindakan: item.kode_tindakan ?? "",
   nama_tindakan: item.nama_tindakan ?? "",
+  tingkat_kesulitan: item.tingkat_kesulitan !== null && item.tingkat_kesulitan !== undefined ? Number(item.tingkat_kesulitan) : undefined,
   biaya_bahan: toNumber(item.biaya_bahan),
   unit_cost_per_tindakan: toNumber(item.unit_cost_per_tindakan),
   prosentase_jasa_pelayanan: toNumber(item.prosentase_jasa_pelayanan),
@@ -1126,6 +1128,7 @@ const SkenarioTarif = () => {
                     <TableHead className="w-[200px] text-white">Unit Kerja</TableHead>
                     <TableHead className="w-[150px] text-white">Operator</TableHead>
                     <TableHead className="w-[150px] text-white">Tindakan</TableHead>
+                    <TableHead className="text-center w-[100px] text-white">Tingkat Kesulitan</TableHead>
                     <TableHead className="text-right w-[100px] text-white">Unit Cost</TableHead>
                     <TableHead className="text-right w-[100px] text-white">Biaya Bahan</TableHead>
                     <TableHead className="text-right w-[120px] text-white">
@@ -1193,10 +1196,34 @@ const SkenarioTarif = () => {
                             : ""
                         }
                       >
-                        <div className="max-w-[150px]">
-                          <div className="font-medium text-sm truncate">{item.nama_tindakan}</div>
-                          <div className="text-xs text-muted-foreground">{item.kode_tindakan}</div>
+                        <div className="max-w-[250px]">
+                          <div className="font-medium text-sm break-words whitespace-normal leading-tight">{item.nama_tindakan}</div>
+                          <div className="text-xs text-muted-foreground mt-1">{item.kode_tindakan}</div>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {item.tingkat_kesulitan ? (
+                          <Badge 
+                            variant="outline"
+                            className={
+                              item.tingkat_kesulitan === 1 ? "bg-green-50 text-green-700 border-green-200" :
+                              item.tingkat_kesulitan === 2 ? "bg-blue-50 text-blue-700 border-blue-200" :
+                              item.tingkat_kesulitan === 3 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                              item.tingkat_kesulitan === 4 ? "bg-orange-50 text-orange-700 border-orange-200" :
+                              item.tingkat_kesulitan === 5 ? "bg-red-50 text-red-700 border-red-200" :
+                              "bg-gray-50 text-gray-700 border-gray-200"
+                            }
+                          >
+                            {item.tingkat_kesulitan === 1 ? "Sangat Mudah" :
+                             item.tingkat_kesulitan === 2 ? "Mudah" :
+                             item.tingkat_kesulitan === 3 ? "Sedang" :
+                             item.tingkat_kesulitan === 4 ? "Sulit" :
+                             item.tingkat_kesulitan === 5 ? "Sangat Sulit" :
+                             item.tingkat_kesulitan}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right text-sm">
                         {formatCurrency(item.unit_cost_per_tindakan)}

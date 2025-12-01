@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LayananInputTable from "@/components/produk-layanan/LayananInputTable";
+import LayananImportExportToolbar from "@/components/produk-layanan/LayananImportExportToolbar";
 import FarmasiInputTable from "@/components/produk-layanan/FarmasiInputTable";
 import { useReportDownload } from "@/components/report";
 
@@ -103,6 +104,17 @@ const ProdukLayanan = () => {
     kamar_akomodasi: [],
     visite: [],
     konsultasi: [],
+  });
+  
+  // State untuk menyimpan available services dari setiap jenis layanan
+  const [availableServices, setAvailableServices] = useState({
+    tindakan: [] as any[],
+    ibs: [] as any[],
+    laboratorium: [] as any[],
+    radiologi: [] as any[],
+    akomodasi: [] as any[],
+    visite: [] as any[],
+    konsultasi: [] as any[],
   });
 
   const fetchData = async () => {
@@ -769,6 +781,39 @@ const ProdukLayanan = () => {
                   </TabsContent>
 
                   <TabsContent value="layanan" className="space-y-6">
+                    {/* Toolbar Import/Export Terpusat */}
+                    <LayananImportExportToolbar
+                      tahun={tahun}
+                      allServices={availableServices}
+                      onImport={(importedData) => {
+                        // Merge imported data dengan data yang sudah ada
+                        setFormData({
+                          ...formData,
+                          tindakan: [...(formData.tindakan || []), ...importedData.tindakan],
+                          ibs: [...(formData.ibs || []), ...importedData.ibs],
+                          laboratorium: [...(formData.laboratorium || []), ...importedData.laboratorium],
+                          radiologi: [...(formData.radiologi || []), ...importedData.radiologi],
+                          kamar_akomodasi: [...(formData.kamar_akomodasi || []), ...importedData.akomodasi],
+                          visite: [...(formData.visite || []), ...importedData.visite],
+                          konsultasi: [...(formData.konsultasi || []), ...importedData.konsultasi],
+                        });
+                      }}
+                    />
+
+                    {/* URUTAN 1: Kamar Akomodasi - Dipindahkan ke urutan pertama */}
+                    <LayananInputTable
+                      label="Kamar Akomodasi"
+                      value={formData.kamar_akomodasi || []}
+                      onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
+                      tahun={tahun}
+                      filterType="akomodasi"
+                      refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, akomodasi: services }))
+                      }
+                    />
+
+                    {/* URUTAN 2: Tindakan - Sekarang bergantung pada kamar yang dipilih */}
                     <LayananInputTable
                       label="Tindakan"
                       value={formData.tindakan || []}
@@ -777,6 +822,10 @@ const ProdukLayanan = () => {
                       filterType="tindakan"
                       jenisProduk={formData.jenis}
                       refreshKey={refreshKey}
+                      selectedKamarAkomodasi={formData.kamar_akomodasi || []}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, tindakan: services }))
+                      }
                     />
 
                     <LayananInputTable
@@ -787,6 +836,9 @@ const ProdukLayanan = () => {
                       filterType="ibs"
                       spesialisasiDokter={formData.spesialisasi_dokter || undefined}
                       refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, ibs: services }))
+                      }
                     />
 
                     <LayananInputTable
@@ -796,6 +848,9 @@ const ProdukLayanan = () => {
                       tahun={tahun}
                       filterType="laboratorium"
                       refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, laboratorium: services }))
+                      }
                     />
 
                     <LayananInputTable
@@ -805,6 +860,9 @@ const ProdukLayanan = () => {
                       tahun={tahun}
                       filterType="radiologi"
                       refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, radiologi: services }))
+                      }
                     />
 
                     <div className="space-y-2">
@@ -831,21 +889,15 @@ const ProdukLayanan = () => {
                     />
 
                     <LayananInputTable
-                      label="Kamar Akomodasi"
-                      value={formData.kamar_akomodasi || []}
-                      onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
-                      tahun={tahun}
-                      filterType="akomodasi"
-                      refreshKey={refreshKey}
-                    />
-
-                    <LayananInputTable
                       label="Visite"
                       value={formData.visite || []}
                       onChange={(value) => setFormData({ ...formData, visite: value })}
                       tahun={tahun}
                       filterType="visite"
                       refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, visite: services }))
+                      }
                     />
 
                     <LayananInputTable
@@ -855,6 +907,9 @@ const ProdukLayanan = () => {
                       tahun={tahun}
                       filterType="konsultasi"
                       refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, konsultasi: services }))
+                      }
                     />
                   </TabsContent>
                 </Tabs>

@@ -33,6 +33,9 @@ interface LayananItem {
   tipe_dokter?: string;
   kode_operator?: string;
   nama_operator?: string;
+  kode_unit_kerja?: string;
+  nama_unit_kerja?: string;
+  kelas?: string;
 }
 
 interface LayananInputTableProps {
@@ -44,6 +47,8 @@ interface LayananInputTableProps {
   jenisProduk?: string;
   spesialisasiDokter?: string;
   refreshKey: number;
+  onServicesLoaded?: (services: any[]) => void;
+  selectedKamarAkomodasi?: LayananItem[]; // Kamar yang sudah dipilih untuk filter tindakan
 }
 
 const LayananInputTable: React.FC<LayananInputTableProps> = ({
@@ -55,6 +60,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   jenisProduk,
   spesialisasiDokter,
   refreshKey,
+  onServicesLoaded,
+  selectedKamarAkomodasi = [],
 }) => {
   const { toast } = useToast();
   const [availableServices, setAvailableServices] = useState<any[]>([]);
@@ -183,26 +190,26 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         if (sumberTabel) {
           let query = supabase
             .from("skenario_tarif")
-            .select("*")
+            .select("*, kode_unit_kerja, nama_unit_kerja")
             .eq("tahun", tahun)
             .eq("sumber_tabel", sumberTabel);
           query = applyUserScope(query, userId);
-          const result = await query.order("nama_tindakan");
+          const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
           data = result.data || [];
           error = result.error;
         }
       } else if (filterType === "ibs") {
         let query = supabase
           .from("skenario_tarif")
-          .select("*")
+          .select("*, kode_unit_kerja, nama_unit_kerja")
           .eq("tahun", tahun)
-          .eq("sumber_tabel", "kalkulasi_tindakan_operatif");
+          .eq("sumber_tabel", "kalkulasi_biaya_operatif");
 
         if (spesialisasiDokter) {
           query = query.eq("nama_operator", spesialisasiDokter);
         }
         query = applyUserScope(query, userId);
-        const result = await query.order("nama_tindakan");
+        const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
         data = result.data || [];
         error = result.error;
       } else if (filterType === "laboratorium") {
@@ -226,46 +233,52 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         data = result.data || [];
         error = result.error;
       } else if (filterType === "akomodasi") {
+        // Ambil data dari skenario_tarif_akomodasi yang memiliki tarif per unit kerja per kelas
         let query = supabase
           .from("skenario_tarif_akomodasi")
           .select("*")
           .eq("tahun", tahun);
         query = applyUserScope(query, userId);
         const result = await query;
+        
         if (result.data && result.data.length > 0) {
-          const tarif = result.data[0];
-          data = [
-            {
-              id: "akomodasi_vvip",
-              kode_tindakan: "AKOM.VVIP",
-              nama_tindakan: "Kamar VVIP",
-              tarif: tarif.tarif_vvip || 0,
-            },
-            {
-              id: "akomodasi_vip",
-              kode_tindakan: "AKOM.VIP",
-              nama_tindakan: "Kamar VIP",
-              tarif: tarif.tarif_vip || 0,
-            },
-            {
-              id: "akomodasi_i",
-              kode_tindakan: "AKOM.I",
-              nama_tindakan: "Kamar Kelas I",
-              tarif: tarif.tarif_i || 0,
-            },
-            {
-              id: "akomodasi_ii",
-              kode_tindakan: "AKOM.II",
-              nama_tindakan: "Kamar Kelas II",
-              tarif: tarif.tarif_ii || 0,
-            },
-            {
-              id: "akomodasi_iii",
-              kode_tindakan: "AKOM.III",
-              nama_tindakan: "Kamar Kelas III",
-              tarif: tarif.tarif_iii || 0,
-            },
-          ];
+          // Transform data: setiap row menjadi multiple items (satu per kelas)
+          const transformedData: any[] = [];
+          
+          result.data.forEach((item: any) => {
+            // Mapping kelas dengan tarif dan label
+            const kelasMapping = [
+              { kelas: 'VVIP', label: 'VVIP', tarif: item.tarif_vvip },
+              { kelas: 'VIP', label: 'VIP', tarif: item.tarif_vip },
+              { kelas: 'I', label: 'Kelas I', tarif: item.tarif_i },
+              { kelas: 'II', label: 'Kelas II', tarif: item.tarif_ii },
+              { kelas: 'III', label: 'Kelas III', tarif: item.tarif_iii }
+            ];
+            
+            kelasMapping.forEach(({ kelas, label, tarif }) => {
+              // Hanya tambahkan jika tarif ada dan > 0
+              if (tarif && tarif > 0) {
+                transformedData.push({
+                  id: `${item.id}_${kelas}`,
+                  kode_tindakan: `AKOM.${kelas}`,
+                  nama_tindakan: `${item.nama_unit_kerja} - ${label}`,
+                  kode_unit_kerja: item.kode_unit_kerja,
+                  nama_unit_kerja: item.nama_unit_kerja,
+                  kelas: kelas,
+                  tarif: parseFloat(tarif) || 0,
+                });
+              }
+            });
+          });
+          
+          // Sort by unit kerja first, then by kelas
+          data = transformedData.sort((a, b) => {
+            if (a.nama_unit_kerja !== b.nama_unit_kerja) {
+              return a.nama_unit_kerja.localeCompare(b.nama_unit_kerja, 'id');
+            }
+            const kelasOrder: any = { 'VVIP': 1, 'VIP': 2, 'I': 3, 'II': 4, 'III': 5 };
+            return (kelasOrder[a.kelas] || 99) - (kelasOrder[b.kelas] || 99);
+          });
         }
         error = result.error;
       } else if (filterType === "visite") {
@@ -273,37 +286,31 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           .from("skenario_tarif_visit")
           .select("*")
           .eq("tahun", tahun)
-          .limit(1);
+          .ilike("tindakan", "Visit%");
         query = applyUserScope(query, userId);
-        const result = await query.maybeSingle();
-        if (result.data) {
-          const tarif = result.data;
-          data = [
-            {
-              id: "visit_umum",
-              kode_tindakan: "VISIT.UMUM",
-              nama_tindakan: "Visit Dokter Umum",
-              jasa_sarana: tarif.visit_dokter_umum || 0,
+        const result = await query;
+        if (result.data && result.data.length > 0) {
+          data = result.data.map((item: any) => {
+            let kodeTindakan = "VISIT.UMUM";
+            let tipeDokter = "umum";
+            
+            if (item.tindakan.includes("Spesialis") && !item.tindakan.includes("Subspesialis")) {
+              kodeTindakan = "VISIT.SPESIALIS";
+              tipeDokter = "spesialis";
+            } else if (item.tindakan.includes("Subspesialis")) {
+              kodeTindakan = "VISIT.SUBSPESIALIS";
+              tipeDokter = "subspesialis";
+            }
+            
+            return {
+              id: item.id,
+              kode_tindakan: kodeTindakan,
+              nama_tindakan: item.tindakan,
+              jasa_sarana: parseFloat(item.tarif || 0),
               biaya_bahan: 0,
-              tipe_dokter: "umum",
-            },
-            {
-              id: "visit_spesialis",
-              kode_tindakan: "VISIT.SPESIALIS",
-              nama_tindakan: "Visit Dokter Spesialis",
-              jasa_sarana: tarif.visit_dokter_spesialis || 0,
-              biaya_bahan: 0,
-              tipe_dokter: "spesialis",
-            },
-            {
-              id: "visit_subspesialis",
-              kode_tindakan: "VISIT.SUBSPESIALIS",
-              nama_tindakan: "Visit Dokter Subspesialis",
-              jasa_sarana: tarif.visit_dokter_subspesialis || 0,
-              biaya_bahan: 0,
-              tipe_dokter: "subspesialis",
-            },
-          ];
+              tipe_dokter: tipeDokter,
+            };
+          });
         }
         error = result.error;
       } else if (filterType === "konsultasi") {
@@ -311,29 +318,28 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           .from("skenario_tarif_visit")
           .select("*")
           .eq("tahun", tahun)
-          .limit(1);
+          .ilike("tindakan", "Konsultasi%");
         query = applyUserScope(query, userId);
-        const result = await query.maybeSingle();
-        if (result.data) {
-          const tarif = result.data;
-          data = [
-            {
-              id: "konsultasi_spesialis",
-              kode_tindakan: "KONSUL.SPESIALIS",
-              nama_tindakan: "Konsultasi Dokter Spesialis",
-              jasa_sarana: tarif.konsultasi_dokter_spesialis || 0,
+        const result = await query;
+        if (result.data && result.data.length > 0) {
+          data = result.data.map((item: any) => {
+            let kodeTindakan = "KONSUL.SPESIALIS";
+            let tipeDokter = "spesialis";
+            
+            if (item.tindakan.includes("Subspesialis")) {
+              kodeTindakan = "KONSUL.SUBSPESIALIS";
+              tipeDokter = "subspesialis";
+            }
+            
+            return {
+              id: item.id,
+              kode_tindakan: kodeTindakan,
+              nama_tindakan: item.tindakan,
+              jasa_sarana: parseFloat(item.tarif || 0),
               biaya_bahan: 0,
-              tipe_dokter: "spesialis",
-            },
-            {
-              id: "konsultasi_subspesialis",
-              kode_tindakan: "KONSUL.SUBSPESIALIS",
-              nama_tindakan: "Konsultasi Dokter Subspesialis",
-              jasa_sarana: tarif.konsultasi_dokter_subspesialis || 0,
-              biaya_bahan: 0,
-              tipe_dokter: "subspesialis",
-            },
-          ];
+              tipe_dokter: tipeDokter,
+            };
+          });
         }
         error = result.error;
       }
@@ -350,6 +356,11 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
             );
 
       setAvailableServices(normalizedData);
+      
+      // Notify parent component about loaded services
+      if (onServicesLoaded) {
+        onServicesLoaded(normalizedData);
+      }
     } catch (error: any) {
       toast({
         title: "Error fetching services",
@@ -365,16 +376,64 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     fetchServices();
   }, [tahun, jenisProduk, spesialisasiDokter, refreshKey]);
 
-  const filteredServices = availableServices.filter((service) => {
-    if (!searchQuery) return true;
-    
-    const query = searchQuery.toLowerCase();
-    const kode = (service.kode_tindakan || "").toLowerCase();
-    const nama = (service.nama_tindakan || "").toLowerCase();
-    const operator = (service.nama_operator || "").toLowerCase();
-    
-    return kode.includes(query) || nama.includes(query) || operator.includes(query);
-  });
+  // Filter berdasarkan kamar akomodasi yang dipilih (untuk tindakan)
+  const getFilteredByKamar = () => {
+    // Jika bukan tindakan, tidak perlu filter berdasarkan kamar
+    if (filterType !== "tindakan") {
+      return availableServices;
+    }
+
+    // Jika belum ada kamar yang dipilih, return array kosong (tidak tampilkan tindakan)
+    if (!selectedKamarAkomodasi || selectedKamarAkomodasi.length === 0) {
+      return [];
+    }
+
+    // Ambil daftar kode_unit_kerja dari kamar yang dipilih
+    const selectedUnitKerja = selectedKamarAkomodasi
+      .map(kamar => kamar.kode_unit_kerja)
+      .filter(Boolean); // Hapus nilai null/undefined
+
+    console.log("Selected Unit Kerja dari Kamar:", selectedUnitKerja);
+    console.log("Available Services:", availableServices.length);
+
+    // Jika tidak ada unit kerja yang valid, return array kosong
+    if (selectedUnitKerja.length === 0) {
+      return [];
+    }
+
+    // Filter tindakan yang unit kerjanya sesuai dengan kamar yang dipilih
+    const filtered = availableServices.filter(service => {
+      const hasUnitKerja = service.kode_unit_kerja && selectedUnitKerja.includes(service.kode_unit_kerja);
+      if (hasUnitKerja) {
+        console.log("Match found:", service.nama_tindakan, "Unit:", service.nama_unit_kerja);
+      }
+      return hasUnitKerja;
+    });
+
+    console.log("Filtered Services:", filtered.length);
+    return filtered;
+  };
+
+  const filteredServices = getFilteredByKamar()
+    .filter((service) => {
+      // Filter berdasarkan search query
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const kode = (service.kode_tindakan || "").toLowerCase();
+        const nama = (service.nama_tindakan || "").toLowerCase();
+        const operator = (service.nama_operator || "").toLowerCase();
+        const unitKerja = (service.nama_unit_kerja || "").toLowerCase();
+        
+        if (!kode.includes(query) && !nama.includes(query) && !operator.includes(query) && !unitKerja.includes(query)) {
+          return false;
+        }
+      }
+      
+      // Filter: exclude tindakan yang sudah dipilih
+      // Cek apakah kode_tindakan sudah ada di list value
+      const isAlreadySelected = value.some(item => item.kode_tindakan === service.kode_tindakan);
+      return !isAlreadySelected;
+    });
 
   const handleAddToList = () => {
     if (!selectedService) {
@@ -410,6 +469,9 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         kode_tindakan: service.kode_tindakan,
         nama_tindakan: service.nama_tindakan,
         tarif: service.tarif || 0,
+        kode_unit_kerja: service.kode_unit_kerja,
+        nama_unit_kerja: service.nama_unit_kerja,
+        kelas: service.kelas,
         qty,
         subtotal: itemTotal,
       };
@@ -438,6 +500,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         subtotal: itemTotal,
         kode_operator: service.kode_operator,
         nama_operator: service.nama_operator,
+        kode_unit_kerja: service.kode_unit_kerja,
+        nama_unit_kerja: service.nama_unit_kerja,
       };
     }
 
@@ -522,6 +586,44 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         </Badge>
       </div>
       
+      {/* Peringatan jika tindakan tapi belum pilih kamar */}
+      {filterType === "tindakan" && selectedKamarAkomodasi.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
+          <div className="text-yellow-600 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-yellow-800">
+              Pilih Kamar Akomodasi Terlebih Dahulu
+            </p>
+            <p className="text-xs text-yellow-700 mt-1">
+              Untuk menambahkan tindakan, silakan pilih kamar akomodasi terlebih dahulu. Tindakan yang ditampilkan akan disesuaikan dengan unit kerja dari kamar yang dipilih.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Informasi filter berdasarkan kamar */}
+      {filterType === "tindakan" && selectedKamarAkomodasi.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+          <div className="text-blue-600 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-800">
+              Filter Aktif: {selectedKamarAkomodasi.length} Kamar Dipilih
+            </p>
+            <p className="text-xs text-blue-700 mt-1">
+              Menampilkan tindakan dari unit kerja: {selectedKamarAkomodasi.map(k => k.nama_unit_kerja).filter(Boolean).join(", ")}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Input Section */}
       <div className={`border rounded-lg p-4 ${badge.bgLight} ${badge.borderLight} space-y-3`}>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -563,14 +665,19 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                   filteredServices.map((service) => {
                     let displayText = `${service.kode_tindakan} - ${service.nama_tindakan}`;
                     
+                    // Tambahkan nama unit kerja di belakang nama tindakan (untuk tindakan dan IBS)
+                    if ((filterType === "tindakan" || filterType === "ibs") && service.nama_unit_kerja) {
+                      displayText += ` (${service.nama_unit_kerja})`;
+                    }
+                    
                     if (filterType === "akomodasi") {
-                      displayText += ` (Tarif: ${formatCurrency(service.tarif || 0)})`;
+                      displayText += ` - Tarif: ${formatCurrency(service.tarif || 0)}`;
                     } else if (filterType === "visite" || filterType === "konsultasi") {
-                      displayText += ` (Tarif: ${formatCurrency(service.jasa_sarana || 0)})`;
+                      displayText += ` - Tarif: ${formatCurrency(service.jasa_sarana || 0)}`;
                     } else {
                       const jasa = service.jasa_sarana || 0;
                       const bahan = service.biaya_bahan || 0;
-                      displayText += ` (Jasa: ${formatCurrency(jasa)}, BHP: ${formatCurrency(bahan)})`;
+                      displayText += ` - Jasa: ${formatCurrency(jasa)}, BHP: ${formatCurrency(bahan)}`;
                     }
                     
                     return (
@@ -671,6 +778,9 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
               <TableRow className={badge.bgLight}>
                 <TableHead className="w-[120px]">Kode</TableHead>
                 <TableHead>Nama {label}</TableHead>
+                {(filterType === "tindakan" || filterType === "ibs" || filterType === "akomodasi") && (
+                  <TableHead className="w-[180px]">Unit Kerja</TableHead>
+                )}
                 {filterType === "akomodasi" ? (
                   <TableHead className="text-right w-[130px]">Tarif</TableHead>
                 ) : (
@@ -689,6 +799,11 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                 <TableRow key={index} className="hover:bg-gray-50">
                   <TableCell className="font-mono text-sm">{item.kode_tindakan}</TableCell>
                   <TableCell className="font-medium">{item.nama_tindakan}</TableCell>
+                  {(filterType === "tindakan" || filterType === "ibs" || filterType === "akomodasi") && (
+                    <TableCell className="text-sm text-muted-foreground">
+                      {item.nama_unit_kerja || "-"}
+                    </TableCell>
+                  )}
                   {filterType === "akomodasi" ? (
                     <TableCell className="text-right">{formatCurrency(item.tarif || 0)}</TableCell>
                   ) : (
@@ -717,7 +832,14 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                 </TableRow>
               ))}
               <TableRow className={`${badge.bgLight} font-bold`}>
-                <TableCell colSpan={filterType === "akomodasi" ? 4 : 5} className="text-right">
+                <TableCell 
+                  colSpan={
+                    filterType === "akomodasi" ? 5 : 
+                    (filterType === "tindakan" || filterType === "ibs") ? 6 : 
+                    5
+                  } 
+                  className="text-right"
+                >
                   Total {label}:
                 </TableCell>
                 <TableCell className={`text-right ${badge.textDark} text-lg`}>

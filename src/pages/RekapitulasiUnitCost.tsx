@@ -787,7 +787,7 @@ const RekapitulasiUnitCost: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                     Tidak ada data yang ditemukan
                   </td>
                 </tr>
