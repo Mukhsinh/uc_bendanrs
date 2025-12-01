@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Loader2, Download, Upload, Calculator, Pencil, Check, X, TrendingUp } from "lucide-react";
 import { useReportDownload } from "@/components/report";
 import { formatCurrency } from "@/lib/utils";
+import SkenarioTarifImportExportToolbar from "@/components/skenario-tarif/SkenarioTarifImportExportToolbar";
 
 interface SkenarioTarifVisitRow {
   id: string;
@@ -159,6 +160,32 @@ const SkenarioTarifVisit = () => {
     setEditingRow(null);
   };
 
+  // Handle bulk import
+  const handleBulkImport = async (importedData: any[]) => {
+    try {
+      // Update multiple rows
+      const updatePromises = importedData.map((item) =>
+        supabase
+          .from("skenario_tarif_visit")
+          .update({
+            jasa_sarana: item.jasa_sarana,
+            jasa_pelayanan_medis: item.jasa_pelayanan_medis,
+            jasa_pelayanan_non_medis: item.jasa_pelayanan_non_medis,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", item.id)
+      );
+
+      await Promise.all(updatePromises);
+      
+      toast.success(`Berhasil mengupdate ${importedData.length} data`);
+      queryClient.invalidateQueries({ queryKey: ["skenario_tarif_visit"] });
+    } catch (error: any) {
+      console.error("Error bulk import:", error);
+      toast.error("Gagal mengupdate data: " + error.message);
+    }
+  };
+
   const handleDownloadReport = async () => {
     if (!skenarioData || skenarioData.length === 0) {
       toast.error("Belum ada data untuk diunduh");
@@ -225,6 +252,16 @@ const SkenarioTarifVisit = () => {
           
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div className="flex flex-wrap gap-2 items-center">
+              {/* Import/Export Toolbar */}
+              {skenarioData && skenarioData.length > 0 && (
+                <SkenarioTarifImportExportToolbar
+                  tahun={tahun}
+                  type="visit"
+                  data={skenarioData}
+                  onImport={handleBulkImport}
+                />
+              )}
+              
               <Button 
                 onClick={() => populateMutation.mutate()} 
                 disabled={populateMutation.isPending}

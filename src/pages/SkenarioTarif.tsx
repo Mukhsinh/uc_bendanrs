@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useReportDownload } from "@/components/report";
 import { formatCurrency } from "@/lib/utils";
+import SkenarioTarifImportExportToolbar from "@/components/skenario-tarif/SkenarioTarifImportExportToolbar";
 
 interface SkenarioTarifData {
   id: string;
@@ -702,6 +703,50 @@ const SkenarioTarif = () => {
     setEditingRow(null);
   };
 
+  // Handle bulk import
+  const handleBulkImport = async (importedData: any[]) => {
+    try {
+      // Update multiple rows dengan kalkulasi di frontend
+      const updatePromises = importedData.map((item) => {
+        // Get current row data untuk unit_cost
+        const currentRow = skenarioData?.find(row => row.id === item.id);
+        const unitCost = currentRow?.unit_cost_per_tindakan || 0;
+        
+        // Kalkulasi di frontend
+        const jasaPelayanan = item.jasa_pelayanan_medis + item.jasa_pelayanan_non_medis;
+        const tarifPerTindakan = item.jasa_sarana + jasaPelayanan;
+        const prosentaseJasaPelayanan = tarifPerTindakan > 0 
+          ? roundToTwoDecimals((jasaPelayanan / tarifPerTindakan) * 100) 
+          : 0;
+        const prosentaseProfit = unitCost > 0 
+          ? roundToTwoDecimals(((item.jasa_sarana - unitCost) / unitCost) * 100) 
+          : 0;
+
+        return supabase
+          .from("skenario_tarif")
+          .update({
+            jasa_sarana: item.jasa_sarana,
+            jasa_pelayanan_medis: item.jasa_pelayanan_medis,
+            jasa_pelayanan_non_medis: item.jasa_pelayanan_non_medis,
+            jasa_pelayanan: jasaPelayanan,
+            tarif_per_tindakan: tarifPerTindakan,
+            prosentase_jasa_pelayanan: prosentaseJasaPelayanan,
+            prosentase_profit: prosentaseProfit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", item.id);
+      });
+
+      await Promise.all(updatePromises);
+      
+      toast.success(`Berhasil mengupdate ${importedData.length} data`);
+      queryClient.invalidateQueries({ queryKey: ["skenario_tarif"] });
+    } catch (error: any) {
+      console.error("Error bulk import:", error);
+      toast.error("Gagal mengupdate data: " + error.message);
+    }
+  };
+
   const handleDownloadReport = async () => {
     if (!filteredData || filteredData.length === 0) {
       toast.error("Belum ada data untuk diunduh");
@@ -850,6 +895,24 @@ const SkenarioTarif = () => {
           <span className="font-semibold">{skenarioData?.length ?? 0}</span> data
         </p>
         <div className="flex items-center gap-2">
+          {/* Import/Export Toolbar */}
+          {filteredData && filteredData.length > 0 && (
+            <SkenarioTarifImportExportToolbar
+              tahun={tahun}
+              type="skenario"
+              data={filteredData.map(item => ({
+                id: item.id,
+                kode_tindakan: item.kode_tindakan,
+                nama_tindakan: item.nama_tindakan,
+                kode_unit_kerja: item.kode_unit_kerja,
+                nama_unit_kerja: item.nama_unit_kerja,
+                jasa_sarana: item.jasa_sarana,
+                jasa_pelayanan_medis: item.jasa_pelayanan_medis,
+                jasa_pelayanan_non_medis: item.jasa_pelayanan_non_medis,
+              }))}
+              onImport={handleBulkImport}
+            />
+          )}
           <Button
             variant="outline"
             onClick={() => setShowFilters((prev) => !prev)}
@@ -1021,7 +1084,7 @@ const SkenarioTarif = () => {
       </Card>
                 )}
 
-              {filteredData && filteredData.length > 0 && (
+      {filteredData && filteredData.length > 0 && (
         <div className="flex flex-wrap gap-4">
           <Card className="flex-1 min-w-[220px] max-w-[260px] border-rose-200 bg-rose-50">
             <CardContent className="flex items-center gap-3 p-4">

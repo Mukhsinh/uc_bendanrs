@@ -49,6 +49,7 @@ interface LayananInputTableProps {
   refreshKey: number;
   onServicesLoaded?: (services: any[]) => void;
   selectedKamarAkomodasi?: LayananItem[]; // Kamar yang sudah dipilih untuk filter tindakan
+  selectedKlinik?: LayananItem[]; // Klinik yang sudah dipilih untuk filter tindakan rawat jalan
 }
 
 const LayananInputTable: React.FC<LayananInputTableProps> = ({
@@ -62,6 +63,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   refreshKey,
   onServicesLoaded,
   selectedKamarAkomodasi = [],
+  selectedKlinik = [],
 }) => {
   const { toast } = useToast();
   const [availableServices, setAvailableServices] = useState<any[]>([]);
@@ -187,6 +189,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           sumberTabel = "kalkulasi_tindakan_inap";
         }
 
+        console.log("Fetching tindakan:", { jenisProduk, sumberTabel, tahun });
+
         if (sumberTabel) {
           let query = supabase
             .from("skenario_tarif")
@@ -197,6 +201,11 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
           data = result.data || [];
           error = result.error;
+          
+          console.log("Tindakan fetched:", data.length, "records");
+          if (data.length > 0) {
+            console.log("Sample tindakan:", data[0]);
+          }
         }
       } else if (filterType === "ibs") {
         let query = supabase
@@ -356,6 +365,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
             );
 
       setAvailableServices(normalizedData);
+      console.log("✅ availableServices updated:", normalizedData.length, "services");
       
       // Notify parent component about loaded services
       if (onServicesLoaded) {
@@ -376,45 +386,85 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     fetchServices();
   }, [tahun, jenisProduk, spesialisasiDokter, refreshKey]);
 
-  // Filter berdasarkan kamar akomodasi yang dipilih (untuk tindakan)
-  const getFilteredByKamar = () => {
-    // Jika bukan tindakan, tidak perlu filter berdasarkan kamar
+  // Filter berdasarkan kamar akomodasi atau klinik yang dipilih (untuk tindakan)
+  const getFilteredByKamarOrKlinik = () => {
+    // Jika bukan tindakan, tidak perlu filter
     if (filterType !== "tindakan") {
       return availableServices;
     }
 
-    // Jika belum ada kamar yang dipilih, return array kosong (tidak tampilkan tindakan)
-    if (!selectedKamarAkomodasi || selectedKamarAkomodasi.length === 0) {
-      return [];
-    }
-
-    // Ambil daftar kode_unit_kerja dari kamar yang dipilih
-    const selectedUnitKerja = selectedKamarAkomodasi
-      .map(kamar => kamar.kode_unit_kerja)
-      .filter(Boolean); // Hapus nilai null/undefined
-
-    console.log("Selected Unit Kerja dari Kamar:", selectedUnitKerja);
-    console.log("Available Services:", availableServices.length);
-
-    // Jika tidak ada unit kerja yang valid, return array kosong
-    if (selectedUnitKerja.length === 0) {
-      return [];
-    }
-
-    // Filter tindakan yang unit kerjanya sesuai dengan kamar yang dipilih
-    const filtered = availableServices.filter(service => {
-      const hasUnitKerja = service.kode_unit_kerja && selectedUnitKerja.includes(service.kode_unit_kerja);
-      if (hasUnitKerja) {
-        console.log("Match found:", service.nama_tindakan, "Unit:", service.nama_unit_kerja);
+    // RAWAT JALAN: Filter berdasarkan klinik yang dipilih
+    if (jenisProduk === "rawat jalan") {
+      // Jika belum ada klinik yang dipilih, return array kosong
+      if (!selectedKlinik || selectedKlinik.length === 0) {
+        console.log("Rawat Jalan: Belum ada klinik dipilih, dropdown kosong");
+        return [];
       }
-      return hasUnitKerja;
-    });
 
-    console.log("Filtered Services:", filtered.length);
-    return filtered;
+      // Ambil daftar kode_unit_kerja dari klinik yang dipilih
+      const selectedUnitKerja = selectedKlinik
+        .map(klinik => klinik.kode_unit_kerja)
+        .filter(Boolean);
+
+      console.log("Selected Unit Kerja dari Klinik:", selectedUnitKerja);
+      console.log("Available Services:", availableServices.length);
+
+      // Filter tindakan yang unit kerjanya sesuai dengan klinik yang dipilih
+      const filtered = availableServices.filter(service => {
+        const hasUnitKerja = service.kode_unit_kerja && selectedUnitKerja.includes(service.kode_unit_kerja);
+        if (hasUnitKerja) {
+          console.log("Match found:", service.nama_tindakan, "Unit:", service.nama_unit_kerja);
+        }
+        return hasUnitKerja;
+      });
+
+      console.log("Filtered Services (Rawat Jalan):", filtered.length);
+      return filtered;
+    }
+
+    // RAWAT INAP: Filter berdasarkan kamar yang dipilih
+    if (jenisProduk === "rawat inap") {
+      // Jika belum ada kamar yang dipilih, return array kosong
+      if (!selectedKamarAkomodasi || selectedKamarAkomodasi.length === 0) {
+        console.log("Rawat Inap: Belum ada kamar dipilih, dropdown kosong");
+        return [];
+      }
+
+      // Ambil daftar kode_unit_kerja dari kamar yang dipilih
+      const selectedUnitKerja = selectedKamarAkomodasi
+        .map(kamar => kamar.kode_unit_kerja)
+        .filter(Boolean);
+
+      console.log("🔍 Selected Unit Kerja dari Kamar:", selectedUnitKerja);
+      console.log("📦 Available Services:", availableServices.length);
+      
+      if (availableServices.length > 0) {
+        console.log("📋 Sample service:", availableServices[0]);
+      }
+
+      // Filter tindakan yang unit kerjanya sesuai dengan kamar yang dipilih
+      const filtered = availableServices.filter(service => {
+        const hasUnitKerja = service.kode_unit_kerja && selectedUnitKerja.includes(service.kode_unit_kerja);
+        if (hasUnitKerja) {
+          console.log("✅ Match found:", service.nama_tindakan, "Unit:", service.nama_unit_kerja);
+        }
+        return hasUnitKerja;
+      });
+
+      console.log("🎯 Filtered Services (Rawat Inap):", filtered.length);
+      if (filtered.length === 0 && availableServices.length > 0) {
+        console.warn("⚠️ No matches! Check if kode_unit_kerja matches");
+        console.log("Expected:", selectedUnitKerja);
+        console.log("Available unit kerja:", [...new Set(availableServices.map(s => s.kode_unit_kerja))]);
+      }
+      return filtered;
+    }
+
+    // Default: tampilkan semua
+    return availableServices;
   };
 
-  const filteredServices = getFilteredByKamar()
+  const filteredServices = getFilteredByKamarOrKlinik()
     .filter((service) => {
       // Filter berdasarkan search query
       if (searchQuery) {
@@ -586,8 +636,46 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         </Badge>
       </div>
       
-      {/* Peringatan jika tindakan tapi belum pilih kamar */}
-      {filterType === "tindakan" && selectedKamarAkomodasi.length === 0 && (
+      {/* Peringatan jika tindakan rawat jalan tapi belum pilih klinik */}
+      {filterType === "tindakan" && jenisProduk === "rawat jalan" && selectedKlinik.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
+          <div className="text-yellow-600 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-yellow-800">
+              Pilih Klinik Terlebih Dahulu
+            </p>
+            <p className="text-xs text-yellow-700 mt-1">
+              Untuk menambahkan tindakan rawat jalan, silakan pilih klinik terlebih dahulu. Tindakan yang ditampilkan akan disesuaikan dengan klinik yang dipilih.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Informasi filter berdasarkan klinik (untuk rawat jalan) */}
+      {filterType === "tindakan" && jenisProduk === "rawat jalan" && selectedKlinik.length > 0 && (
+        <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 flex items-start gap-2">
+          <div className="text-teal-600 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-teal-800">
+              Filter Aktif: {selectedKlinik.length} Klinik Dipilih
+            </p>
+            <p className="text-xs text-teal-700 mt-1">
+              Menampilkan tindakan dari klinik: {selectedKlinik.map(k => k.nama_unit_kerja).filter(Boolean).join(", ")}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Peringatan jika tindakan rawat inap tapi belum pilih kamar */}
+      {filterType === "tindakan" && jenisProduk === "rawat inap" && selectedKamarAkomodasi.length === 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
           <div className="text-yellow-600 mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -599,14 +687,14 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
               Pilih Kamar Akomodasi Terlebih Dahulu
             </p>
             <p className="text-xs text-yellow-700 mt-1">
-              Untuk menambahkan tindakan, silakan pilih kamar akomodasi terlebih dahulu. Tindakan yang ditampilkan akan disesuaikan dengan unit kerja dari kamar yang dipilih.
+              Untuk menambahkan tindakan rawat inap, silakan pilih kamar akomodasi terlebih dahulu. Tindakan yang ditampilkan akan disesuaikan dengan unit kerja dari kamar yang dipilih.
             </p>
           </div>
         </div>
       )}
 
-      {/* Informasi filter berdasarkan kamar */}
-      {filterType === "tindakan" && selectedKamarAkomodasi.length > 0 && (
+      {/* Informasi filter berdasarkan kamar (hanya untuk rawat inap) */}
+      {filterType === "tindakan" && jenisProduk === "rawat inap" && selectedKamarAkomodasi.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
           <div className="text-blue-600 mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

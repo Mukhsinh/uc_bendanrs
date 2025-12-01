@@ -35,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LayananInputTable from "@/components/produk-layanan/LayananInputTable";
 import LayananImportExportToolbar from "@/components/produk-layanan/LayananImportExportToolbar";
 import FarmasiInputTable from "@/components/produk-layanan/FarmasiInputTable";
+import KlinikInputTable from "@/components/produk-layanan/KlinikInputTable";
 import { useReportDownload } from "@/components/report";
 
 interface ProdukLayanan {
@@ -59,6 +60,7 @@ interface ProdukLayanan {
   spesialisasi_dokter: string | null;
   nama_dokter: string | null;
   kode_dokter: string | null;
+  klinik: any[]; // Unit kerja rawat jalan
   tindakan: any[];
   ibs: any[];
   laboratorium: any[];
@@ -96,6 +98,7 @@ const ProdukLayanan = () => {
     tahun: 2025,
     jenis: "rawat jalan",
     los: 0,
+    klinik: [],
     tindakan: [],
     ibs: [],
     laboratorium: [],
@@ -235,6 +238,7 @@ const ProdukLayanan = () => {
         tahun: 2025,
         jenis: "rawat jalan",
         los: 0,
+        klinik: [],
         tindakan: [],
         ibs: [],
         laboratorium: [],
@@ -592,6 +596,7 @@ const ProdukLayanan = () => {
                       tahun: 2025,
                       jenis: "rawat jalan",
                       los: 0,
+                      klinik: [],
                       tindakan: [],
                       ibs: [],
                       laboratorium: [],
@@ -630,9 +635,16 @@ const ProdukLayanan = () => {
                         <Label htmlFor="jenis">Jenis</Label>
                         <Select
                           value={formData.jenis}
-                          onValueChange={(value) =>
-                            setFormData({ ...formData, jenis: value })
-                          }
+                          onValueChange={(value) => {
+                            // Reset klinik dan kamar_akomodasi saat ganti jenis
+                            setFormData({ 
+                              ...formData, 
+                              jenis: value,
+                              klinik: [],
+                              kamar_akomodasi: [],
+                              tindakan: [] // Reset tindakan juga karena filter berubah
+                            });
+                          }}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih jenis" />
@@ -800,20 +812,31 @@ const ProdukLayanan = () => {
                       }}
                     />
 
-                    {/* URUTAN 1: Kamar Akomodasi - Dipindahkan ke urutan pertama */}
-                    <LayananInputTable
-                      label="Kamar Akomodasi"
-                      value={formData.kamar_akomodasi || []}
-                      onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
-                      tahun={tahun}
-                      filterType="akomodasi"
-                      refreshKey={refreshKey}
-                      onServicesLoaded={(services) => 
-                        setAvailableServices(prev => ({ ...prev, akomodasi: services }))
-                      }
-                    />
+                    {/* URUTAN 1: Klinik - Hanya untuk Rawat Jalan */}
+                    {formData.jenis === "rawat jalan" && (
+                      <KlinikInputTable
+                        value={formData.klinik || []}
+                        onChange={(value) => setFormData({ ...formData, klinik: value })}
+                        tahun={tahun}
+                      />
+                    )}
 
-                    {/* URUTAN 2: Tindakan - Sekarang bergantung pada kamar yang dipilih */}
+                    {/* URUTAN 2: Kamar Akomodasi - Hanya untuk Rawat Inap */}
+                    {formData.jenis === "rawat inap" && (
+                      <LayananInputTable
+                        label="Kamar Akomodasi"
+                        value={formData.kamar_akomodasi || []}
+                        onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
+                        tahun={tahun}
+                        filterType="akomodasi"
+                        refreshKey={refreshKey}
+                        onServicesLoaded={(services) => 
+                          setAvailableServices(prev => ({ ...prev, akomodasi: services }))
+                        }
+                      />
+                    )}
+
+                    {/* URUTAN 3: Tindakan - Filter berdasarkan Klinik (Rawat Jalan) atau Kamar (Rawat Inap) */}
                     <LayananInputTable
                       label="Tindakan"
                       value={formData.tindakan || []}
@@ -823,6 +846,7 @@ const ProdukLayanan = () => {
                       jenisProduk={formData.jenis}
                       refreshKey={refreshKey}
                       selectedKamarAkomodasi={formData.kamar_akomodasi || []}
+                      selectedKlinik={formData.klinik || []}
                       onServicesLoaded={(services) => 
                         setAvailableServices(prev => ({ ...prev, tindakan: services }))
                       }
