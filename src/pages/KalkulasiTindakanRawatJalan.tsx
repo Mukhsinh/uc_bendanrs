@@ -71,6 +71,8 @@ const KalkulasiTindakanRawatJalan = () => {
     jenis_tindakan: "",
     search: ""
   });
+  const [recalculateProgress, setRecalculateProgress] = useState(0);
+  const [isRecalculating, setIsRecalculating] = useState(false);
   const { toast } = useToast();
   const { downloadReport } = useReportDownload();
 
@@ -147,6 +149,68 @@ const KalkulasiTindakanRawatJalan = () => {
     applyFilters();
   }, [data, filters]);
 
+  const recalculateData = async () => {
+    try {
+      console.log('Starting recalculation...');
+      setIsRecalculating(true);
+      setRecalculateProgress(0);
+      setError(null);
+      
+      const tahun = filters.tahun ? parseInt(filters.tahun) : new Date().getFullYear();
+      
+      toast({
+        title: "Memproses",
+        description: `Memulai rekalkulasi untuk tahun ${tahun}...`,
+      });
+      
+      const startTime = Date.now();
+      
+      // Panggil fungsi untuk semua data sekaligus (fungsi database sudah dioptimasi)
+      const { data: recalcResult, error: recalcError } = await supabase
+        .rpc('manual_recalculate_kalkulasi_tindakan_rawat_jalan', {
+          p_tahun: tahun,
+          p_kode_unit_kerja: null // Process all units at once
+        });
+      
+      if (recalcError) {
+        console.error('RPC Error:', recalcError);
+        throw new Error(recalcError.message || 'Gagal memanggil fungsi rekalkulasi');
+      }
+      
+      if (!recalcResult || !recalcResult.success) {
+        throw new Error(recalcResult?.message || 'Rekalkulasi gagal');
+      }
+      
+      setRecalculateProgress(100);
+      
+      const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      const affectedRows = recalcResult?.affected_rows || 0;
+      
+      toast({
+        title: "Berhasil",
+        description: `Rekalkulasi selesai! ${affectedRows} baris diproses dalam ${executionTime}s`,
+      });
+      
+      // Refresh data setelah selesai
+      console.log('Refreshing data...');
+      await fetchData();
+      console.log('Data refreshed successfully');
+      
+    } catch (error) {
+      console.error('Error recalculating data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: `Gagal melakukan rekalkulasi: ${errorMessage}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecalculating(false);
+      setRecalculateProgress(0);
+    }
+  };
+
   const fetchData = async () => {
     try {
       console.log('Starting data fetch...');
@@ -156,7 +220,8 @@ const KalkulasiTindakanRawatJalan = () => {
       const { data: result, error: fetchError } = await supabase
         .from('kalkulasi_tindakan_rawat_jalan')
         .select('*')
-        .order('nama_unit_kerja', { ascending: true });
+        .order('nama_unit_kerja', { ascending: true })
+        .limit(5000);
 
       console.log('Fetch result:', result);
       console.log('Fetch error:', fetchError);
@@ -304,7 +369,7 @@ const KalkulasiTindakanRawatJalan = () => {
         "Jenis Tindakan": `${item.jenis_tindakan} (${item.kode_jenis_tindakan})`,
         Jumlah: item.jumlah,
         "Biaya Bahan Tindakan": item.biaya_bahan_tindakan,
-        "Unit Cost Tindakan Rawat Jalan": item.unit_cost_tindakan_rawat_jalan,
+        "Unit Cost": item.unit_cost_tindakan_rawat_jalan,
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
@@ -313,7 +378,8 @@ const KalkulasiTindakanRawatJalan = () => {
         .select('*')
         .order('tahun', { ascending: false })
         .order('nama_unit_kerja')
-        .order('jenis_tindakan');
+        .order('jenis_tindakan')
+        .limit(5000);
 
       if (fetchError) {
         throw fetchError;
@@ -367,7 +433,7 @@ const KalkulasiTindakanRawatJalan = () => {
         "Biaya Laundry": item.biaya_laundry || 0,
         "Biaya Sterilisasi": item.biaya_sterilisasi || 0,
         "Biaya Tidak Langsung Terdistribusi": item.biaya_tidak_langsung_terdistribusi || 0,
-        "Unit Cost Tindakan Rawat Jalan": item.unit_cost_tindakan_rawat_jalan,
+        "Unit Cost": item.unit_cost_tindakan_rawat_jalan,
       }));
 
       const fileName = `kalkulasi_tindakan_rawat_jalan_${filters.tahun || "all"}_${new Date()
@@ -522,20 +588,46 @@ const KalkulasiTindakanRawatJalan = () => {
             void exportToExcel();
           }}
           className="bg-red-500 hover:bg-red-600 text-white"
-          disabled={filteredData.length === 0 || loading}
+          disabled={filteredData.length === 0 || loading || isRecalculating}
         >
           <Download className="h-4 w-4 mr-2" />
           Unduh Laporan
         </Button>
         <Button
-          onClick={fetchData}
+          onClick={recalculateData}
           className="bg-purple-600 hover:bg-purple-700 text-white"
-          disabled={loading}
+          disabled={loading || isRecalculating}
         >
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Perbarui Data
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRecalculating ? 'animate-spin' : ''}`} />
+          {isRecalculating ? 'Memproses...' : 'Perbarui Data'}
         </Button>
       </div>
+
+      {isRecalculating && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-blue-900">
+                  Rekalkulasi sedang berjalan...
+                </span>
+                <span className="text-sm font-bold text-blue-900">
+                  {recalculateProgress}%
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-full rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${recalculateProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-blue-700">
+                Mohon tunggu, proses ini mungkin memakan waktu beberapa menit tergantung jumlah data.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {showFilters && (
         <Card className="border-none bg-slate-50 shadow-sm">
@@ -718,12 +810,7 @@ const KalkulasiTindakanRawatJalan = () => {
                   <TableHead className="text-white text-center">Prof.</TableHead>
                   <TableHead className="text-white text-center">Tingkat</TableHead>
                   <TableHead className="text-white">Biaya Bahan Tindakan</TableHead>
-                  <TableHead className="text-white">
-                    <div>
-                      Unit Cost
-                      <div className="text-xs font-normal text-white/80">(exclude biaya bahan)</div>
-                    </div>
-                  </TableHead>
+                  <TableHead className="text-white">Unit Cost</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

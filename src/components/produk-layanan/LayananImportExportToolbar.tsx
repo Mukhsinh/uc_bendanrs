@@ -334,20 +334,22 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
         successCount++;
       }
 
-      if (successCount > 0) {
-        onImport(importedData);
-
-        toast({
-          title: "Import Berhasil",
-          description: `${successCount} data berhasil diimport${errorCount > 0 ? `, ${errorCount} data gagal` : ""}`,
-        });
-      } else {
+      if (successCount === 0) {
         toast({
           title: "Import Gagal",
           description: `Tidak ada data yang berhasil diimport. ${errorCount} data gagal diproses.`,
           variant: "destructive",
         });
+        return;
       }
+
+      // Panggil callback untuk menambahkan data ke form
+      onImport(importedData);
+
+      toast({
+        title: "Import Berhasil",
+        description: `${successCount} data berhasil diimport${errorCount > 0 ? `, ${errorCount} data gagal` : ""}. Klik "Simpan" untuk menyimpan ke database.`,
+      });
     } catch (error: any) {
       toast({
         title: "Error Import",

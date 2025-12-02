@@ -29,7 +29,6 @@ interface KalkulasiTindakanInapData {
   dasar_alokasi_kali_waktu: number;
   dasar_alokasi_hasil_kali: number;
   biaya_gaji_tunjangan: number;
-  biaya_bhp: number;
   biaya_makan_karyawan: number;
   biaya_rumah_tangga: number;
   biaya_cetak: number;
@@ -56,7 +55,6 @@ interface KalkulasiTindakanInapData {
 
 const biayaFields: Array<keyof Pick<KalkulasiTindakanInapData,
   'biaya_gaji_tunjangan' |
-  'biaya_bhp' |
   'biaya_makan_karyawan' |
   'biaya_rumah_tangga' |
   'biaya_cetak' |
@@ -78,7 +76,6 @@ const biayaFields: Array<keyof Pick<KalkulasiTindakanInapData,
   'biaya_tidak_langsung_terdistribusi'
 >> = [
   'biaya_gaji_tunjangan',
-  'biaya_bhp',
   'biaya_makan_karyawan',
   'biaya_rumah_tangga',
   'biaya_cetak',
@@ -149,7 +146,8 @@ const KalkulasiTindakanInap = () => {
       const { data: result, error: fetchError } = await supabase
         .from('kalkulasi_tindakan_inap')
         .select('*')
-        .order('nama_unit_kerja', { ascending: true });
+        .order('nama_unit_kerja', { ascending: true })
+        .limit(5000);
 
       console.log('Fetch result:', result);
       console.log('Fetch error:', fetchError);
@@ -339,7 +337,8 @@ const KalkulasiTindakanInap = () => {
         .select('*')
         .order('tahun', { ascending: false })
         .order('nama_unit_kerja')
-        .order('jenis_tindakan');
+        .order('jenis_tindakan')
+        .limit(5000);
 
       if (fetchError) {
         throw fetchError;
@@ -373,7 +372,6 @@ const KalkulasiTindakanInap = () => {
         "Tingkat Kesulitan": safeNumber(item.tingkat_kesulitan),
         "Biaya Bahan Tindakan": safeNumber(item.biaya_bahan_tindakan),
         "Biaya Gaji & Tunjangan": safeNumber(item.biaya_gaji_tunjangan),
-        "Biaya BHP": safeNumber(item.biaya_bhp),
         "Biaya Makan Karyawan": safeNumber(item.biaya_makan_karyawan),
         "Biaya Rumah Tangga": safeNumber(item.biaya_rumah_tangga),
         "Biaya Cetak": safeNumber(item.biaya_cetak),

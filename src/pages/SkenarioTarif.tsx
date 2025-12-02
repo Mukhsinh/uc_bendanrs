@@ -20,6 +20,7 @@ import {
   Calculator,
   Pencil,
   Check,
+  X,
   ChevronsUpDown,
   ArrowDownCircle,
   ArrowUpCircle,
@@ -39,7 +40,6 @@ interface SkenarioTarifData {
   nama_operator?: string;
   kode_tindakan: string;
   nama_tindakan: string;
-  tingkat_kesulitan?: number;
   biaya_bahan: number;
   unit_cost_per_tindakan: number;
   prosentase_jasa_pelayanan: number;
@@ -99,7 +99,6 @@ const normalizeSkenarioItem = (item: any): SkenarioTarifData => ({
   nama_operator: item.nama_operator ?? undefined,
   kode_tindakan: item.kode_tindakan ?? "",
   nama_tindakan: item.nama_tindakan ?? "",
-  tingkat_kesulitan: item.tingkat_kesulitan !== null && item.tingkat_kesulitan !== undefined ? Number(item.tingkat_kesulitan) : undefined,
   biaya_bahan: toNumber(item.biaya_bahan),
   unit_cost_per_tindakan: toNumber(item.unit_cost_per_tindakan),
   prosentase_jasa_pelayanan: toNumber(item.prosentase_jasa_pelayanan),
@@ -914,13 +913,6 @@ const SkenarioTarif = () => {
             />
           )}
           <Button
-            variant="outline"
-            onClick={() => setShowFilters((prev) => !prev)}
-            className="min-w-[110px] border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
-          >
-            Filter
-          </Button>
-          <Button
             onClick={() => {
               void handleDownloadReport();
             }}
@@ -945,6 +937,13 @@ const SkenarioTarif = () => {
               <RefreshCcw className="h-4 w-4 mr-2" />
             )}
             Perbarui Data
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters((prev) => !prev)}
+            className="min-w-[110px] border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+          >
+            Filter
           </Button>
         </div>
       </div>
@@ -1188,68 +1187,55 @@ const SkenarioTarif = () => {
               <Table>
                 <TableHeader className="bg-[#0f766e]">
                   <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
-                    <TableHead className="w-[200px] text-white">Unit Kerja</TableHead>
-                    <TableHead className="w-[150px] text-white">Operator</TableHead>
-                    <TableHead className="w-[150px] text-white">Tindakan</TableHead>
-                    <TableHead className="text-center w-[100px] text-white">Tingkat Kesulitan</TableHead>
-                    <TableHead className="text-right w-[100px] text-white">Unit Cost</TableHead>
-                    <TableHead className="text-right w-[100px] text-white">Biaya Bahan</TableHead>
-                    <TableHead className="text-right w-[120px] text-white">
-                      <div className="flex items-center justify-end gap-1">
-                        Jasa Sarana
-                        {editingRow && (
-                          <Pencil className="h-3 w-3 text-white/80" />
-                        )}
-                      </div>
+                    <TableHead className="w-[140px] text-white text-xs px-2">Unit Kerja</TableHead>
+                    <TableHead className="w-[120px] text-white text-xs px-2">Operator</TableHead>
+                    <TableHead className="w-[180px] text-white text-xs px-2">Tindakan</TableHead>
+                    <TableHead className="text-right w-[90px] text-white text-xs px-2">Unit Cost</TableHead>
+                    <TableHead className="text-right w-[90px] text-white text-xs px-2">Biaya Bahan</TableHead>
+                    <TableHead className="text-right w-[100px] text-white text-xs px-2">
+                      Jasa Sarana
+                      {editingRow && <Pencil className="h-3 w-3 inline ml-1 text-white/80" />}
                     </TableHead>
-                    <TableHead className="text-right w-[120px] text-white">
-                      <div className="flex items-center justify-end gap-1">
-                        Jasa Pel. Medis
-                        {editingRow && (
-                          <Pencil className="h-3 w-3 text-white/80" />
-                        )}
-                      </div>
+                    <TableHead className="text-right w-[100px] text-white text-xs px-2">
+                      JP Medis
+                      {editingRow && <Pencil className="h-3 w-3 inline ml-1 text-white/80" />}
                     </TableHead>
-                    <TableHead className="text-right w-[120px] text-white">
-                      <div className="flex items-center justify-end gap-1">
-                        Jasa Pel. Non Medis
-                        {editingRow && (
-                          <Pencil className="h-3 w-3 text-white/80" />
-                        )}
-                      </div>
+                    <TableHead className="text-right w-[100px] text-white text-xs px-2">
+                      JP Non Medis
+                      {editingRow && <Pencil className="h-3 w-3 inline ml-1 text-white/80" />}
                     </TableHead>
-                    <TableHead className="text-right w-[100px] text-white">Jasa Pelayanan</TableHead>
-                    <TableHead className="text-right w-[80px] text-white">% Jasa Pel.</TableHead>
-                    <TableHead className="text-right w-[80px] text-white">% Profit</TableHead>
-                    <TableHead className="text-right font-bold w-[100px] text-white">Tarif</TableHead>
-                    <TableHead className="w-[80px] text-white">Aksi</TableHead>
+                    <TableHead className="text-right w-[90px] text-white text-xs px-2">Total JP</TableHead>
+                    <TableHead className="text-right w-[70px] text-white text-xs px-2">% JP</TableHead>
+                    <TableHead className="text-right w-[70px] text-white text-xs px-2">% Profit</TableHead>
+                    <TableHead className="text-right font-bold w-[100px] text-white text-xs px-2">Tarif</TableHead>
+                    <TableHead className="w-[70px] text-white text-xs px-2">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredData?.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
+                    <TableRow key={item.id} className="hover:bg-gray-50">
+                      <TableCell className="px-2 py-2">
+                        <div className="flex flex-col gap-0.5">
                           <Badge
-                            className={`text-sm font-semibold px-2 py-1 ${unitKerjaBadgeColor(item.kode_unit_kerja)}`}
+                            className={`text-xs font-semibold px-1.5 py-0.5 ${unitKerjaBadgeColor(item.kode_unit_kerja)}`}
                           >
                             {item.nama_unit_kerja}
                           </Badge>
-                          <span className="text-[11px] text-muted-foreground">{item.kode_unit_kerja}</span>
+                          <span className="text-[10px] text-muted-foreground">{item.kode_unit_kerja}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-2">
                         {item.kode_operator && item.nama_operator ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="text-sm font-medium">{item.nama_operator}</span>
-                            <span className="text-[11px] text-muted-foreground">{item.kode_operator}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs font-medium">{item.nama_operator}</span>
+                            <span className="text-[10px] text-muted-foreground">{item.kode_operator}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground italic">-</span>
                         )}
                       </TableCell>
                       <TableCell
-                        className={
+                        className={`px-2 py-2 ${
                           unitCostStats.isSingleValue
                             ? ""
                             : unitCostStats.maxIds.has(item.id)
@@ -1257,161 +1243,101 @@ const SkenarioTarif = () => {
                             : unitCostStats.minIds.has(item.id)
                             ? "bg-emerald-50"
                             : ""
-                        }
+                        }`}
                       >
-                        <div className="max-w-[250px]">
-                          <div className="font-medium text-sm break-words whitespace-normal leading-tight">{item.nama_tindakan}</div>
-                          <div className="text-xs text-muted-foreground mt-1">{item.kode_tindakan}</div>
+                        <div className="max-w-[180px]">
+                          <div className="font-medium text-xs break-words whitespace-normal leading-tight">{item.nama_tindakan}</div>
+                          <div className="text-[10px] text-muted-foreground mt-0.5">{item.kode_tindakan}</div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
-                        {item.tingkat_kesulitan ? (
-                          <Badge 
-                            variant="outline"
-                            className={
-                              item.tingkat_kesulitan === 1 ? "bg-green-50 text-green-700 border-green-200" :
-                              item.tingkat_kesulitan === 2 ? "bg-blue-50 text-blue-700 border-blue-200" :
-                              item.tingkat_kesulitan === 3 ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
-                              item.tingkat_kesulitan === 4 ? "bg-orange-50 text-orange-700 border-orange-200" :
-                              item.tingkat_kesulitan === 5 ? "bg-red-50 text-red-700 border-red-200" :
-                              "bg-gray-50 text-gray-700 border-gray-200"
-                            }
-                          >
-                            {item.tingkat_kesulitan === 1 ? "Sangat Mudah" :
-                             item.tingkat_kesulitan === 2 ? "Mudah" :
-                             item.tingkat_kesulitan === 3 ? "Sedang" :
-                             item.tingkat_kesulitan === 4 ? "Sulit" :
-                             item.tingkat_kesulitan === 5 ? "Sangat Sulit" :
-                             item.tingkat_kesulitan}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right text-sm">
+                      <TableCell className="text-right text-xs px-2 py-2">
                         {formatCurrency(item.unit_cost_per_tindakan)}
                       </TableCell>
-                      <TableCell className="text-right text-sm">
+                      <TableCell className="text-right text-xs px-2 py-2">
                         {formatCurrency(item.biaya_bahan)}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {editingRow === item.id ? (
-                            <Input
-                              type="number"
-                              value={editValues.jasa_sarana}
-                              onChange={(e) => setEditValues({ ...editValues, jasa_sarana: parseInt(e.target.value) || 0 })}
-                              className="w-24 text-right text-sm"
-                            />
-                          ) : (
-                            <span className="font-medium text-sm">{formatCurrency(item.jasa_sarana)}</span>
-                          )}
-                          {editingRow === item.id && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleSaveRow(item.id)}
-                              disabled={updateRowMutation.isPending}
-                            >
-                              {updateRowMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Check className="h-3 w-3 text-green-600" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
+                      <TableCell className="text-right px-2 py-2">
+                        {editingRow === item.id ? (
+                          <Input
+                            type="number"
+                            value={editValues.jasa_sarana}
+                            onChange={(e) => setEditValues({ ...editValues, jasa_sarana: parseInt(e.target.value) || 0 })}
+                            className="w-20 text-right text-xs h-7 px-1"
+                          />
+                        ) : (
+                          <span className="font-medium text-xs">{formatCurrency(item.jasa_sarana)}</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {editingRow === item.id ? (
-                            <Input
-                              type="number"
-                              value={editValues.jasa_pelayanan_medis}
-                              onChange={(e) => setEditValues({ ...editValues, jasa_pelayanan_medis: parseInt(e.target.value) || 0 })}
-                              className="w-24 text-right text-sm"
-                            />
-                          ) : (
-                            <span className="text-sm">{formatCurrency(item.jasa_pelayanan_medis || 0)}</span>
-                          )}
-                          {editingRow === item.id && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleSaveRow(item.id)}
-                              disabled={updateRowMutation.isPending}
-                            >
-                              {updateRowMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Check className="h-3 w-3 text-green-600" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
+                      <TableCell className="text-right px-2 py-2">
+                        {editingRow === item.id ? (
+                          <Input
+                            type="number"
+                            value={editValues.jasa_pelayanan_medis}
+                            onChange={(e) => setEditValues({ ...editValues, jasa_pelayanan_medis: parseInt(e.target.value) || 0 })}
+                            className="w-20 text-right text-xs h-7 px-1"
+                          />
+                        ) : (
+                          <span className="text-xs">{formatCurrency(item.jasa_pelayanan_medis || 0)}</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {editingRow === item.id ? (
-                            <Input
-                              type="number"
-                              value={editValues.jasa_pelayanan_non_medis}
-                              onChange={(e) => setEditValues({ ...editValues, jasa_pelayanan_non_medis: parseInt(e.target.value) || 0 })}
-                              className="w-24 text-right text-sm"
-                            />
-                          ) : (
-                            <span className="text-sm">{formatCurrency(item.jasa_pelayanan_non_medis || 0)}</span>
-                          )}
-                          {editingRow === item.id && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleSaveRow(item.id)}
-                              disabled={updateRowMutation.isPending}
-                            >
-                              {updateRowMutation.isPending ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Check className="h-3 w-3 text-green-600" />
-                              )}
-                            </Button>
-                          )}
-                        </div>
+                      <TableCell className="text-right px-2 py-2">
+                        {editingRow === item.id ? (
+                          <Input
+                            type="number"
+                            value={editValues.jasa_pelayanan_non_medis}
+                            onChange={(e) => setEditValues({ ...editValues, jasa_pelayanan_non_medis: parseInt(e.target.value) || 0 })}
+                            className="w-20 text-right text-xs h-7 px-1"
+                          />
+                        ) : (
+                          <span className="text-xs">{formatCurrency(item.jasa_pelayanan_non_medis || 0)}</span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-sm">
+                      <TableCell className="text-right font-medium text-xs px-2 py-2">
                         {formatCurrency(item.jasa_pelayanan)}
                       </TableCell>
-                      <TableCell className="text-right text-sm">
-                        <Badge variant="outline" className="text-xs">
+                      <TableCell className="text-right text-xs px-2 py-2">
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">
                           {item.prosentase_jasa_pelayanan.toFixed(1)}%
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right text-sm">
-                        <Badge variant={item.prosentase_profit >= 0 ? "default" : "destructive"} className="text-xs">
+                      <TableCell className="text-right text-xs px-2 py-2">
+                        <Badge variant={item.prosentase_profit >= 0 ? "default" : "destructive"} className="text-[10px] px-1 py-0">
                           {item.prosentase_profit.toFixed(1)}%
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-bold text-primary text-sm">
+                      <TableCell className="text-right font-bold text-primary text-xs px-2 py-2">
                         {formatCurrency(item.tarif_per_tindakan)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-2 py-2">
                         {editingRow === item.id ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleCancelEdit}
-                            className="text-xs"
-                          >
-                            Batal
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleSaveRow(item.id)}
+                              disabled={updateRowMutation.isPending}
+                              className="h-7 w-7 p-0 hover:bg-green-100"
+                            >
+                              {updateRowMutation.isPending ? (
+                                <Loader2 className="h-3 w-3 animate-spin text-green-600" />
+                              ) : (
+                                <Check className="h-3 w-3 text-green-600" />
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleCancelEdit}
+                              className="h-7 w-7 p-0 hover:bg-red-100"
+                            >
+                              <X className="h-3 w-3 text-red-600" />
+                            </Button>
+                          </div>
                         ) : (
                           <Button
                             size="sm"
                             onClick={() => handleEditRow(item)}
-                            className="h-8 w-8 rounded-md bg-indigo-500 p-0 text-white hover:bg-indigo-600"
+                            className="h-7 w-7 rounded-md bg-indigo-500 p-0 text-white hover:bg-indigo-600"
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>

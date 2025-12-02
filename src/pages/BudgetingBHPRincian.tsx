@@ -38,8 +38,15 @@ interface AggregatedRincianData {
   total_rupiah: number;
 }
 
+interface ParentBudgetingData {
+  total_budgeting_rincian: number;
+  nama_unit_kerja: string;
+  kode_unit_kerja: string;
+}
+
 const BudgetingBHPRincian = () => {
   const [rawData, setRawData] = useState<RincianData[]>([]);
+  const [parentData, setParentData] = useState<ParentBudgetingData[]>([]);
   const [data, setData] = useState<AggregatedRincianData[]>([]);
   const [filteredData, setFilteredData] = useState<AggregatedRincianData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,18 +110,37 @@ const BudgetingBHPRincian = () => {
       // Gunakan tahun 2025 yang sama dengan halaman Rupiah untuk konsistensi
       const tahun = 2025;
 
-      const { data: rincianData, error } = await supabase
+      // Ambil data rincian untuk detail per barang
+      const { data: rincianData, error: rincianError } = await supabase
         .from("rincian_budgeting_bhp_public")
         .select("*")
         .eq("tahun", tahun)
         .order("total_rupiah", { ascending: false });
 
-      if (error) throw error;
+      if (rincianError) throw rincianError;
+
+      // Ambil data parent untuk mendapatkan total yang konsisten dengan halaman Rupiah
+      const { data: parentData, error: parentError } = await supabase
+        .from("budgeting_bhp_farmasi_public")
+        .select("total_budgeting_rincian, nama_unit_kerja, kode_unit_kerja")
+        .eq("tahun", tahun);
+
+      if (parentError) throw parentError;
 
       const safeData = rincianData || [];
+      // Filter hanya record yang total_budgeting_rincian tidak null/undefined
+      // Ini memastikan konsistensi dengan halaman Rupiah yang juga hanya menghitung record yang punya total_budgeting_rincian
+      const safeParentData = (parentData || [])
+        .filter(item => item.total_budgeting_rincian !== null && item.total_budgeting_rincian !== undefined)
+        .map(item => ({
+          total_budgeting_rincian: Number(item.total_budgeting_rincian) || 0,
+          nama_unit_kerja: item.nama_unit_kerja || '',
+          kode_unit_kerja: item.kode_unit_kerja || '',
+        }));
 
       setActiveYear(tahun);
       setRawData(safeData);
+      setParentData(safeParentData);
       const aggregatedAll = aggregateByBarang(safeData);
       setData(aggregatedAll);
       setFilteredData(aggregatedAll);
@@ -144,22 +170,24 @@ const BudgetingBHPRincian = () => {
 
       toast({
         title: "Memproses...",
-        description: "Sedang memperbarui data rincian BHP. Proses ini mungkin memakan waktu beberapa menit.",
+        description: "Sedang memperbarui data budgeting BHP. Proses ini mungkin memakan waktu beberapa menit.",
       });
 
-      // Gunakan tahun 2025 yang sama dengan halaman Rupiah
-      const tahun = 2025;
-
-      // Gunakan fungsi optimized yang tenant-aware
-      const { data: result, error } = await supabase.rpc("populate_rincian_budgeting_bhp_optimized", {
-        p_tahun: tahun,
+      // Gunakan fungsi complete yang menggabungkan kedua proses untuk memastikan sinkronisasi
+      // Fungsi ini tenant-aware dan tidak memerlukan user_id
+      const { data: result, error } = await supabase.rpc("refresh_budgeting_bhp_complete", {
+        p_tahun: 2025,
       });
 
       if (error) throw error;
 
+      if (result && !result.success) {
+        throw new Error(result.error || "Gagal memperbarui data");
+      }
+
       toast({
         title: "Berhasil",
-        description: "Data rincian berhasil diperbarui",
+        description: result?.message || "Data berhasil diperbarui",
       });
 
       await fetchData();
@@ -257,12 +285,32 @@ const BudgetingBHPRincian = () => {
     ? filteredData.reduce((prev, current) => prev.total_rupiah > current.total_rupiah ? prev : current)
     : null;
 
-  // Hitung total budgeting dari raw data (sebelum agregasi) untuk sinkronisasi dengan halaman Rupiah
-  // Menggunakan shared utility function untuk konsistensi
-  const totalBudgeting = useMemo(() => 
-    calculateTotalBudgeting(rawData, selectedUnit),
-    [rawData, selectedUnit]
-  );
+  // Hitung total budgeting menggunakan data dari parent untuk konsistensi dengan halaman Rupiah
+  // SELALU gunakan total_budgeting_rincian dari parent (sumber kebenaran)
+  const totalBudgeting = useMemo(() => {
+    // Jika menggunakan data parent (lebih akurat dan konsisten dengan halaman Rupiah)
+    if (parentData.length > 0) {
+      const filteredParent = selectedUnit === "all"
+        ? parentData
+        : parentData.filter(item => item.nama_unit_kerja === selectedUnit);
+      
+      // Jumlahkan total_budgeting_rincian dari parent (ini adalah sumber kebenaran)
+      // Hanya hitung yang total_budgeting_rincian tidak null/undefined
+      const totalFromParent = filteredParent.reduce((sum, item) => {
+        // Hanya hitung jika total_budgeting_rincian tidak null/undefined
+        if (item.total_budgeting_rincian !== null && item.total_budgeting_rincian !== undefined) {
+          return sum + (Number(item.total_budgeting_rincian) || 0);
+        }
+        return sum;
+      }, 0);
+      
+      // Gunakan total dari parent (meskipun 0, karena itu nilai yang benar)
+      return totalFromParent;
+    }
+    
+    // Fallback: hitung dari rincian jika data parent tidak tersedia
+    return calculateTotalBudgeting(rawData, selectedUnit);
+  }, [parentData, rawData, selectedUnit]);
 
   if (loading) {
     return (

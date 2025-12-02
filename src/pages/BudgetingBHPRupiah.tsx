@@ -89,6 +89,7 @@ const BudgetingBHPRupiah = () => {
         throw new Error("User tidak terautentikasi");
       }
 
+      // Ambil data parent dengan semua kolom yang diperlukan
       const { data: budgetingData, error } = await supabase
         .from("budgeting_bhp_farmasi_public")
         .select("*")
@@ -109,13 +110,20 @@ const BudgetingBHPRupiah = () => {
       const unitMap = new Map<string, { budgeting: number; pendapatan: number; kode: string }>();
       
       (budgetingData || []).forEach(item => {
+        // Hanya hitung jika total_budgeting_rincian tidak null/undefined (konsisten dengan total budgeting)
+        if (item.total_budgeting_rincian === null || item.total_budgeting_rincian === undefined) {
+          return; // Skip record yang tidak punya total_budgeting_rincian
+        }
+        
         const existing = unitMap.get(item.nama_unit_kerja);
+        const budgetingValue = Number(item.total_budgeting_rincian) || 0;
+        
         if (existing) {
-          existing.budgeting += item.total_budgeting_bhp;
+          existing.budgeting += budgetingValue;
           existing.pendapatan = Math.max(existing.pendapatan, item.pendapatan);
         } else {
           unitMap.set(item.nama_unit_kerja, {
-            budgeting: item.total_budgeting_bhp,
+            budgeting: budgetingValue,
             pendapatan: item.pendapatan,
             kode: item.kode_unit_kerja,
           });
@@ -289,7 +297,12 @@ const BudgetingBHPRupiah = () => {
     const category = getCategoryKey(item.sumber_tabel);
     if (!category) return;
 
-    categoryAccumulator[category].budgeting += item.total_budgeting_bhp;
+    // Hanya hitung jika total_budgeting_rincian tidak null/undefined (konsisten dengan total budgeting)
+    if (item.total_budgeting_rincian === null || item.total_budgeting_rincian === undefined) {
+      return; // Skip record yang tidak punya total_budgeting_rincian
+    }
+    
+    categoryAccumulator[category].budgeting += (Number(item.total_budgeting_rincian) || 0);
   });
 
   const categoryStats: CategoryStatCard[] = (Object.entries(categoryAccumulator) as [CategoryKey, { budgeting: number }][]).map(([key, value]) => ({
@@ -304,11 +317,30 @@ const BudgetingBHPRupiah = () => {
     ? filteredData.reduce((prev, current) => prev.jumlah_tindakan > current.jumlah_tindakan ? prev : current)
     : null;
 
+  // Cari top budget menggunakan total_budgeting_rincian untuk konsistensi
   const topBudget = filteredData.length > 0
-    ? filteredData.reduce((prev, current) => prev.total_budgeting_bhp > current.total_budgeting_bhp ? prev : current)
+    ? filteredData
+        .filter(item => item.total_budgeting_rincian !== null && item.total_budgeting_rincian !== undefined)
+        .reduce((prev, current) => {
+          const prevValue = Number(prev.total_budgeting_rincian) || 0;
+          const currentValue = Number(current.total_budgeting_rincian) || 0;
+          return prevValue > currentValue ? prev : current;
+        })
     : null;
 
-  const totalBudgeting = filteredData.reduce((sum, item) => sum + item.total_budgeting_bhp, 0);
+  // Gunakan total_budgeting_rincian untuk konsistensi dengan halaman Rincian
+  // SELALU gunakan total_budgeting_rincian jika tersedia (tidak null/undefined)
+  // Ini memastikan konsistensi dengan halaman Rincian yang hanya menghitung dari total_budgeting_rincian
+  const totalBudgeting = filteredData.reduce((sum, item) => {
+    // Hanya hitung jika total_budgeting_rincian tidak null/undefined
+    // Ini sama dengan logika di halaman Rincian yang hanya menghitung dari parent yang punya total_budgeting_rincian
+    if (item.total_budgeting_rincian !== null && item.total_budgeting_rincian !== undefined) {
+      return sum + (Number(item.total_budgeting_rincian) || 0);
+    }
+    // Skip record yang total_budgeting_rincian null/undefined
+    // Karena halaman Rincian juga tidak menghitung record yang tidak punya total_budgeting_rincian
+    return sum;
+  }, 0);
   const totalTindakan = filteredData.reduce((sum, item) => sum + item.jumlah_tindakan, 0);
   const totalUnitKerjaAvailable = unitKerjaList.length;
   const pieData = [
@@ -456,7 +488,7 @@ const BudgetingBHPRupiah = () => {
           </Card>
         )}
 
-        {topBudget && topBudget.total_budgeting_bhp > 0 && (
+        {topBudget && topBudget.total_budgeting_rincian !== null && topBudget.total_budgeting_rincian !== undefined && (Number(topBudget.total_budgeting_rincian) || 0) > 0 && (
           <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-300">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-purple-800">
@@ -469,7 +501,7 @@ const BudgetingBHPRupiah = () => {
               <div className="flex items-center justify-between mt-2">
                 <Badge className="bg-purple-600 text-white">{topBudget.nama_unit_kerja}</Badge>
                 <p className="text-sm text-purple-700">
-                  <span className="font-bold text-xl">{formatCurrency(topBudget.total_budgeting_bhp)}</span>
+                  <span className="font-bold text-xl">{formatCurrency(Number(topBudget.total_budgeting_rincian) || 0)}</span>
                 </p>
               </div>
             </CardContent>
@@ -661,7 +693,11 @@ const BudgetingBHPRupiah = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-bold text-teal-600">
-                        {formatCurrency(item.total_budgeting_bhp)}
+                        {formatCurrency(
+                          (item.total_budgeting_rincian !== null && item.total_budgeting_rincian !== undefined)
+                            ? Number(item.total_budgeting_rincian) || 0
+                            : 0
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -689,14 +725,21 @@ const BudgetingBHPRupiah = () => {
               const unitSummary = new Map<string, { kode: string; total: number; count: number }>();
               
               categoryData.forEach(item => {
+                // Hanya hitung jika total_budgeting_rincian tidak null/undefined (konsisten dengan total budgeting)
+                if (item.total_budgeting_rincian === null || item.total_budgeting_rincian === undefined) {
+                  return; // Skip record yang tidak punya total_budgeting_rincian
+                }
+                
                 const existing = unitSummary.get(item.nama_unit_kerja);
+                const budgetingValue = Number(item.total_budgeting_rincian) || 0;
+                
                 if (existing) {
-                  existing.total += item.total_budgeting_bhp;
+                  existing.total += budgetingValue;
                   existing.count += 1;
                 } else {
                   unitSummary.set(item.nama_unit_kerja, {
                     kode: item.kode_unit_kerja,
-                    total: item.total_budgeting_bhp,
+                    total: budgetingValue,
                     count: 1
                   });
                 }

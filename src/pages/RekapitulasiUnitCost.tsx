@@ -103,24 +103,86 @@ const RekapitulasiUnitCost: React.FC = () => {
     });
   }, []);
 
+  const fetchFilterOptions = React.useCallback(async (targetYear?: number) => {
+    const tahunTarget = Number.isFinite(targetYear) ? Number(targetYear) : currentYear;
+
+    try {
+      // Fetch semua unit kerja yang tersedia untuk tahun tertentu (tanpa limit)
+      const { data: unitKerjaData, error: unitKerjaError } = await supabase
+        .from("view_rekapitulasi_unit_cost")
+        .select("nama_unit_kerja")
+        .eq("tahun", tahunTarget)
+        .order("nama_unit_kerja", { ascending: true });
+
+      if (unitKerjaError) {
+        console.error("Error fetching unit kerja options:", unitKerjaError);
+      } else {
+        const uniqueUnitKerja = [...new Set((unitKerjaData || []).map((d) => d.nama_unit_kerja))];
+        setUnitKerjaList(uniqueUnitKerja.sort());
+      }
+
+      // Fetch semua operator yang tersedia untuk tahun tertentu (tanpa limit)
+      const { data: operatorData, error: operatorError } = await supabase
+        .from("view_rekapitulasi_unit_cost")
+        .select("kode_operator, nama_operator")
+        .eq("tahun", tahunTarget)
+        .not("kode_operator", "is", null)
+        .not("nama_operator", "is", null)
+        .order("kode_operator", { ascending: true });
+
+      if (operatorError) {
+        console.error("Error fetching operator options:", operatorError);
+      } else {
+        const uniqueOperators = [
+          ...new Set(
+            (operatorData || [])
+              .filter((d) => d.kode_operator !== null && d.nama_operator !== null)
+              .map((d) => `${d.kode_operator} - ${d.nama_operator}`)
+          ),
+        ];
+        setOperatorList(uniqueOperators.sort());
+      }
+    } catch (err: any) {
+      console.error("Error fetching filter options:", err);
+    }
+  }, [currentYear]);
+
   const fetchData = React.useCallback(async (targetYear?: number) => {
     const tahunTarget = Number.isFinite(targetYear) ? Number(targetYear) : currentYear;
 
     try {
       setLoading(true);
       setError(null);
-      const { data: rekapData, error: rekapError } = await supabase
-        .from("view_rekapitulasi_unit_cost")
-        .select(
-          "id, tahun, kode_jenis, kode_unit_kerja, nama_unit_kerja, kode_operator, nama_operator, kode_tindakan, nama_tindakan, biaya_bahan, unit_cost_per_tindakan, sumber_tabel, jumlah, waktu_pemeriksaan, created_at, updated_at"
-        )
-        .eq("tahun", tahunTarget)
-        .order("kode_unit_kerja", { ascending: true })
-        .order("kode_tindakan", { ascending: true });
+      
+      // Fetch semua data dengan pagination (Supabase default limit adalah 1000)
+      let allData: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (rekapError) throw rekapError;
+      while (hasMore) {
+        const { data: rekapData, error: rekapError } = await supabase
+          .from("view_rekapitulasi_unit_cost")
+          .select(
+            "id, tahun, kode_jenis, kode_unit_kerja, nama_unit_kerja, kode_operator, nama_operator, kode_tindakan, nama_tindakan, biaya_bahan, unit_cost_per_tindakan, sumber_tabel, jumlah, waktu_pemeriksaan, created_at, updated_at"
+          )
+          .eq("tahun", tahunTarget)
+          .order("kode_unit_kerja", { ascending: true })
+          .order("kode_tindakan", { ascending: true })
+          .range(from, from + pageSize - 1);
 
-      const normalized = (rekapData || []).map((item) => ({
+        if (rekapError) throw rekapError;
+
+        if (rekapData && rekapData.length > 0) {
+          allData = [...allData, ...rekapData];
+          from += pageSize;
+          hasMore = rekapData.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const normalized = (allData || []).map((item) => ({
         ...item,
         biaya_bahan: item.biaya_bahan === null || item.biaya_bahan === undefined ? null : Number(item.biaya_bahan),
         unit_cost_per_tindakan:
@@ -137,19 +199,6 @@ const RekapitulasiUnitCost: React.FC = () => {
       const deduplicated = deduplicateRecords(normalized);
 
       setData(deduplicated);
-
-      const uniqueUnitKerja = [...new Set(deduplicated.map((d) => d.nama_unit_kerja))];
-      const uniqueOperators = [
-        ...new Set(
-          deduplicated
-            .filter((d) => d.kode_operator !== null)
-            .map((d) => `${d.kode_operator} - ${d.nama_operator}`)
-        ),
-      ];
-
-      setUnitKerjaList(uniqueUnitKerja.sort());
-      setOperatorList(uniqueOperators.sort());
-
       calculateStats(deduplicated);
     } catch (err: any) {
       console.error("Error fetching data:", err);
@@ -162,7 +211,8 @@ const RekapitulasiUnitCost: React.FC = () => {
   useEffect(() => {
     if (!Number.isFinite(filters.tahun)) return;
     fetchData(filters.tahun);
-  }, [fetchData, filters.tahun]);
+    fetchFilterOptions(filters.tahun);
+  }, [fetchData, fetchFilterOptions, filters.tahun]);
 
   useEffect(() => {
     if (!Number.isFinite(filters.tahun)) return;
@@ -186,6 +236,7 @@ const RekapitulasiUnitCost: React.FC = () => {
         { event: "*", schema: "public", table: tableName, filter: `tahun=eq.${targetYear}` },
         () => {
           fetchData(targetYear);
+          fetchFilterOptions(targetYear);
         }
       );
     });
@@ -203,7 +254,7 @@ const RekapitulasiUnitCost: React.FC = () => {
         console.warn("Gagal melepas channel rekapitulasi:", err);
       }
     };
-  }, [fetchData, filters.tahun]);
+  }, [fetchData, fetchFilterOptions, filters.tahun]);
 
   useEffect(() => {
     applyFilters();
@@ -230,22 +281,29 @@ const RekapitulasiUnitCost: React.FC = () => {
   const applyFilters = () => {
     let filtered = [...data];
 
-    // Filter by unit kerja
+    // Filter by unit kerja (case-insensitive dan trim whitespace)
     if (filters.unit_kerja) {
-      filtered = filtered.filter((d) => d.nama_unit_kerja === filters.unit_kerja);
+      const unitKerjaFilter = filters.unit_kerja.trim();
+      filtered = filtered.filter((d) => 
+        d.nama_unit_kerja && d.nama_unit_kerja.trim() === unitKerjaFilter
+      );
     }
 
     // Filter by operator
     if (filters.operator) {
       const [kodeOp] = filters.operator.split(" - ");
-      filtered = filtered.filter((d) => d.kode_operator === kodeOp);
+      const kodeOpTrimmed = kodeOp.trim();
+      filtered = filtered.filter((d) => 
+        d.kode_operator && d.kode_operator.trim() === kodeOpTrimmed
+      );
     }
 
     // Filter by nama tindakan (search)
     if (filters.nama_tindakan) {
+      const searchTerm = filters.nama_tindakan.toLowerCase().trim();
       filtered = filtered.filter((d) =>
-        d.nama_tindakan.toLowerCase().includes(filters.nama_tindakan.toLowerCase()) ||
-        d.kode_tindakan.toLowerCase().includes(filters.nama_tindakan.toLowerCase())
+        (d.nama_tindakan && d.nama_tindakan.toLowerCase().includes(searchTerm)) ||
+        (d.kode_tindakan && d.kode_tindakan.toLowerCase().includes(searchTerm))
       );
     }
 
@@ -295,6 +353,7 @@ const RekapitulasiUnitCost: React.FC = () => {
 
       // Reload data setelah refresh
       await fetchData(filters.tahun);
+      await fetchFilterOptions(filters.tahun);
 
       toast({
         title: "Berhasil",
@@ -749,37 +808,37 @@ const RekapitulasiUnitCost: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-[#0f766e]">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
                   No
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
                   Jenis
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
                   Unit Kerja
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
                   Operator
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
-                  Kode Tindakan
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                  Kode
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
                   Nama Tindakan
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-white">
-                  Jumlah
+                <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-white">
+                  Jml
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-white">
-                  Waktu (menit)
+                <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-white">
+                  Waktu
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-white">
                   Biaya Bahan
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wider text-white">
                   Unit Cost
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white">
+                <th className="px-2 py-2 text-left text-xs font-semibold uppercase tracking-wider text-white">
                   Sumber
                 </th>
               </tr>
@@ -794,11 +853,11 @@ const RekapitulasiUnitCost: React.FC = () => {
               ) : (
                 filteredData.map((row, index) => (
                   <tr key={row.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                       {index + 1}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
                         row.kode_jenis === 1 ? "bg-sky-500 text-white" :
                         row.kode_jenis === 2 ? "bg-emerald-500 text-white" :
                         row.kode_jenis === 3 ? "bg-violet-500 text-white" :
@@ -807,13 +866,13 @@ const RekapitulasiUnitCost: React.FC = () => {
                         {getJenisLabel(row.kode_jenis)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-2 py-2 text-xs text-gray-900">
                       <div>
                         <p className="font-medium">{row.kode_unit_kerja}</p>
                         <p className="text-gray-500 text-xs">{row.nama_unit_kerja}</p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-2 py-2 text-xs text-gray-900">
                       {row.kode_operator ? (
                         <div>
                           <p className="font-medium text-purple-600">{row.kode_operator}</p>
@@ -823,27 +882,27 @@ const RekapitulasiUnitCost: React.FC = () => {
                         <span className="text-gray-400 text-xs">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs font-mono text-gray-900">
                       {row.kode_tindakan}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 max-w-[160px]">
-                      <p className="truncate" title={row.nama_tindakan}>
+                    <td className="px-2 py-2 text-xs text-gray-900 min-w-[180px] max-w-[350px]">
+                      <p className="break-words" title={row.nama_tindakan}>
                         {row.nama_tindakan}
                       </p>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-right text-gray-900">
                       {typeof row.jumlah === "number" ? row.jumlah.toLocaleString() : "-"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-right text-gray-900">
                       {typeof row.waktu_pemeriksaan === "number" ? row.waktu_pemeriksaan : "-"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-right text-gray-900">
                       {formatCurrency(row.biaya_bahan)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-right font-semibold text-gray-900">
                       {formatCurrency(row.unit_cost_per_tindakan)}
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td className="px-2 py-2 text-xs text-gray-500">
                       {getSumberLabel(row.sumber_tabel)}
                     </td>
                   </tr>
