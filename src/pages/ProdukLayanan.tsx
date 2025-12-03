@@ -41,6 +41,7 @@ import KlinikInputTable from "@/components/produk-layanan/KlinikInputTable";
 import { useReportDownload } from "@/components/report";
 
 interface ProdukLayanan {
+  user_id: string;
   id: string;
   tahun: number;
   jenis: string;

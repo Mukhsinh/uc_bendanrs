@@ -335,7 +335,7 @@ const KalkulasiBiayaKelasAkomodasi = () => {
         <div className="text-center">
           <div className="text-red-500 text-lg mb-4">Error loading data</div>
           <p className="text-gray-600 mb-4">{error}</p>
-          <Button onClick={fetchData}>Retry</Button>
+          <Button onClick={() => { void fetchData(); }}>Retry</Button>
         </div>
       </div>
     );

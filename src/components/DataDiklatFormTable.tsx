@@ -171,7 +171,7 @@ const DataDiklatFormTable: React.FC = () => {
       console.error(error);
       setDiklatList([]);
     } else {
-      setDiklatList((data || []) as DataDiklatForm[]);
+      setDiklatList((data || []) as DataDiklat[]);
     }
   };
 

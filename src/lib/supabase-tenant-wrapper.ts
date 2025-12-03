@@ -120,7 +120,7 @@ export const tenantSupabase = {
  */
 export function getTenantFilteredQuery(tableName: string) {
   const tenantId = getCurrentTenantId();
-  const baseQuery = supabase.from(tableName);
+  const baseQuery = supabase.from(tableName).select('*');
   
   if (tenantId) {
     return baseQuery.eq('tenant_id', tenantId);
