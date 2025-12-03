@@ -70,7 +70,7 @@ export async function createTenant(data: TenantOnboardingData): Promise<Onboardi
       p_default_currency: data.defaultCurrency || 'IDR'
     });
 
-    console.log('RPC Response:', { result, error });
+    console.log('RPC Response:', { result, error, resultType: typeof result });
 
     if (error) {
       console.error('RPC error:', error);
@@ -81,31 +81,80 @@ export async function createTenant(data: TenantOnboardingData): Promise<Onboardi
       };
     }
 
-    // Parse result dari RPC
-    if (!result || typeof result !== 'object') {
-      console.error('Invalid response:', result);
+    // Handle case jika result adalah null atau undefined
+    if (result === null || result === undefined) {
+      console.error('RPC returned null/undefined result');
+      return {
+        success: false,
+        error: 'Server tidak mengembalikan response. Silakan coba lagi.'
+      };
+    }
+
+    // Parse result jika berupa string JSON
+    let parsedResult = result;
+    if (typeof result === 'string') {
+      try {
+        parsedResult = JSON.parse(result);
+        console.log('Parsed JSON result:', parsedResult);
+      } catch (parseError) {
+        console.error('Failed to parse JSON result:', parseError);
+        return {
+          success: false,
+          error: 'Format response dari server tidak valid'
+        };
+      }
+    }
+
+    // Pastikan parsedResult adalah object
+    if (typeof parsedResult !== 'object' || Array.isArray(parsedResult)) {
+      console.error('Invalid response type:', typeof parsedResult, parsedResult);
       return {
         success: false,
         error: 'Response tidak valid dari server'
       };
     }
 
-    // Jika RPC return error
-    if (result.success === false) {
-      console.error('Function returned error:', result);
+    // Jika RPC return error (cek dengan berbagai cara)
+    if (parsedResult.success === false || parsedResult.success === 'false') {
+      console.error('Function returned error:', parsedResult);
+      const errorMessage = parsedResult.error || parsedResult.message || 'Gagal membuat tenant';
       return {
         success: false,
-        error: result.error || 'Gagal membuat tenant',
-        details: result.details
+        error: errorMessage,
+        details: parsedResult.details || parsedResult
       };
     }
 
-    // Success
-    console.log('Tenant created successfully:', result);
+    // Validasi response success
+    if (parsedResult.success !== true && parsedResult.success !== 'true') {
+      // Cek apakah ada tenant_id sebagai indikator success
+      if (!parsedResult.tenant_id && !parsedResult.tenantId) {
+        console.error('Response tidak menunjukkan success dan tidak ada tenant_id:', parsedResult);
+        return {
+          success: false,
+          error: parsedResult.error || parsedResult.message || 'Gagal membuat tenant. Response tidak valid.',
+          details: parsedResult
+        };
+      }
+    }
+
+    // Success - extract tenant_id dan admin_user_id
+    const tenantId = parsedResult.tenant_id || parsedResult.tenantId;
+    const adminUserId = parsedResult.admin_user_id || parsedResult.adminUserId;
+
+    if (!tenantId) {
+      console.error('Success response but missing tenant_id:', parsedResult);
+      return {
+        success: false,
+        error: 'Tenant berhasil dibuat tetapi ID tidak ditemukan dalam response'
+      };
+    }
+
+    console.log('Tenant created successfully:', { tenantId, adminUserId, fullResult: parsedResult });
     return {
       success: true,
-      tenantId: result.tenant_id,
-      adminUserId: result.admin_user_id
+      tenantId: tenantId,
+      adminUserId: adminUserId
     };
 
   } catch (error: any) {

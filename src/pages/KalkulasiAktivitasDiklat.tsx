@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { Download, Upload, RefreshCw, Plus, Edit, Trash2, Calculator, FileSpreadsheet, Check, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { toast } from "sonner";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
@@ -94,7 +95,7 @@ export default function KalkulasiAktivitasDiklat() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('data_diklat')
         .select(`
           *,
@@ -132,7 +133,7 @@ export default function KalkulasiAktivitasDiklat() {
 
   const fetchKalkulasiDiklat = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('kalkulasi_diklat')
         .select('*')
         .order('jenis_diklat');
@@ -202,7 +203,7 @@ export default function KalkulasiAktivitasDiklat() {
 
       if (editingItem) {
         // Update existing item
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from('data_diklat')
           .update(basePayload)
           .eq('id', editingItem.id);
@@ -211,7 +212,7 @@ export default function KalkulasiAktivitasDiklat() {
         toast.success('Data diklat berhasil diperbarui');
       } else {
         // Create new item
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from('data_diklat')
           .insert([{ ...basePayload, user_id: user.id }]);
 
@@ -278,7 +279,7 @@ export default function KalkulasiAktivitasDiklat() {
     if (!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from('data_diklat')
         .delete()
         .eq('id', id);
@@ -322,7 +323,7 @@ export default function KalkulasiAktivitasDiklat() {
       // Calculate jasa_pelayanan from the sum of jasa_pel_medis and jasa_pel_non_medis
       const jasa_pelayanan = Math.round(editValues.jasa_pel_medis + editValues.jasa_pel_non_medis);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from('data_diklat')
         .update({
           jasa_sarana: editValues.jasa_sarana,
@@ -532,8 +533,8 @@ export default function KalkulasiAktivitasDiklat() {
         return;
       }
 
-      // Insert data ke database
-      const { error } = await supabase
+      // Insert data ke database menggunakan tenantSupabase untuk isolasi tenant
+      const { error } = await tenantSupabase
         .from('data_diklat')
         .insert(transformedData);
 

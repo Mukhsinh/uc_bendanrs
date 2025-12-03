@@ -78,10 +78,72 @@ export default function CreateTenantDialog({
   const onSubmit = async (data: CreateTenantFormData) => {
     setSubmitting(true);
     try {
-      console.log('Submitting tenant creation:', data);
+      console.log('[CreateTenantDialog] Submitting tenant creation:', {
+        name: data.name,
+        slug: data.slug,
+        adminEmail: data.adminEmail,
+        adminName: data.adminName,
+        hasPassword: !!data.adminPassword
+      });
+
+      // Validasi tambahan sebelum submit
+      if (!data.name || data.name.trim().length < 3) {
+        toast({
+          title: 'Error',
+          description: 'Nama rumah sakit minimal 3 karakter',
+          variant: 'destructive'
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!data.slug || data.slug.trim().length < 3) {
+        toast({
+          title: 'Error',
+          description: 'Slug minimal 3 karakter',
+          variant: 'destructive'
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!data.adminEmail || !data.adminEmail.includes('@')) {
+        toast({
+          title: 'Error',
+          description: 'Format email tidak valid',
+          variant: 'destructive'
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!data.adminPassword || data.adminPassword.length < 8) {
+        toast({
+          title: 'Error',
+          description: 'Password admin minimal 8 karakter',
+          variant: 'destructive'
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      if (!data.adminName || data.adminName.trim().length < 3) {
+        toast({
+          title: 'Error',
+          description: 'Nama admin minimal 3 karakter',
+          variant: 'destructive'
+        });
+        setSubmitting(false);
+        return;
+      }
+
       const result = await createTenant(data);
 
-      console.log('Create tenant response:', result);
+      console.log('[CreateTenantDialog] Create tenant response:', {
+        success: result.success,
+        hasMessage: !!result.message,
+        hasData: !!result.data
+      });
 
       if (result.success) {
         toast({
@@ -94,7 +156,12 @@ export default function CreateTenantDialog({
         onOpenChange(false);
         
         // Invalidate semua query yang berhubungan dengan tenant
-        await queryClient.invalidateQueries({ queryKey: ['tenants'] });
+        try {
+          await queryClient.invalidateQueries({ queryKey: ['tenants'] });
+          console.log('[CreateTenantDialog] Query cache invalidated');
+        } catch (invalidateError) {
+          console.error('[CreateTenantDialog] Error invalidating queries:', invalidateError);
+        }
         
         // Tunggu sebentar untuk memastikan data sudah tersimpan
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -102,25 +169,39 @@ export default function CreateTenantDialog({
         // Call onSuccess untuk trigger refetch
         try {
           onSuccess();
+          console.log('[CreateTenantDialog] onSuccess callback executed');
         } catch (refreshError) {
-          console.error('Error during refresh:', refreshError);
+          console.error('[CreateTenantDialog] Error during refresh:', refreshError);
           // Jangan tampilkan error ke user karena tenant sudah berhasil dibuat
           // User bisa refresh manual jika perlu
         }
       } else {
-        console.error('Failed to create tenant:', result.message);
+        const errorMessage = result.message || 'Gagal membuat tenant';
+        console.error('[CreateTenantDialog] Failed to create tenant:', errorMessage);
         toast({
           title: 'Error',
-          description: result.message || 'Gagal membuat tenant',
-          variant: 'destructive'
+          description: errorMessage,
+          variant: 'destructive',
+          duration: 5000 // Tampilkan lebih lama agar user bisa membaca
         });
       }
     } catch (error) {
-      console.error('Exception during tenant creation:', error);
+      console.error('[CreateTenantDialog] Exception during tenant creation:', error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Terjadi kesalahan saat membuat tenant. Silakan coba lagi.';
+      
+      console.error('[CreateTenantDialog] Error details:', {
+        message: errorMessage,
+        error: error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Gagal membuat tenant',
-        variant: 'destructive'
+        description: errorMessage,
+        variant: 'destructive',
+        duration: 5000
       });
     } finally {
       setSubmitting(false);

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Calculator, RefreshCw, Download, Upload, Plus } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -257,7 +258,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
   const generateInitialData = async (currentUserId: string) => {
     try {
       console.log("Checking existing data for year (shared data, not per user):", year);
-      const { data: existingData, error: checkError } = await supabase
+      const { data: existingData, error: checkError } = await tenantSupabase
         .from("kalkulasi_biaya_radiologi")
         .select("id")
         .eq("tahun", year)
@@ -495,7 +496,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_radiologi")
         .update({ bahan_pemeriksaan: parsed })
         .eq("id", selectedRow.id);
@@ -568,7 +569,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_radiologi")
         .update({ bahan_pemeriksaan: bahanFarmasiList })
         .eq("id", selectedRowForBahan.id);
@@ -732,7 +733,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
             await updateData();
         } else {
         // Double-check di database sebelum insert (untuk handle race conditions)
-        const { data: dbCheck, error: dbCheckError } = await supabase
+        const { data: dbCheck, error: dbCheckError } = await tenantSupabase
           .from("kalkulasi_biaya_radiologi")
           .select("id, kode, jenis_pemeriksaan")
           .eq("tahun", year)
@@ -940,7 +941,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: latestData, error: fetchError } = await supabase
+      const { data: latestData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_biaya_radiologi')
         .select('*')
         .eq('tahun', year)
@@ -1138,7 +1139,7 @@ const KalkulasiBiayaRadiologi: React.FC = () => {
               console.log(`Final target jenis: ${targetJenis}`);
               
               // First check if record exists
-              const { data: existingRecord, error: checkError } = await supabase
+              const { data: existingRecord, error: checkError } = await tenantSupabase
                 .from("kalkulasi_biaya_radiologi")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)

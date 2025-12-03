@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { tenantSupabase } from '@/lib/supabase-tenant-wrapper';
 
 export interface BarangGizi {
   id: string;
@@ -53,7 +54,7 @@ export class BahanPorsiService {
   // Get semua bahan porsi
   static async getAllBahanPorsi(): Promise<BahanPorsi[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('view_bahan_porsi_with_barang_gizi')
         .select('*')
         .order('jenis_makanan', { ascending: true })
@@ -71,7 +72,7 @@ export class BahanPorsiService {
   // Get bahan porsi by jenis makanan
   static async getBahanPorsiByJenisMakanan(jenisMakanan: string): Promise<BahanPorsi[]> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('view_bahan_porsi_with_barang_gizi')
         .select('*')
         .eq('jenis_makanan', jenisMakanan)
@@ -89,7 +90,7 @@ export class BahanPorsiService {
   // Create bahan porsi baru
   static async createBahanPorsi(input: BahanPorsiInput): Promise<BahanPorsi> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('bahan_porsi')
         .insert([input])
         .select(`
@@ -113,7 +114,7 @@ export class BahanPorsiService {
   // Update bahan porsi
   static async updateBahanPorsi(id: string, input: Partial<BahanPorsiInput>): Promise<BahanPorsi> {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('bahan_porsi')
         .update(input)
         .eq('id', id)
@@ -138,7 +139,7 @@ export class BahanPorsiService {
   // Delete bahan porsi
   static async deleteBahanPorsi(id: string): Promise<void> {
     try {
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from('bahan_porsi')
         .delete()
         .eq('id', id);

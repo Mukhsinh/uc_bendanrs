@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { DataKegiatan } from "@/types/data-kegiatan";
 import { Button } from "@/components/ui/button";
 import {
@@ -252,7 +253,7 @@ export default function DataKegiatanRS() {
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("data_kegiatan").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("data_kegiatan").delete().eq("id", id);
 
       if (error) throw error;
 

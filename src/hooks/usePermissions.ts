@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { getCurrentTenantId } from '@/lib/tenantAwareClient';
 
 interface Permission {
   id: string;
@@ -26,6 +27,73 @@ export const usePermissions = () => {
       setLoading(true);
       setError(null);
 
+      // Get current tenant_id
+      const currentTenantId = getCurrentTenantId();
+
+      // Cek jika superadmin (superadmin bisa akses semua tanpa isolasi tenant)
+      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: userId });
+      
+      if (isSuperadmin) {
+        // Super Admin - bisa akses semua
+        // Untuk super admin, kita masih perlu mengambil role, tapi tanpa filter tenant
+        const { data: userRoleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select(`
+            role_id,
+            role_akses_aplikasi!inner(
+              role_name,
+              role_permissions!inner(
+                permission_name,
+                permission_type,
+                is_granted
+              )
+            )
+          `)
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .single();
+
+        if (!roleError && userRoleData) {
+          const roleData = userRoleData.role_akses_aplikasi as any;
+          setUserRole({
+            role_id: userRoleData.role_id,
+            role_name: roleData.role_name,
+            permissions: roleData.role_permissions || []
+          });
+        } else {
+          // Fallback untuk super admin
+          setUserRole({
+            role_id: '',
+            role_name: 'Super Admin',
+            permissions: []
+          });
+        }
+        return;
+      }
+
+      // Jika bukan superadmin, pastikan tenant_id tersedia
+      if (!currentTenantId) {
+        console.warn("Tenant ID tidak tersedia untuk non-superadmin user");
+        setUserRole(null);
+        setError('Tenant context tidak tersedia');
+        return;
+      }
+
+      // Verifikasi user memiliki tenant_id yang sesuai dengan current tenant
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('tenant_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (!userProfile || userProfile.tenant_id !== currentTenantId) {
+        console.warn("User tidak memiliki akses ke tenant ini");
+        setUserRole(null);
+        setError('User tidak memiliki akses ke tenant ini');
+        return;
+      }
+
+      // Ambil role dari user_roles table dengan join ke role_akses_aplikasi
       const { data: userRoleData, error: roleError } = await supabase
         .from('user_roles')
         .select(`

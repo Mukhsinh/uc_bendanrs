@@ -81,7 +81,9 @@ const KalkulasiBiayaKelasAkomodasi = () => {
     applyFilters();
   }, [data, filters]);
 
-  const fetchData = async () => {
+  const fetchData = async (options?: { showSuccess?: boolean }) => {
+    const { showSuccess } = options || {};
+
     try {
       console.log('Starting data fetch...');
       setLoading(true);
@@ -102,6 +104,13 @@ const KalkulasiBiayaKelasAkomodasi = () => {
 
       setData(result || []);
       console.log('Data set successfully:', result?.length || 0, 'items');
+
+      if (showSuccess) {
+        toast({
+          title: "Berhasil",
+          description: "Data kalkulasi biaya kelas akomodasi berhasil diperbarui.",
+        });
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -426,7 +435,7 @@ const KalkulasiBiayaKelasAkomodasi = () => {
           <Button
             variant="ghost"
             size="icon"
-            onClick={fetchData}
+            onClick={() => fetchData({ showSuccess: true })}
             disabled={loading}
             aria-label="Refresh data"
           >

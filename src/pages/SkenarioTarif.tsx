@@ -169,20 +169,20 @@ const SkenarioTarif = () => {
   const queryClient = useQueryClient();
   const { downloadReport } = useReportDownload();
 
-  // Fetch unit kerja dari rekapitulasi_unit_cost untuk dropdown filter
-  // Hanya unit kerja yang memiliki data di rekapitulasi yang akan muncul
+  // Fetch daftar unit kerja dari tabel skenario_tarif untuk dropdown filter
+  // Mengambil semua unit kerja yang memiliki data skenario tarif pada tahun terpilih
   const { data: unitKerjaList } = useQuery({
-    queryKey: ["unit_kerja_from_rekapitulasi", tahun],
+    queryKey: ["unit_kerja_from_skenario_tarif", tahun],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rekapitulasi_unit_cost")
+        .from("skenario_tarif")
         .select("kode_unit_kerja, nama_unit_kerja")
         .eq("tahun", tahun)
-        .order("nama_unit_kerja", { ascending: true });
+        .order("kode_unit_kerja", { ascending: true });
 
       if (error) throw error;
       
-      // Get unique unit kerja
+      // Get unique unit kerja (berdasarkan kode) sambil mempertahankan urutan berdasarkan kode_unit_kerja
       const uniqueMap = new Map<string, string>();
       (data || []).forEach(item => {
         if (item.kode_unit_kerja && !uniqueMap.has(item.kode_unit_kerja)) {
@@ -231,26 +231,96 @@ const SkenarioTarif = () => {
   const { data: skenarioData, isLoading } = useQuery({
     queryKey: ["skenario_tarif", tahun],
     queryFn: async () => {
-      const [skenarioResponse, rawatInapResponse, rawatJalanResponse] = await Promise.all([
-        supabase
-          .from("skenario_tarif")
-          .select("*")
-          .eq("tahun", tahun)
-          .order("nama_unit_kerja", { ascending: true })
-          .order("nama_tindakan", { ascending: true }),
-        supabase
-          .from("kalkulasi_tindakan_inap")
-          .select("*")
-          .eq("tahun", tahun)
-          .order("nama_unit_kerja", { ascending: true })
-          .order("jenis_tindakan", { ascending: true }),
-        supabase
-          .from("kalkulasi_tindakan_rawat_jalan")
-          .select("*")
-          .eq("tahun", tahun)
-          .order("nama_unit_kerja", { ascending: true })
-          .order("jenis_tindakan", { ascending: true }),
+      // Helper function untuk fetch semua data dengan pagination
+      const fetchAllData = async (tableName: string, filters: any = {}, orderBy: string[] = []) => {
+        const batchSize = 1000;
+        let page = 0;
+        let allData: any[] = [];
+        let hasMore = true;
+
+        while (hasMore) {
+          const from = page * batchSize;
+          const to = from + batchSize - 1;
+
+          let query = supabase
+            .from(tableName)
+            .select("*");
+
+          // Apply filters
+          Object.entries(filters).forEach(([key, value]) => {
+            query = query.eq(key, value);
+          });
+
+          // Apply ordering (required for range)
+          if (orderBy.length > 0) {
+            orderBy.forEach((field, index) => {
+              if (index === 0) {
+                query = query.order(field, { ascending: true });
+              } else {
+                query = query.order(field, { ascending: true, nullsFirst: false });
+              }
+            });
+          } else {
+            // Default order by id if no order specified
+            query = query.order("id", { ascending: true });
+          }
+
+          // Apply range after ordering
+          query = query.range(from, to);
+
+          const { data, error } = await query;
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allData.push(...data);
+            if (data.length < batchSize) {
+              hasMore = false;
+            } else {
+              page += 1;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+
+        return allData;
+      };
+
+      // Fetch semua data dengan pagination
+      const [skenarioData, rawatInapData, rawatJalanData] = await Promise.all([
+        fetchAllData("skenario_tarif", { tahun }, ["nama_unit_kerja", "nama_tindakan"]),
+        fetchAllData("kalkulasi_tindakan_inap", { tahun }, ["nama_unit_kerja", "jenis_tindakan"]),
+        fetchAllData("kalkulasi_tindakan_rawat_jalan", { tahun }, ["nama_unit_kerja", "jenis_tindakan"]),
       ]);
+
+      // Sort data setelah fetch
+      const skenarioResponse = {
+        data: skenarioData.sort((a, b) => {
+          const unitCompare = (a.nama_unit_kerja || "").localeCompare(b.nama_unit_kerja || "");
+          if (unitCompare !== 0) return unitCompare;
+          return (a.nama_tindakan || "").localeCompare(b.nama_tindakan || "");
+        }),
+        error: null,
+      };
+
+      const rawatInapResponse = {
+        data: rawatInapData.sort((a, b) => {
+          const unitCompare = (a.nama_unit_kerja || "").localeCompare(b.nama_unit_kerja || "");
+          if (unitCompare !== 0) return unitCompare;
+          return (a.jenis_tindakan || a.nama_tindakan || "").localeCompare(b.jenis_tindakan || b.nama_tindakan || "");
+        }),
+        error: null,
+      };
+
+      const rawatJalanResponse = {
+        data: rawatJalanData.sort((a, b) => {
+          const unitCompare = (a.nama_unit_kerja || "").localeCompare(b.nama_unit_kerja || "");
+          if (unitCompare !== 0) return unitCompare;
+          return (a.jenis_tindakan || a.nama_tindakan || "").localeCompare(b.jenis_tindakan || b.nama_tindakan || "");
+        }),
+        error: null,
+      };
 
       if (skenarioResponse.error) throw skenarioResponse.error;
       if (rawatInapResponse.error) throw rawatInapResponse.error;
@@ -517,8 +587,8 @@ const SkenarioTarif = () => {
     return data;
   }, [skenarioData, selectedUnitKerja, namaTindakanFilter, namaOperatorFilter]);
 
-  // Get unit kerja options dari tabel unit_kerja (bukan dari skenario_tarif)
-  // Ini memastikan semua unit kerja tampil di dropdown, termasuk yang belum ada data skenario
+  // Build opsi Unit Kerja untuk combobox filter dari hasil query skenario_tarif
+  // Hanya unit kerja yang memiliki data skenario untuk tahun terpilih yang ditampilkan
   const unitKerjaOptions = React.useMemo(() => {
     if (!unitKerjaList) return [];
     
@@ -579,6 +649,23 @@ const SkenarioTarif = () => {
       avgJasaPelayanan: totalJasaPelayananPercentage / filteredData.length,
       avgProfit: totalProfit / filteredData.length
     };
+  }, [filteredData]);
+
+  // Debug ringan untuk memastikan JP Non Medis yang > 0 terbaca dengan benar dari database
+  React.useEffect(() => {
+    if (!filteredData || filteredData.length === 0) return;
+    const sampleWithNonMedis = filteredData
+      .filter(item => toNumber(item.jasa_pelayanan_non_medis) > 0)
+      .slice(0, 5);
+    if (sampleWithNonMedis.length > 0) {
+      // Hanya untuk pengecekan di console browser
+      console.debug("Sample JP Non Medis dari skenario_tarif:", sampleWithNonMedis.map(item => ({
+        id: item.id,
+        kode_unit_kerja: item.kode_unit_kerja,
+        kode_tindakan: item.kode_tindakan,
+        jp_non_medis: item.jasa_pelayanan_non_medis,
+      })));
+    }
   }, [filteredData]);
 
   const unitCostStats = React.useMemo(() => {
@@ -888,11 +975,7 @@ const SkenarioTarif = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-gray-600">
-          Menampilkan <span className="font-semibold">{filteredData?.length ?? 0}</span> dari{" "}
-          <span className="font-semibold">{skenarioData?.length ?? 0}</span> data
-        </p>
+      <div className="flex flex-wrap items-center justify-start gap-2">
         <div className="flex items-center gap-2">
           {/* Import/Export Toolbar */}
           {filteredData && filteredData.length > 0 && (
@@ -1289,7 +1372,9 @@ const SkenarioTarif = () => {
                             className="w-20 text-right text-xs h-7 px-1"
                           />
                         ) : (
-                          <span className="text-xs">{formatCurrency(item.jasa_pelayanan_non_medis || 0)}</span>
+                          <span className="text-xs">
+                            {formatCurrency(toNumber(item.jasa_pelayanan_non_medis))}
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-medium text-xs px-2 py-2">

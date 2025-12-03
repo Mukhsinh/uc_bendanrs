@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Download, Calculator, RefreshCw } from "lucide-react";
 import { useReportDownload } from "@/components/report";
@@ -145,7 +146,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
 
   const generateInitialData = async (currentUserId: string) => {
     try {
-      const { data: existingData, error: checkError } = await supabase
+      const { data: existingData, error: checkError } = await tenantSupabase
         .from("kalkulasi_biaya_cathlab")
         .select("id")
         .eq("tahun", year)
@@ -176,7 +177,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
             tingkat_kesulitan: 1
           }));
           
-          const { error: insertError } = await supabase
+          const { error: insertError } = await tenantSupabase
             .from("kalkulasi_biaya_cathlab")
             .insert(records);
           
@@ -190,13 +191,15 @@ const KalkulasiBiayaCathlab: React.FC = () => {
     }
   };
 
-  const loadData = async (currentUserId?: string) => {
+  const loadData = async (currentUserId?: string, options?: { showSuccess?: boolean }) => {
     const userIdToUse = currentUserId || userId;
     if (!userIdToUse) return;
     
     setLoading(true);
+    const { showSuccess } = options || {};
+
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from("kalkulasi_biaya_cathlab")
         .select(`*`)
         .eq("tahun", year)
@@ -207,6 +210,10 @@ const KalkulasiBiayaCathlab: React.FC = () => {
         setRows([]);
       } else {
         setRows(data || []);
+
+        if (showSuccess) {
+          toast.success("Data kalkulasi Cathlab berhasil diperbarui.");
+        }
       }
     } catch (err: any) {
       toast.error("Gagal memuat data kalkulasi.");
@@ -340,7 +347,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
             const sulit = Math.max(1, Math.min(5, parseInt(r["Tingkat Kesulitan (1-5)"] || "1", 10) || 1));
 
             try {
-              const { data: existingRecord, error: checkError } = await supabase
+              const { data: existingRecord, error: checkError } = await tenantSupabase
                 .from("kalkulasi_biaya_cathlab")
                 .select("id")
                 .eq("tahun", year)
@@ -352,7 +359,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                 continue;
               }
 
-              const { error: updateError } = await supabase
+              const { error: updateError } = await tenantSupabase
                 .from("kalkulasi_biaya_cathlab")
                 .update({ jumlah, waktu_pemeriksaan: waktu, profesionalisme: prof, tingkat_kesulitan: sulit })
                 .eq("id", existingRecord.id);
@@ -408,7 +415,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
     try {
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_cathlab")
         .delete()
         .eq("id", row.id);
@@ -438,7 +445,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
 
       if (data.id) {
         // Update existing data
-        const { error: updateError } = await supabase
+        const { error: updateError } = await tenantSupabase
           .from("kalkulasi_biaya_cathlab")
           .update({
             jumlah: data.jumlah || 0,
@@ -491,7 +498,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: latestData, error: fetchError } = await supabase
+      const { data: latestData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_biaya_cathlab')
         .select('*')
         .eq('tahun', year)
@@ -724,11 +731,18 @@ const KalkulasiBiayaCathlab: React.FC = () => {
               )}
             </Button>
             <Button
-              onClick={() => loadData()}
+              onClick={() => loadData(undefined, { showSuccess: true })}
               disabled={loading}
               className="bg-purple-600 text-white hover:bg-purple-700"
             >
-              Perbarui Data
+              {loading ? (
+                <span className="flex items-center">
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
+                  Memuat...
+                </span>
+              ) : (
+                "Perbarui Data"
+              )}
             </Button>
           </div>
           {recalculating && (
@@ -958,7 +972,7 @@ const KalkulasiBiayaCathlab: React.FC = () => {
                   try {
                     setAutoCalculating(true);
                     const normalizedList = normalizeBahanList(bahanFarmasiList);
-                    const { error } = await supabase
+                    const { error } = await tenantSupabase
                       .from("kalkulasi_biaya_cathlab")
                       .update({ bahan_pemeriksaan: normalizedList })
                       .eq("id", selectedRowForBahan.id);

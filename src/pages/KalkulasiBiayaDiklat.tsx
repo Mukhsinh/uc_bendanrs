@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { 
   Download, 
   RefreshCw, 
@@ -52,7 +53,7 @@ const KalkulasiBiayaDiklat: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: result, error } = await supabase
+      const { data: result, error } = await tenantSupabase
         .from("kalkulasi_diklat")
         .select("*")
         .eq("tahun", year)
@@ -75,7 +76,7 @@ const KalkulasiBiayaDiklat: React.FC = () => {
       if (!result || result.length === 0) {
         await createDefaultData();
         // Reload data setelah membuat data default
-        const { data: newResult } = await supabase
+        const { data: newResult } = await tenantSupabase
           .from("kalkulasi_diklat")
           .select("*")
           .eq("tahun", year)
@@ -111,7 +112,7 @@ const KalkulasiBiayaDiklat: React.FC = () => {
         total_diklat: 1
       };
 
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_diklat")
         .insert(defaultData);
 

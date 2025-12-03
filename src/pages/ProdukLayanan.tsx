@@ -28,6 +28,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Trash2, Edit, Plus, Upload, Download, RefreshCcw } from "lucide-react";
 import * as XLSX from "xlsx";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
+import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -188,6 +190,31 @@ const ProdukLayanan = () => {
     }
   };
 
+  // Fungsi untuk membersihkan data dari computed/generated columns sebelum save
+  const prepareDataForSave = (data: Partial<ProdukLayanan>) => {
+    // Exclude computed/generated columns yang tidak boleh di-update manual
+    const {
+      id,
+      created_at,
+      updated_at,
+      total_biaya,           // Computed dari sum semua biaya
+      total_jp,              // GENERATED: sum dari semua jp_* columns
+      saldo_distribusi,      // GENERATED: tarif_inacbgs_numeric - total_biaya
+      prosentase_saldo,      // GENERATED: (saldo_distribusi / tarif_inacbgs_numeric) * 100
+      jp_tindakan,           // Computed dari tindakan array
+      jp_ibs,                // Computed dari ibs array
+      jp_laboratorium,       // Computed dari laboratorium array
+      jp_radiologi,          // Computed dari radiologi array
+      jp_farmasi,            // Computed dari farmasi array
+      jp_kamar_akomodasi,    // Computed dari kamar_akomodasi array
+      jp_visite,             // Computed dari visite array
+      jp_konsultasi,         // Computed dari konsultasi array
+      ...cleanData
+    } = data as any;
+    
+    return cleanData;
+  };
+
   const handleSave = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -201,11 +228,11 @@ const ProdukLayanan = () => {
         return;
       }
 
-      const dataToSave = {
+      const dataToSave = prepareDataForSave({
         ...formData,
         user_id: user.id,
         tahun,
-      };
+      });
 
       if (editingId) {
         const { error } = await supabase
@@ -434,7 +461,27 @@ const ProdukLayanan = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Reset file input
+    event.target.value = "";
+
+    console.log("Starting file upload:", file.name, file.type);
+
+    // Check file type and handle accordingly
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+
+    if (fileExtension === "xlsx" || fileExtension === "xls") {
+      // Handle Excel files
+      await handleExcelFile(file);
+    } else {
+      // Handle CSV files
+      handleCSVFile(file);
+    }
+  };
+
+  const handleExcelFile = async (file: File) => {
     try {
+      console.log("Processing Excel file:", file.name);
+
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -446,25 +493,223 @@ const ProdukLayanan = () => {
         return;
       }
 
-      const text = await file.text();
-      const rows = text.split("\n").map((row) => row.split(","));
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
+      // Read Excel file
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
 
-      const importData = dataRows
-        .filter((row) => row.length === headers.length && row[0])
+      // Get first worksheet
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Convert to JSON with header row
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+      console.log("Excel data:", jsonData);
+
+      if (jsonData.length < 2) {
+        toast({
+          title: "Error",
+          description: "File Excel kosong atau tidak memiliki data",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get headers from first row
+      const headers = jsonData[0] as string[];
+      console.log("Excel headers:", headers);
+
+      // Convert to object format
+      const dataObjects = jsonData.slice(1).map((row: any[]) => {
+        const obj: any = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index] || "";
+        });
+        return obj;
+      });
+
+      console.log("Converted data objects:", dataObjects);
+
+      // Process the data
+      await processImportData(dataObjects, user.id);
+    } catch (error: any) {
+      console.error("Error processing Excel file:", error);
+      toast({
+        title: "Error",
+        description: `Gagal memproses file Excel: ${error.message || error}`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCSVFile = (file: File) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          console.log("=== CSV FILE PARSING DEBUG ===");
+          console.log("File parsing results:", results);
+          console.log("Errors:", results.errors);
+          console.log("Meta:", results.meta);
+
+          const { data: { user } } = await supabase.auth.getUser();
+          
+          if (!user) {
+            toast({
+              title: "Error",
+              description: "User not authenticated",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          const data = results.data as any[];
+          console.log("Raw data from CSV file:", data);
+
+          // Process the data using the same function
+          await processImportData(data, user.id);
+        } catch (error: any) {
+          console.error("Error importing CSV data:", error);
+          toast({
+            title: "Error",
+            description: `Gagal mengimpor data: ${error.message || error}`,
+            variant: "destructive",
+          });
+        }
+      },
+      error: (error) => {
+        console.error("Error parsing CSV file:", error);
+        toast({
+          title: "Error",
+          description: `Gagal memproses file CSV: ${error.message || error}`,
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  const processImportData = async (data: any[], userId: string) => {
+    try {
+      console.log("=== PROCESSING IMPORT DATA ===");
+      console.log("Raw data:", data);
+      console.log("Data length:", data.length);
+
+      if (data.length === 0) {
+        toast({
+          title: "Error",
+          description: "File kosong atau tidak ada data yang dapat dibaca",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Log all available column names
+      if (data.length > 0) {
+        console.log("Available columns:", Object.keys(data[0]));
+      }
+
+      // Map headers to database fields (flexible matching)
+      const headerMapping: { [key: string]: string } = {
+        tahun: "tahun",
+        jenis: "jenis",
+        deskripsi_inacbg: "deskripsi_inacbg",
+        grouper: "grouper",
+        diaglist: "diaglist",
+        diagnosa_1: "diagnosa_1",
+        diagnosa_2: "diagnosa_2",
+        diagnosa_3: "diagnosa_3",
+        diagnosa_4: "diagnosa_4",
+        diagnosa_5: "diagnosa_5",
+        proclist: "proclist",
+        proc_1: "proc_1",
+        proc_2: "proc_2",
+        proc_3: "proc_3",
+        proc_4: "proc_4",
+        proc_5: "proc_5",
+        los: "los",
+        spesialisasi_dokter: "spesialisasi_dokter",
+        nama_dokter: "nama_dokter",
+        kode_dokter: "kode_dokter",
+        tarif_inacbgs_numeric: "tarif_inacbgs_numeric",
+        jp_farmasi_prosentase: "jp_farmasi_prosentase",
+      };
+
+      // Normalize header names (case-insensitive, handle spaces/underscores)
+      const normalizeHeader = (header: string): string => {
+        return header
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, "_")
+          .replace(/[^a-z0-9_]/g, "");
+      };
+
+      // Get normalized headers from first row
+      const firstRow = data[0];
+      const normalizedHeaders: { [key: string]: string } = {};
+      Object.keys(firstRow).forEach((key) => {
+        const normalized = normalizeHeader(key);
+        normalizedHeaders[normalized] = key;
+      });
+
+      console.log("Normalized headers mapping:", normalizedHeaders);
+
+      // Filter and map data
+      const validData = data
+        .filter((row, index) => {
+          // At least jenis or deskripsi_inacbg should be present
+          const jenis = row[normalizedHeaders["jenis"]] || row["jenis"] || row["Jenis"] || "";
+          const deskripsi = row[normalizedHeaders["deskripsi_inacbg"]] || row["deskripsi_inacbg"] || row["Deskripsi INA-CBG"] || "";
+          
+          const isValid = (jenis && jenis.toString().trim()) || (deskripsi && deskripsi.toString().trim());
+          
+          if (!isValid) {
+            console.log(`Row ${index + 1} skipped: missing jenis or deskripsi_inacbg`);
+          }
+          
+          return isValid;
+        })
         .map((row) => {
-          const obj: any = { user_id: user.id, tahun };
-          headers.forEach((header, index) => {
-            const value = row[index]?.trim();
-            if (header === "los" || header === "tahun" || header === "tarif_inacbgs_numeric") {
-              obj[header] = value ? parseInt(value) : 0;
-            } else if (header === "jp_farmasi_prosentase") {
-              obj[header] = value ? parseFloat(value) : 0;
+          const obj: any = { user_id: userId, tahun };
+
+          // Map each field
+          Object.keys(headerMapping).forEach((dbField) => {
+            const normalized = normalizeHeader(dbField);
+            const originalHeader = normalizedHeaders[normalized] || dbField;
+            
+            // Try multiple variations
+            let value = row[originalHeader] || 
+                       row[dbField] || 
+                       row[dbField.replace(/_/g, " ")] ||
+                       row[dbField.replace(/_/g, "-")] ||
+                       "";
+
+            value = value?.toString().trim() || "";
+
+            // Type conversion
+            if (dbField === "los" || dbField === "tahun" || dbField === "tarif_inacbgs_numeric") {
+              obj[dbField] = value ? parseInt(value) || 0 : 0;
+            } else if (dbField === "jp_farmasi_prosentase") {
+              obj[dbField] = value ? parseFloat(value) || 0 : 0;
+            } else if (dbField === "jenis") {
+              // Normalisasi nilai jenis untuk menghindari constraint error
+              const normalizedJenis = value.toLowerCase().trim();
+              // Hanya terima "rawat jalan" atau "rawat inap"
+              if (normalizedJenis === "rawat jalan" || normalizedJenis === "rawatjalan" || normalizedJenis === "rawat_jalan") {
+                obj[dbField] = "rawat jalan";
+              } else if (normalizedJenis === "rawat inap" || normalizedJenis === "rawatinap" || normalizedJenis === "rawat_inap") {
+                obj[dbField] = "rawat inap";
+              } else if (normalizedJenis) {
+                // Jika ada nilai tapi tidak valid, gunakan nilai asli (akan error di database jika tidak sesuai constraint)
+                obj[dbField] = value;
+              } else {
+                obj[dbField] = null;
+              }
             } else {
-              obj[header] = value || null;
+              obj[dbField] = value || null;
             }
           });
+
           // Initialize arrays
           obj.tindakan = [];
           obj.ibs = [];
@@ -474,28 +719,46 @@ const ProdukLayanan = () => {
           obj.kamar_akomodasi = [];
           obj.visite = [];
           obj.konsultasi = [];
+          obj.klinik = [];
+
           return obj;
         });
 
-      const { error } = await supabase.from("produk_layanan").insert(importData);
+      console.log("Valid data count:", validData.length);
+      console.log("Valid data sample:", validData.slice(0, 2));
 
-      if (error) throw error;
+      if (validData.length === 0) {
+        const availableColumns = data.length > 0 ? Object.keys(data[0]).join(", ") : "Tidak ada kolom";
+        toast({
+          title: "Error",
+          description: `Tidak ada data valid untuk diimpor. Kolom yang tersedia: ${availableColumns}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Insert to database
+      const { error } = await tenantSupabase.from("produk_layanan").insert(validData);
+
+      if (error) {
+        console.error("Database error:", error);
+        throw error;
+      }
 
       toast({
         title: "Berhasil",
-        description: `${importData.length} data berhasil di-import`,
+        description: `${validData.length} data berhasil di-import`,
       });
 
       fetchData();
     } catch (error: any) {
+      console.error("Error processing import data:", error);
       toast({
-        title: "Error importing data",
-        description: error.message,
+        title: "Error",
+        description: `Gagal mengimpor data: ${error.message || error}`,
         variant: "destructive",
       });
     }
-
-    event.target.value = "";
   };
 
   const formatCurrency = (value: number) => {
@@ -525,8 +788,8 @@ const ProdukLayanan = () => {
     : 0;
 
   return (
-    <div className="container mx-auto py-10">
-      <Card>
+    <div className="container mx-auto py-6 px-4 max-w-full">
+      <Card className="w-full">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex-1">
@@ -559,8 +822,8 @@ const ProdukLayanan = () => {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-2 mb-4">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
             <Button
               variant="template"
               onClick={handleDownloadTemplate}
@@ -579,7 +842,7 @@ const ProdukLayanan = () => {
               </Button>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls"
                 className="hidden"
                 onChange={handleImport}
               />
@@ -970,76 +1233,79 @@ const ProdukLayanan = () => {
               Belum ada data. Klik "Tambah Data" untuk memulai.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader className="bg-[#0f766e]">
-                  <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
-                    <TableHead className="text-white font-bold">Jenis</TableHead>
-                    <TableHead className="text-white font-bold">Deskripsi INA-CBG</TableHead>
-                    <TableHead className="text-white font-bold">LOS</TableHead>
-                    <TableHead className="text-white font-bold">Dokter</TableHead>
-                    <TableHead className="text-right text-white font-bold">Tarif INA-CBGs</TableHead>
-                    <TableHead className="text-right text-white font-bold">Total Biaya</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Tindakan</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP IBS</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Lab</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Radiologi</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Farmasi</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Kamar</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Visite</TableHead>
-                    <TableHead className="text-right text-white font-bold">JP Konsultasi</TableHead>
-                    <TableHead className="text-right text-white font-bold">Total JP</TableHead>
-                    <TableHead className="text-right text-white font-bold">Saldo Distribusi</TableHead>
-                    <TableHead className="text-center text-white font-bold">% Saldo</TableHead>
-                    <TableHead className="text-right text-white font-bold">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium capitalize">{item.jenis}</TableCell>
-                      <TableCell>{item.deskripsi_inacbg || "-"}</TableCell>
-                      <TableCell>{item.los} hari</TableCell>
-                      <TableCell>{item.nama_dokter || "-"}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.tarif_inacbgs_numeric || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.total_biaya)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_tindakan || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_ibs || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_laboratorium || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_radiologi || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_farmasi || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_kamar_akomodasi || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_visite || 0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.jp_konsultasi || 0)}</TableCell>
-                      <TableCell className="text-right font-bold text-green-600">
-                        {formatCurrency((item.jp_tindakan || 0) + (item.jp_ibs || 0) + (item.jp_laboratorium || 0) + (item.jp_radiologi || 0) + (item.jp_farmasi || 0) + (item.jp_kamar_akomodasi || 0) + (item.jp_visite || 0) + (item.jp_konsultasi || 0))}
-                      </TableCell>
-                      <TableCell className={`text-right font-semibold ${
-                        (item.saldo_distribusi || 0) >= 0 ? "text-green-600" : "text-red-600"
-                      }`}>
-                        {formatCurrency(item.saldo_distribusi || 0)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {getProsentaseBadge(item.prosentase_saldo || 0)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="edit" size="sm" onClick={() => handleEdit(item)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleDelete(item.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+            <div className="w-full">
+              <div className="overflow-x-auto">
+                <Table className="w-full text-xs">
+                  <TableHeader className="bg-[#0f766e]">
+                    <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                      <TableHead className="text-white font-bold text-xs px-2 py-2 sticky left-0 bg-[#0f766e] z-10 min-w-[80px] whitespace-normal">Jenis</TableHead>
+                      <TableHead className="text-white font-bold text-xs px-2 py-2 min-w-[150px] whitespace-normal">Deskripsi<br />INA-CBG</TableHead>
+                      <TableHead className="text-white font-bold text-xs px-2 py-2 text-center min-w-[60px] whitespace-normal">LOS</TableHead>
+                      <TableHead className="text-white font-bold text-xs px-2 py-2 min-w-[120px] whitespace-normal">Dokter</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[100px] whitespace-normal">Tarif<br />INA-CBGs</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[100px] whitespace-normal">Total<br />Biaya</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Tindakan</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />IBS</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Lab</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Radiologi</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Farmasi</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Kamar</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Visite</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Konsultasi</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[100px] whitespace-normal">Total<br />JP</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[100px] whitespace-normal">Saldo<br />Distribusi</TableHead>
+                      <TableHead className="text-center text-white font-bold text-xs px-2 py-2 min-w-[80px] whitespace-normal">%<br />Saldo</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[80px] whitespace-normal">Aksi</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {data.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-gray-50">
+                        <TableCell className="font-medium capitalize text-xs px-2 py-2 sticky left-0 bg-white z-10 border-r">{item.jenis}</TableCell>
+                        <TableCell className="text-xs px-2 py-2">{item.deskripsi_inacbg || "-"}</TableCell>
+                        <TableCell className="text-xs px-2 py-2 text-center">{item.los} h</TableCell>
+                        <TableCell className="text-xs px-2 py-2">{item.nama_dokter || "-"}</TableCell>
+                        <TableCell className="text-right text-xs px-2 py-2 font-mono">{formatCurrency(item.tarif_inacbgs_numeric || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-2 py-2 font-mono">{formatCurrency(item.total_biaya)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_tindakan || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_ibs || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_laboratorium || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_radiologi || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_farmasi || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_kamar_akomodasi || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_visite || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_konsultasi || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-2 py-2 font-bold text-green-600 font-mono">
+                          {formatCurrency((item.jp_tindakan || 0) + (item.jp_ibs || 0) + (item.jp_laboratorium || 0) + (item.jp_radiologi || 0) + (item.jp_farmasi || 0) + (item.jp_kamar_akomodasi || 0) + (item.jp_visite || 0) + (item.jp_konsultasi || 0))}
+                        </TableCell>
+                        <TableCell className={`text-right text-xs px-2 py-2 font-semibold font-mono ${
+                          (item.saldo_distribusi || 0) >= 0 ? "text-green-600" : "text-red-600"
+                        }`}>
+                          {formatCurrency(item.saldo_distribusi || 0)}
+                        </TableCell>
+                        <TableCell className="text-center px-2 py-2">
+                          {getProsentaseBadge(item.prosentase_saldo || 0)}
+                        </TableCell>
+                        <TableCell className="text-right px-2 py-2">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="edit" size="sm" className="h-7 w-7 p-0" onClick={() => handleEdit(item)}>
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </CardContent>

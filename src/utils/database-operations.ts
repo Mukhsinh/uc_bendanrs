@@ -471,28 +471,83 @@ export async function manualRecalculateBdrs(
   userId?: string
 ): Promise<any> {
   return executeWithRetry(async () => {
-    console.log(`🔄 Manual comprehensive recalculation BDRS for year ${tahun}`);
-    
-    const { data, error } = await supabase.rpc('manual_recalculate_bdrs', {
-      p_tahun: tahun,
-      p_user_id: userId || null
+    console.log(`🔄 Manual stepwise recalculation BDRS for year ${tahun}`);
+
+    if (!userId) {
+      throw new Error('User ID diperlukan untuk rekalkulasi BDRS.');
+    }
+
+    // 1. Hitung hasil_kali
+    console.log('🧮 [BDRS] Step 1/3 - fix_hasil_kali_bdrs...');
+    const { error: hasilKaliError } = await supabase.rpc('fix_hasil_kali_bdrs', {
+      p_user_id: userId,
+      p_tahun: tahun
     });
-
-    if (error) {
-      console.error(`Manual recalculation BDRS error:`, error);
-      throw new Error(`Gagal melakukan rekalkulasi: ${error.message}`);
+    if (hasilKaliError) {
+      console.error('Error calculating hasil_kali BDRS:', hasilKaliError);
+      throw new Error(`Gagal menghitung hasil_kali: ${hasilKaliError.message}`);
     }
 
-    if (data && !data.success) {
-      throw new Error(data.error || 'Rekalkulasi gagal');
+    // 2. Hitung dasar_alokasi
+    console.log('🧮 [BDRS] Step 2/3 - fix_dasar_alokasi_bdrs...');
+    const { error: alokasiError } = await supabase.rpc('fix_dasar_alokasi_bdrs', {
+      p_user_id: userId,
+      p_tahun: tahun
+    });
+    if (alokasiError) {
+      console.error('Error calculating dasar alokasi BDRS:', alokasiError);
+      throw new Error(`Gagal menghitung dasar alokasi: ${alokasiError.message}`);
     }
 
-    console.log(`✅ Manual recalculation BDRS completed successfully`);
-    console.log(`📊 Stats: ${data.affected_rows} records updated in ${data.execution_time_seconds}s`);
-    return data;
+    // 3. Hitung semua biaya
+    console.log('🧮 [BDRS] Step 3/3 - fix_biaya_calculation_bdrs_correct...');
+    const { data, error: biayaError } = await supabase.rpc('fix_biaya_calculation_bdrs_correct', {
+      p_user_id: userId,
+      p_tahun: tahun
+    });
+    if (biayaError) {
+      console.error('Error calculating biaya BDRS:', biayaError);
+      throw new Error(`Gagal menghitung biaya: ${biayaError.message}`);
+    }
+
+    // 4. Hitung berapa banyak baris yang benar-benar ikut dikalkulasi (untuk feedback UI)
+    console.log('📊 [BDRS] Counting affected rows for feedback...');
+    let affectedRows: number | null = null;
+    try {
+      // Hitung semua baris kalkulasi_bdrs untuk tahun tersebut (global),
+      // karena desain data BDRS saat ini memang tidak memfilter per user.
+      const { count, error: countError } = await supabase
+        .from('kalkulasi_bdrs')
+        .select('*', { count: 'exact', head: true })
+        .eq('tahun', tahun);
+
+      if (countError) {
+        console.warn('⚠️ Tidak bisa menghitung jumlah baris BDRS:', countError);
+      } else if (typeof count === 'number') {
+        affectedRows = count;
+      }
+    } catch (countErr) {
+      console.warn('⚠️ Error saat menghitung jumlah baris BDRS:', countErr);
+    }
+
+    console.log('✅ Manual stepwise recalculation BDRS completed successfully');
+    if (data) {
+      console.log('📊 Recalculation stats (from fix_biaya_calculation_bdrs_correct):', data);
+    }
+    if (affectedRows !== null) {
+      console.log(`📈 Total baris BDRS yang dikalkulasi untuk tahun ${tahun} & user ${userId}: ${affectedRows}`);
+    }
+
+    // Standarisasi bentuk data hasil agar kompatibel dengan caller
+    return {
+      success: true,
+      affected_rows: affectedRows ?? data?.affected_rows ?? null,
+      execution_time_seconds: data?.execution_time_seconds ?? null
+    };
   }, {
     maxRetries: 1,
-    timeoutMs: 120000 // 2 minutes for comprehensive recalculation
+    // Timeout moderat karena tiap RPC relatif lebih ringan dibanding satu fungsi besar
+    timeoutMs: 300000 // 5 menit total untuk seluruh rangkaian
   });
 }
 

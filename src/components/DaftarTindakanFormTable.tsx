@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
@@ -23,6 +24,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw, Plus, X, Search, Loader2, Clock, Star, AlertTriangle } from "lucide-react";
 import { useReportDownload } from "@/components/report";
+import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
+import { useUploadProgress } from "@/hooks/use-upload-progress";
 
 interface BahanTindakan {
   nama: string;
@@ -76,6 +79,7 @@ const DaftarTindakanFormTable: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [filterPelaksana, setFilterPelaksana] = useState<"all" | "medis" | "paramedis">("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
   
   // Bahan Tindakan states
   const [bahanList, setBahanList] = useState<BahanTindakan[]>([]);
@@ -137,7 +141,7 @@ const DaftarTindakanFormTable: React.FC = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("daftar_tindakan")
       .select("id, kode_tindakan, nama_tindakan, medis, paramedis, waktu, profesionalisme, tingkat_kesulitan, bahan_tindakan, biaya_bahan_tindakan, created_at")
       .order("created_at", { ascending: false });
@@ -269,7 +273,7 @@ const DaftarTindakanFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("daftar_tindakan").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("daftar_tindakan").delete().eq("id", id);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
@@ -352,7 +356,7 @@ const DaftarTindakanFormTable: React.FC = () => {
               return; 
             }
             
-            const { error } = await supabase.from("daftar_tindakan").insert(rows);
+            const { error } = await tenantSupabase.from("daftar_tindakan").insert(rows);
             if (error) throw error;
             
             await fetchAll();

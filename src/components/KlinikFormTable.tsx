@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -97,7 +98,7 @@ const KlinikFormTable: React.FC = () => {
 
   const fetchKlinik = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("klinik")
       .select("kode_klinik, nama_klinik, Layanan_BPJS_Kes, Layanan_Umum_Asuransi")
       .order("kode_klinik", { ascending: true });
@@ -169,7 +170,7 @@ const KlinikFormTable: React.FC = () => {
 
   const handleDelete = async (kode_klinik: string) => {
     try {
-      const { error } = await supabase.from("klinik").delete().eq("kode_klinik", kode_klinik);
+      const { error } = await tenantSupabase.from("klinik").delete().eq("kode_klinik", kode_klinik);
       if (error) throw error;
       await fetchKlinik();
       toast.success("Data klinik dihapus.");
@@ -243,7 +244,7 @@ const KlinikFormTable: React.FC = () => {
               const row = rows[i];
               try {
                 const nextKode = await generateNextKodeKlinik();
-                const { error } = await supabase.from("klinik").insert([{ 
+                const { error } = await tenantSupabase.from("klinik").insert([{ 
                   kode_klinik: nextKode, 
                   nama_klinik: row.nama_klinik,
                   Layanan_BPJS_Kes: row.Layanan_BPJS_Kes,

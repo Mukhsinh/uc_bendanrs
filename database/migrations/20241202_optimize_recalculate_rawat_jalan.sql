@@ -181,80 +181,80 @@ BEGIN
         -- Biaya dengan dasar alokasi hasil_kali
         biaya_gaji_tunjangan = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_gaji_tunjangan * fc.dasar_alokasi_hasil_kali) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_gaji_tunjangan * fc.dasar_alokasi_hasil_kali) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_pendidikan_pelatihan = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_pendidikan_pelatihan * fc.dasar_alokasi_hasil_kali) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_pendidikan_pelatihan * fc.dasar_alokasi_hasil_kali) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         -- Biaya dengan dasar alokasi kali_waktu
         biaya_rumah_tangga = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_rumah_tangga * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_rumah_tangga * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_cetak = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_cetak * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_cetak * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_atk = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_atk * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_atk * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_listrik = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_listrik * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_listrik * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_air = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_air * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_air * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_telp = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_telp * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_telp * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_pemeliharaan_bangunan = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_pemeliharaan_bangunan * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_pemeliharaan_bangunan * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_pemeliharaan_alat_medis = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_pemeliharaan_alat_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_pemeliharaan_alat_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_pemeliharaan_alat_non_medis = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_pemeliharaan_alat_non_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_pemeliharaan_alat_non_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_operasional_lainnya = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_operasional_lainnya * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_operasional_lainnya * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_penyusutan_gedung = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_penyusutan_gedung * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_penyusutan_gedung * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_penyusutan_jaringan = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_penyusutan_jaringan * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_penyusutan_jaringan * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_penyusutan_alat_medis = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_penyusutan_alat_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_penyusutan_alat_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_penyusutan_alat_non_medis = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_penyusutan_alat_non_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_penyusutan_alat_non_medis * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_laundry = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_laundry * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_laundry * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_sterilisasi = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.biaya_sterilisasi * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.biaya_sterilisasi * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_tidak_langsung_terdistribusi = CASE
             WHEN COALESCE(fc.jumlah, 0) <= 0 THEN 0
-            ELSE ROUND((fc.nilai_distribusi * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0))::BIGINT
+            ELSE LEAST(ROUND((fc.nilai_distribusi * fc.dasar_alokasi_kali_waktu) / NULLIF(fc.jumlah, 0)), 9223372036854775807)::BIGINT
         END,
         biaya_makan_karyawan = 0,
         updated_at = NOW()

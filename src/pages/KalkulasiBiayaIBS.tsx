@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, RefreshCw, Download } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -166,7 +167,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
   const generateInitialData = async (currentUserId: string) => {
     try {
       console.log("Checking existing data for user:", currentUserId, "year:", year);
-      const { data: existingData, error: checkError } = await supabase
+      const { data: existingData, error: checkError } = await tenantSupabase
         .from("kalkulasi_biaya_ibs")
         .select("id")
         .eq("tahun", year)
@@ -256,7 +257,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
         return;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from("kalkulasi_biaya_ibs")
         .select(`
         id, kode, kode_unit_kerja, jenis_pemeriksaan, jumlah, waktu_pemeriksaan, profesionalisme, tingkat_kesulitan, 
@@ -368,7 +369,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_ibs")
         .update({ bahan_pemeriksaan: parsed })
         .eq("id", selectedRow.id);
@@ -411,7 +412,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_ibs")
         .update({ bahan_pemeriksaan: bahanFarmasiList })
         .eq("id", selectedRowForBahan.id);
@@ -468,7 +469,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
 
       if (data.id) {
         // Update existing data
-        const { error: updateError } = await supabase
+        const { error: updateError } = await tenantSupabase
           .from("kalkulasi_biaya_ibs")
           .update({
             kode: tindakan.kode_tindakan,
@@ -488,7 +489,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
         toast.success("Data berhasil diupdate!");
       } else {
         // Insert data baru
-        const { error: insertError } = await supabase
+        const { error: insertError } = await tenantSupabase
           .from("kalkulasi_biaya_ibs")
           .insert({
             user_id: userId,
@@ -544,7 +545,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
     try {
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_ibs")
         .delete()
         .eq("id", row.id);
@@ -612,7 +613,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
     try {
       setDownloadingReport(true);
 
-      const { data: latestData, error: fetchError } = await supabase
+      const { data: latestData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_biaya_ibs')
         .select('*')
         .eq('tahun', year)
@@ -811,7 +812,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
               console.log(`Final target jenis: ${targetJenis}`);
               
               // First check if record exists
-              const { data: existingRecord, error: checkError } = await supabase
+              const { data: existingRecord, error: checkError } = await tenantSupabase
                 .from("kalkulasi_biaya_ibs")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
@@ -833,7 +834,7 @@ const KalkulasiBiayaIBS: React.FC = () => {
               }
 
               // Now perform the update
-              const { error: updateError, count } = await supabase
+              const { error: updateError, count } = await tenantSupabase
                 .from("kalkulasi_biaya_ibs")
                 .update({ 
                   jumlah, 

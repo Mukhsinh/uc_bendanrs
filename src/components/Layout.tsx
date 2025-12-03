@@ -118,6 +118,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     }
 
     const segments = path.split("/").filter(Boolean);
+
+    // Khusus halaman skenario tarif tindakan, tidak menampilkan ReportHeader global
+    const lastSegment = segments[segments.length - 1];
+    if (lastSegment === "skenario-tarif-tindakan") {
+      return null;
+    }
+
     const labels = segments.map(formatSegment);
     const title = labels.join(" · ");
     const subtitle =

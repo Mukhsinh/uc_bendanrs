@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +73,7 @@ const TindakanBDRSFormTable: React.FC = () => {
   }, [editing, form]);
 
   const fetchAll = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_bdrs")
       .select("kode, nama")
       .order("kode", { ascending: true });
@@ -114,7 +115,7 @@ const TindakanBDRSFormTable: React.FC = () => {
 
   const handleDelete = async (kode: string) => {
     try {
-      const { error } = await supabase.from("tindakan_bdrs").delete().eq("kode", kode);
+      const { error } = await tenantSupabase.from("tindakan_bdrs").delete().eq("kode", kode);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
@@ -177,7 +178,7 @@ const TindakanBDRSFormTable: React.FC = () => {
             }
             
             // Insert data to database
-            const { error } = await supabase.from("tindakan_bdrs").insert(rows);
+            const { error } = await tenantSupabase.from("tindakan_bdrs").insert(rows);
             if (error) throw error;
             
             // Complete upload with final counts

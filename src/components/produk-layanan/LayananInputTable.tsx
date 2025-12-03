@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -71,6 +71,17 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   const [selectedService, setSelectedService] = useState<string>("");
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
+
+  // Computed keys untuk dependency detection - menghindari infinite loop
+  const selectedKamarKeys = useMemo(() => 
+    selectedKamarAkomodasi?.map(k => k.kode_unit_kerja).filter(Boolean).sort().join(',') || '',
+    [selectedKamarAkomodasi]
+  );
+
+  const selectedKlinikKeys = useMemo(() =>
+    selectedKlinik?.map(k => k.kode_unit_kerja).filter(Boolean).sort().join(',') || '',
+    [selectedKlinik]
+  );
 
   const getBadgeConfig = () => {
     switch (filterType) {
@@ -189,7 +200,12 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           sumberTabel = "kalkulasi_tindakan_inap";
         }
 
-        console.log("Fetching tindakan:", { jenisProduk, sumberTabel, tahun });
+        console.log("=== FETCHING TINDAKAN ===");
+        console.log("Jenis Produk:", jenisProduk);
+        console.log("Sumber Tabel:", sumberTabel);
+        console.log("Tahun:", tahun);
+        console.log("Selected Kamar Akomodasi:", selectedKamarAkomodasi);
+        console.log("Selected Klinik:", selectedKlinik);
 
         if (sumberTabel) {
           let query = supabase
@@ -197,14 +213,52 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
             .select("*, kode_unit_kerja, nama_unit_kerja")
             .eq("tahun", tahun)
             .eq("sumber_tabel", sumberTabel);
+          
+          // Filter berdasarkan kamar akomodasi atau klinik yang dipilih
+          if (jenisProduk === "rawat inap" && selectedKamarAkomodasi && selectedKamarAkomodasi.length > 0) {
+            // Ambil kode unit kerja dari kamar yang dipilih
+            const kodeUnitKerjaList = selectedKamarAkomodasi
+              .map(k => k.kode_unit_kerja)
+              .filter(k => k); // Hapus nilai null/undefined
+            
+            console.log("Filtering by Unit Kerja from Kamar:", kodeUnitKerjaList);
+            
+            if (kodeUnitKerjaList.length > 0) {
+              query = query.in("kode_unit_kerja", kodeUnitKerjaList);
+            }
+          } else if (jenisProduk === "rawat jalan" && selectedKlinik && selectedKlinik.length > 0) {
+            // Ambil kode unit kerja dari klinik yang dipilih
+            const kodeUnitKerjaList = selectedKlinik
+              .map(k => k.kode_unit_kerja)
+              .filter(k => k); // Hapus nilai null/undefined
+            
+            console.log("Filtering by Unit Kerja from Klinik:", kodeUnitKerjaList);
+            
+            if (kodeUnitKerjaList.length > 0) {
+              query = query.in("kode_unit_kerja", kodeUnitKerjaList);
+            }
+          }
+          
           query = applyUserScope(query, userId);
           const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
           data = result.data || [];
           error = result.error;
           
-          console.log("Tindakan fetched:", data.length, "records");
-          if (data.length > 0) {
-            console.log("Sample tindakan:", data[0]);
+          console.log("📦 Query result:", {
+            totalFetched: data.length,
+            sampleData: data.slice(0, 3),
+            uniqueUnitKerja: [...new Set(data.map(d => d.kode_unit_kerja))],
+            uniqueNamaUnitKerja: [...new Set(data.map(d => d.nama_unit_kerja))]
+          });
+          
+          if (data.length === 0) {
+            console.warn("⚠️ No tindakan found. Check if:");
+            console.log("- Kamar/Klinik have valid kode_unit_kerja");
+            console.log("- Tindakan exists for those unit kerja in skenario_tarif");
+            console.log("- Selected unit kerja:", jenisProduk === "rawat inap" 
+              ? selectedKamarAkomodasi?.map(k => k.kode_unit_kerja)
+              : selectedKlinik?.map(k => k.kode_unit_kerja)
+            );
           }
         }
       } else if (filterType === "ibs") {
@@ -384,83 +438,14 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
 
   useEffect(() => {
     fetchServices();
-  }, [tahun, jenisProduk, spesialisasiDokter, refreshKey]);
+  }, [tahun, jenisProduk, spesialisasiDokter, refreshKey, selectedKamarKeys, selectedKlinikKeys]);
 
   // Filter berdasarkan kamar akomodasi atau klinik yang dipilih (untuk tindakan)
+  // NOTE: Data sudah difilter di server-side dalam fetchServices() berdasarkan kode_unit_kerja
+  // Fungsi ini sekarang hanya mengembalikan availableServices yang sudah terfilter
   const getFilteredByKamarOrKlinik = () => {
-    // Jika bukan tindakan, tidak perlu filter
-    if (filterType !== "tindakan") {
-      return availableServices;
-    }
-
-    // RAWAT JALAN: Filter berdasarkan klinik yang dipilih
-    if (jenisProduk === "rawat jalan") {
-      // Jika belum ada klinik yang dipilih, return array kosong
-      if (!selectedKlinik || selectedKlinik.length === 0) {
-        console.log("Rawat Jalan: Belum ada klinik dipilih, dropdown kosong");
-        return [];
-      }
-
-      // Ambil daftar kode_unit_kerja dari klinik yang dipilih
-      const selectedUnitKerja = selectedKlinik
-        .map(klinik => klinik.kode_unit_kerja)
-        .filter(Boolean);
-
-      console.log("Selected Unit Kerja dari Klinik:", selectedUnitKerja);
-      console.log("Available Services:", availableServices.length);
-
-      // Filter tindakan yang unit kerjanya sesuai dengan klinik yang dipilih
-      const filtered = availableServices.filter(service => {
-        const hasUnitKerja = service.kode_unit_kerja && selectedUnitKerja.includes(service.kode_unit_kerja);
-        if (hasUnitKerja) {
-          console.log("Match found:", service.nama_tindakan, "Unit:", service.nama_unit_kerja);
-        }
-        return hasUnitKerja;
-      });
-
-      console.log("Filtered Services (Rawat Jalan):", filtered.length);
-      return filtered;
-    }
-
-    // RAWAT INAP: Filter berdasarkan kamar yang dipilih
-    if (jenisProduk === "rawat inap") {
-      // Jika belum ada kamar yang dipilih, return array kosong
-      if (!selectedKamarAkomodasi || selectedKamarAkomodasi.length === 0) {
-        console.log("Rawat Inap: Belum ada kamar dipilih, dropdown kosong");
-        return [];
-      }
-
-      // Ambil daftar kode_unit_kerja dari kamar yang dipilih
-      const selectedUnitKerja = selectedKamarAkomodasi
-        .map(kamar => kamar.kode_unit_kerja)
-        .filter(Boolean);
-
-      console.log("🔍 Selected Unit Kerja dari Kamar:", selectedUnitKerja);
-      console.log("📦 Available Services:", availableServices.length);
-      
-      if (availableServices.length > 0) {
-        console.log("📋 Sample service:", availableServices[0]);
-      }
-
-      // Filter tindakan yang unit kerjanya sesuai dengan kamar yang dipilih
-      const filtered = availableServices.filter(service => {
-        const hasUnitKerja = service.kode_unit_kerja && selectedUnitKerja.includes(service.kode_unit_kerja);
-        if (hasUnitKerja) {
-          console.log("✅ Match found:", service.nama_tindakan, "Unit:", service.nama_unit_kerja);
-        }
-        return hasUnitKerja;
-      });
-
-      console.log("🎯 Filtered Services (Rawat Inap):", filtered.length);
-      if (filtered.length === 0 && availableServices.length > 0) {
-        console.warn("⚠️ No matches! Check if kode_unit_kerja matches");
-        console.log("Expected:", selectedUnitKerja);
-        console.log("Available unit kerja:", [...new Set(availableServices.map(s => s.kode_unit_kerja))]);
-      }
-      return filtered;
-    }
-
-    // Default: tampilkan semua
+    console.log("📊 getFilteredByKamarOrKlinik - Available services:", availableServices.length);
+    // Data sudah difilter di server, langsung return
     return availableServices;
   };
 

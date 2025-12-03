@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -74,7 +75,7 @@ const TindakanCathlabFormTable: React.FC = () => {
   }, [editing, form]);
 
   const fetchAll = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_cathlab")
       .select("id, kode_tindakan, nama_tindakan, created_at, updated_at")
       .order("created_at", { ascending: false });
@@ -116,7 +117,7 @@ const TindakanCathlabFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("tindakan_cathlab").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("tindakan_cathlab").delete().eq("id", id);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
@@ -179,7 +180,7 @@ const TindakanCathlabFormTable: React.FC = () => {
             }
             
             // Insert data to database
-            const { error } = await supabase.from("tindakan_cathlab").insert(rows);
+            const { error } = await tenantSupabase.from("tindakan_cathlab").insert(rows);
             if (error) throw error;
             
             // Complete upload with final counts

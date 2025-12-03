@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
+import { executeRPC } from "@/utils/database-operations";
 import { Download, Calculator, RefreshCw, Building, TrendingUp, TrendingDown, Layers, ListOrdered } from "lucide-react";
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -164,28 +166,93 @@ const KalkulasiTindakanRawatJalan = () => {
       });
       
       const startTime = Date.now();
-      
-      // Panggil fungsi untuk semua data sekaligus (fungsi database sudah dioptimasi)
-      const { data: recalcResult, error: recalcError } = await supabase
-        .rpc('manual_recalculate_kalkulasi_tindakan_rawat_jalan', {
-          p_tahun: tahun,
-          p_kode_unit_kerja: null // Process all units at once
-        });
-      
-      if (recalcError) {
-        console.error('RPC Error:', recalcError);
-        throw new Error(recalcError.message || 'Gagal memanggil fungsi rekalkulasi');
+
+      // ====== MODE BATCHED PER UNIT KERJA UNTUK MENGHINDARI STATEMENT TIMEOUT ======
+      // 1. Ambil daftar kode_unit_kerja unik untuk tahun tersebut
+      const { data: unitsData, error: unitsError } = await tenantSupabase
+        .from('kalkulasi_tindakan_rawat_jalan')
+        .select('kode_unit_kerja')
+        .eq('tahun', tahun);
+
+      if (unitsError) {
+        console.error('Error fetching unit list for batched recalculation:', unitsError);
+        throw new Error(`Gagal mengambil daftar unit kerja: ${unitsError.message}`);
       }
-      
-      if (!recalcResult || !recalcResult.success) {
-        throw new Error(recalcResult?.message || 'Rekalkulasi gagal');
+
+      const unitCodes = Array.from(
+        new Set(
+          (unitsData || [])
+            .map((row: any) => row?.kode_unit_kerja)
+            .filter((kode: any) => typeof kode === 'string' && kode.trim().length > 0)
+        )
+      );
+
+      console.log(
+        `[RAWAT JALAN] Batched recalculation - tahun=${tahun}, total unit=${unitCodes.length}`
+      );
+
+      let totalAffected = 0;
+
+      if (unitCodes.length === 0) {
+        // Fallback: jika tidak ada unit spesifik, jalankan global seperti sebelumnya
+        console.log(
+          '[RAWAT JALAN] Tidak ada kode_unit_kerja ditemukan, menjalankan rekalkulasi global...'
+        );
+        const recalcResult = await executeRPC(
+          'manual_recalculate_kalkulasi_tindakan_rawat_jalan',
+          {
+            p_tahun: tahun,
+            p_kode_unit_kerja: null
+          },
+          {
+            timeoutMs: 600000
+          }
+        );
+
+        if (!recalcResult || !recalcResult.success) {
+          throw new Error(recalcResult?.message || 'Rekalkulasi gagal');
+        }
+
+        totalAffected = recalcResult?.affected_rows || 0;
+      } else {
+        // 2. Jalankan rekalkulasi per unit kerja
+        const totalUnits = unitCodes.length;
+        for (let i = 0; i < totalUnits; i++) {
+          const kodeUnit = unitCodes[i];
+          const progress = Math.round(((i + 1) / totalUnits) * 100);
+          setRecalculateProgress(progress);
+
+          console.log(
+            `[RAWAT JALAN] Rekalkulasi unit ${kodeUnit} (${i + 1}/${totalUnits}) - progress ${progress}%`
+          );
+
+          const recalcResult = await executeRPC(
+            'manual_recalculate_kalkulasi_tindakan_rawat_jalan',
+            {
+              p_tahun: tahun,
+              p_kode_unit_kerja: kodeUnit
+            },
+            {
+              // Timeout per unit, jauh lebih kecil dari proses global
+              timeoutMs: 600000
+            }
+          );
+
+          if (!recalcResult || !recalcResult.success) {
+            throw new Error(
+              recalcResult?.message || `Rekalkulasi gagal untuk unit ${kodeUnit}`
+            );
+          }
+
+          totalAffected += recalcResult?.affected_rows || 0;
+        }
       }
-      
+
       setRecalculateProgress(100);
-      
+
       const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
-      const affectedRows = recalcResult?.affected_rows || 0;
-      
+      const affectedRows = totalAffected;
+
       toast({
         title: "Berhasil",
         description: `Rekalkulasi selesai! ${affectedRows} baris diproses dalam ${executionTime}s`,
@@ -198,11 +265,19 @@ const KalkulasiTindakanRawatJalan = () => {
       
     } catch (error) {
       console.error('Error recalculating data:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setError(errorMessage);
+      const rawMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+      let friendlyMessage = rawMessage;
+      if (rawMessage.toLowerCase().includes('integer out of range')) {
+        friendlyMessage =
+          'Angka hasil perhitungan melebihi batas integer di database. ' +
+          'Silakan cek kembali data sumber biaya (data_biaya / distribusi biaya) agar nilainya tidak terlalu besar.';
+      }
+
+      setError(friendlyMessage);
       toast({
         title: "Error",
-        description: `Gagal melakukan rekalkulasi: ${errorMessage}`,
+        description: `Gagal melakukan rekalkulasi: ${friendlyMessage}`,
         variant: "destructive",
       });
     } finally {
@@ -217,7 +292,7 @@ const KalkulasiTindakanRawatJalan = () => {
       setLoading(true);
       setError(null);
       
-      const { data: result, error: fetchError } = await supabase
+      const { data: result, error: fetchError } = await tenantSupabase
         .from('kalkulasi_tindakan_rawat_jalan')
         .select('*')
         .order('nama_unit_kerja', { ascending: true })
@@ -373,7 +448,7 @@ const KalkulasiTindakanRawatJalan = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: dbData, error: fetchError } = await supabase
+      const { data: dbData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_tindakan_rawat_jalan')
         .select('*')
         .order('tahun', { ascending: false })

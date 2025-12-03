@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { Download, Upload, Plus, Edit, Trash2, Calculator, Clock, RefreshCw } from "lucide-react";
 import * as XLSX from "xlsx";
 import BahanPorsiForm from "@/components/BahanPorsiForm";
@@ -198,7 +199,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       const startTime = performance.now();
       
       // Optimized query - only select columns needed for display and calculation
-      const { data: kalkulasiData, error } = await supabase
+      const { data: kalkulasiData, error } = await tenantSupabase
         .from('kalkulasi_biaya_gizi')
         .select(`
           id,
@@ -389,7 +390,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: dbData, error: fetchError } = await supabase
+      const { data: dbData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_biaya_gizi')
         .select('*')
         .eq('tahun', currentYear)
@@ -547,7 +548,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       setDownloadingDetailBiaya(true);
       const filter = exportJenisFilter?.trim();
       // Fetch fresh data from DB to ensure up-to-date export and include all columns
-      let query = supabase
+      let query = tenantSupabase
         .from('kalkulasi_biaya_gizi')
         .select('*')
         .eq('tahun', currentYear);
@@ -703,7 +704,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       delete (submitData as any).unit_cost_per_porsi;
 
       if (editingItem) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from('kalkulasi_biaya_gizi')
           .update(submitData)
           .eq('id', editingItem.id);
@@ -714,7 +715,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
           description: "Data kalkulasi biaya gizi berhasil diperbarui",
         });
       } else {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from('kalkulasi_biaya_gizi')
           .insert([submitData]);
 
@@ -798,7 +799,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
     try {
       setLoading(true);
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from('kalkulasi_biaya_gizi')
         .delete()
         .eq('id', id);
@@ -911,7 +912,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
     try {
       setLoading(true);
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from('kalkulasi_biaya_gizi')
         .update({
           waktu_meracik: waktuData.waktu_meracik,
@@ -1094,7 +1095,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       
       console.log('Importing data:', importData);
 
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from('kalkulasi_biaya_gizi')
         .insert(importData);
 
@@ -1805,7 +1806,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
                         updated_at: new Date().toISOString()
                       }));
 
-                      const { error: kalkulasiError } = await supabase
+                      const { error: kalkulasiError } = await tenantSupabase
                         .from('kalkulasi_biaya_gizi')
                         .update({ 
                           bahan_porsi: dataForKalkulasi,

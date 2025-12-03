@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { FileDown, RefreshCw, TrendingUp, Package, Users, Clock3, Trophy, ListOrdered } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useReportDownload } from "@/components/report";
@@ -108,7 +109,7 @@ const RekapitulasiUnitCost: React.FC = () => {
 
     try {
       // Fetch semua unit kerja yang tersedia untuk tahun tertentu (tanpa limit)
-      const { data: unitKerjaData, error: unitKerjaError } = await supabase
+      const { data: unitKerjaData, error: unitKerjaError } = await tenantSupabase
         .from("view_rekapitulasi_unit_cost")
         .select("nama_unit_kerja")
         .eq("tahun", tahunTarget)
@@ -122,7 +123,7 @@ const RekapitulasiUnitCost: React.FC = () => {
       }
 
       // Fetch semua operator yang tersedia untuk tahun tertentu (tanpa limit)
-      const { data: operatorData, error: operatorError } = await supabase
+      const { data: operatorData, error: operatorError } = await tenantSupabase
         .from("view_rekapitulasi_unit_cost")
         .select("kode_operator, nama_operator")
         .eq("tahun", tahunTarget)
@@ -161,7 +162,7 @@ const RekapitulasiUnitCost: React.FC = () => {
       let hasMore = true;
 
       while (hasMore) {
-        const { data: rekapData, error: rekapError } = await supabase
+        const { data: rekapData, error: rekapError } = await tenantSupabase
           .from("view_rekapitulasi_unit_cost")
           .select(
             "id, tahun, kode_jenis, kode_unit_kerja, nama_unit_kerja, kode_operator, nama_operator, kode_tindakan, nama_tindakan, biaya_bahan, unit_cost_per_tindakan, sumber_tabel, jumlah, waktu_pemeriksaan, created_at, updated_at"

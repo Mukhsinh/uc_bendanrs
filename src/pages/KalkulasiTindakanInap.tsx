@@ -125,6 +125,7 @@ const KalkulasiTindakanInap = () => {
   const [showStats, setShowStats] = useState<boolean>(true);
   const [downloadingReport, setDownloadingReport] = useState<boolean>(false);
   const { downloadReport } = useReportDownload();
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   useEffect(() => {
     console.log('Component mounted, fetching data...');
@@ -143,7 +144,7 @@ const KalkulasiTindakanInap = () => {
       setLoading(true);
       setError(null);
       
-      const { data: result, error: fetchError } = await supabase
+      const { data: result, error: fetchError } = await tenantSupabase
         .from('kalkulasi_tindakan_inap')
         .select('*')
         .order('nama_unit_kerja', { ascending: true })
@@ -215,18 +216,33 @@ const KalkulasiTindakanInap = () => {
 
   const handleRefresh = async () => {
     try {
-      setLoading(true);
+      setIsRefreshing(true);
 
       const parsedYear = filters.tahun ? parseInt(filters.tahun, 10) : NaN;
-      const tahunParam = Number.isFinite(parsedYear) ? parsedYear : null;
+      // Jika tahun tidak valid atau kosong, gunakan tahun berjalan agar tipe parameter selalu integer (menghindari error 400 Supabase)
+      const tahunParam = Number.isFinite(parsedYear) ? parsedYear : new Date().getFullYear();
 
-      const { data: recalcResult, error: recalcError } = await supabase.rpc('manual_recalculate_kalkulasi_tindakan_inap', {
-        p_tahun: tahunParam,
-        p_kode_unit_kerja: null,
-      });
+      const { data: recalcResult, error: recalcError } = await supabase
+        .rpc('manual_recalculate_kalkulasi_tindakan_inap', {
+          p_tahun: tahunParam,
+          p_kode_unit_kerja: null,
+        });
+
+      console.log('Recalculate result:', recalcResult);
+      console.log('Recalculate error:', recalcError);
 
       if (recalcError) {
-        throw recalcError;
+        // Log detail error ke console agar mudah di-debug (misalnya status 400 dari Supabase)
+        console.error('Supabase RPC manual_recalculate_kalkulasi_tindakan_inap failed:', recalcError);
+        throw new Error(recalcError.message || 'Gagal memanggil fungsi rekalkulasi kalkulasi tindakan inap');
+      }
+
+      // Jika fungsi mengembalikan payload JSONB dengan struktur { success, message, affected_rows, execution_time_seconds, ... }
+      if (!recalcResult || (typeof recalcResult === 'object' && 'success' in (recalcResult as any) && !(recalcResult as any).success)) {
+        const resultMessage =
+          (recalcResult as any)?.message ||
+          'Rekalkulasi kalkulasi tindakan inap gagal dijalankan, silakan cek data sumber (jenis tindakan, data biaya, distribusi biaya).';
+        throw new Error(resultMessage);
       }
 
       const success = await fetchData();
@@ -242,13 +258,20 @@ const KalkulasiTindakanInap = () => {
         });
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Gagal memperbarui data kalkulasi';
+      const errorMessage = error instanceof Error
+        ? `Gagal memperbarui data kalkulasi: ${error.message}`
+        : 'Gagal memperbarui data kalkulasi';
+
+      console.error('Error saat menjalankan handleRefresh di KalkulasiTindakanInap:', error);
+
       toast({
         title: "Error",
         description: errorMessage,
         variant: "destructive",
       });
-      setLoading(false);
+    } finally {
+      // Pastikan indikator refresh selalu dimatikan walaupun terjadi error RPC atau error lain
+      setIsRefreshing(false);
     }
   };
 
@@ -332,7 +355,7 @@ const KalkulasiTindakanInap = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: dbData, error: fetchError } = await supabase
+      const { data: dbData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_tindakan_inap')
         .select('*')
         .order('tahun', { ascending: false })
@@ -510,13 +533,33 @@ const KalkulasiTindakanInap = () => {
             variant="ghost"
             size="icon"
             onClick={handleRefresh}
-            disabled={loading}
+            disabled={loading || isRefreshing}
             aria-label="Perbarui data"
           >
-            <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCcw className={`h-4 w-4 ${(loading || isRefreshing) ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
+
+      {isRefreshing && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="pt-4 pb-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-blue-900">
+                  Rekalkulasi kalkulasi tindakan inap sedang berjalan...
+                </span>
+                <span className="text-xs text-blue-800">
+                  Proses ini dapat memakan waktu beberapa detik.
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                <div className="bg-blue-600 h-full w-1/2 animate-pulse" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="border border-sky-100 bg-sky-50">

@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { getCurrentTenantId } from '@/lib/tenantAwareClient';
 
 interface RoleProtectedRouteProps {
   children: JSX.Element;
@@ -39,12 +40,37 @@ export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
 
   const checkUserRole = async (userId: string) => {
     try {
-      // Cek jika superadmin
+      // Get current tenant_id
+      const currentTenantId = getCurrentTenantId();
+
+      // Cek jika superadmin (superadmin bisa akses semua tanpa isolasi tenant)
       const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: userId });
       
       if (isSuperadmin) {
         setUserRole("Super Admin");
         setHasAccess(allowedRoles.includes("Super Admin"));
+        setIsLoading(false);
+        return;
+      }
+
+      // Jika bukan superadmin, pastikan tenant_id tersedia
+      if (!currentTenantId) {
+        console.warn("Tenant ID tidak tersedia. Akses ditolak.");
+        setHasAccess(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // Verifikasi user memiliki tenant_id yang sesuai dengan current tenant
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('tenant_id')
+        .eq('user_id', userId)
+        .single();
+
+      if (!userProfile || userProfile.tenant_id !== currentTenantId) {
+        console.warn("User tidak memiliki akses ke tenant ini");
+        setHasAccess(false);
         setIsLoading(false);
         return;
       }

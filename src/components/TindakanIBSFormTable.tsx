@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -87,7 +88,7 @@ const TindakanIBSFormTable: React.FC = () => {
   }, [editing, form]);
 
   const fetchAll = async () => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_ibs")
       .select("id, kode_tindakan, nama_tindakan, created_at, updated_at")
       .order("kode_tindakan", { ascending: true });
@@ -135,7 +136,7 @@ const TindakanIBSFormTable: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!confirm("Yakin hapus data ini?")) return;
     try {
-      const { error } = await supabase.from("tindakan_ibs").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("tindakan_ibs").delete().eq("id", id);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");

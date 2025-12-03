@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -97,7 +98,7 @@ const DataKamarFormTable: React.FC = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("Data_Kamar")
       .select("id, Kode_Kamar, Nama_Kamar, Kelas_SVIP, Kelas_VIP, Kelas_I, Kelas_II, Kelas_III, Kelas_Khusus")
       .order("id", { ascending: true });
@@ -172,7 +173,7 @@ const DataKamarFormTable: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      const { error } = await supabase.from("Data_Kamar").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("Data_Kamar").delete().eq("id", id);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
@@ -255,7 +256,7 @@ const DataKamarFormTable: React.FC = () => {
               const row = rows[i];
               try {
                 const nextKode = await generateNextKodeKamar();
-                const { error } = await supabase.from("Data_Kamar").insert([{ 
+                const { error } = await tenantSupabase.from("Data_Kamar").insert([{ 
                   Kode_Kamar: nextKode, 
                   Nama_Kamar: row.Nama_Kamar, 
                   Kelas_SVIP: row.Kelas_SVIP,

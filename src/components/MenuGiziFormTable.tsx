@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -66,7 +67,7 @@ const MenuGiziFormTable: React.FC = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("menu_gizi")
       .select("id, kode_makanan, nama_makanan")
       .order("id", { ascending: true });
@@ -108,7 +109,7 @@ const MenuGiziFormTable: React.FC = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      const { error } = await supabase.from("menu_gizi").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("menu_gizi").delete().eq("id", id);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
@@ -178,7 +179,7 @@ const MenuGiziFormTable: React.FC = () => {
             for (let i = 0; i < rows.length; i++) {
               const row = rows[i];
               try {
-                const { error } = await supabase.from("menu_gizi").insert([{ 
+                const { error } = await tenantSupabase.from("menu_gizi").insert([{ 
                   nama_makanan: row.nama_makanan
                 }]);
                 

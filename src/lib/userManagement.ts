@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { getCurrentTenantId } from "@/lib/tenantAwareClient";
 
 export interface Role {
   id: string;
@@ -138,8 +139,15 @@ export async function getAllUsers(): Promise<UserWithRole[]> {
       return [];
     }
 
+    // Get current tenant_id from sessionStorage
+    const currentTenantId = getCurrentTenantId();
+
+    // Check if superadmin (superadmin can see all users across tenants)
+    const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: currentUser.id });
+
     // Get user profiles with tenant info
-    const { data: profiles, error: profileError } = await supabase
+    // Filter by tenant_id unless user is superadmin
+    let query = supabase
       .from('user_profiles')
       .select(`
         user_id,
@@ -150,8 +158,14 @@ export async function getAllUsers(): Promise<UserWithRole[]> {
           name,
           slug
         )
-      `)
-      .order('created_at', { ascending: false });
+      `);
+
+    // Filter by tenant_id if not superadmin
+    if (!isSuperadmin && currentTenantId) {
+      query = query.eq('tenant_id', currentTenantId);
+    }
+
+    const { data: profiles, error: profileError } = await query.order('created_at', { ascending: false });
 
     if (profileError) {
       console.error('Error fetching profiles:', profileError);

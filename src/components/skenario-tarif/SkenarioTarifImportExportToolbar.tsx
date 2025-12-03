@@ -41,6 +41,46 @@ interface SkenarioTarifImportExportToolbarProps {
   onImport: (importedData: any[]) => void;
 }
 
+// Helper untuk parsing angka dari Excel, mendukung format lokal (mis. "Rp 70.285", "70.285,50")
+const parseNumericCell = (value: any, fallback?: number): number => {
+  if (value === null || value === undefined || value === "") {
+    return fallback ?? 0;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const raw = String(value).trim();
+  // Hilangkan karakter non-angka/pemisah desimal/ribuan
+  const cleaned = raw.replace(/[^0-9,.\-]/g, "");
+  if (!cleaned) {
+    return fallback ?? 0;
+  }
+
+  let normalized = cleaned;
+
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+
+  if (hasComma && hasDot) {
+    // Asumsi format lokal: titik sebagai ribuan, koma sebagai desimal
+    normalized = cleaned.replace(/\./g, "").replace(",", ".");
+  } else if (hasComma && !hasDot) {
+    // Koma sebagai desimal
+    normalized = cleaned.replace(",", ".");
+  }
+  // Jika hanya titik atau hanya digit, Number() sudah cukup
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) {
+    console.warn("Gagal parse angka dari sel Excel:", value);
+    return fallback ?? 0;
+  }
+
+  return parsed;
+};
+
 const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolbarProps> = ({
   tahun,
   type,
@@ -198,6 +238,7 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
 
         // Process skenario import
         const importedData: any[] = [];
+        const notFoundRows: any[] = [];
         let successCount = 0;
         let errorCount = 0;
 
@@ -207,25 +248,33 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
           
           if (!kodeTindakan || !kodeUnitKerja) {
             errorCount++;
+            notFoundRows.push(row);
             continue;
           }
 
-          // Find matching row in current data
+          // Cari baris yang cocok di data saat ini
           const existingRow = (data as SkenarioTarifRow[]).find(
             (d) => d.kode_tindakan === kodeTindakan && d.kode_unit_kerja === kodeUnitKerja
           );
 
           if (!existingRow) {
             errorCount++;
+            notFoundRows.push(row);
             continue;
           }
 
           // Only update manual input fields
           const updatedRow = {
             id: existingRow.id,
-            jasa_sarana: row.jasa_sarana !== undefined ? parseFloat(String(row.jasa_sarana)) : existingRow.jasa_sarana,
-            jasa_pelayanan_medis: row.jasa_pelayanan_medis !== undefined ? parseFloat(String(row.jasa_pelayanan_medis)) : existingRow.jasa_pelayanan_medis,
-            jasa_pelayanan_non_medis: row.jasa_pelayanan_non_medis !== undefined ? parseFloat(String(row.jasa_pelayanan_non_medis)) : existingRow.jasa_pelayanan_non_medis,
+            jasa_sarana: row.jasa_sarana !== undefined
+              ? parseNumericCell(row.jasa_sarana, existingRow.jasa_sarana)
+              : existingRow.jasa_sarana,
+            jasa_pelayanan_medis: row.jasa_pelayanan_medis !== undefined
+              ? parseNumericCell(row.jasa_pelayanan_medis, existingRow.jasa_pelayanan_medis)
+              : existingRow.jasa_pelayanan_medis,
+            jasa_pelayanan_non_medis: row.jasa_pelayanan_non_medis !== undefined
+              ? parseNumericCell(row.jasa_pelayanan_non_medis, existingRow.jasa_pelayanan_non_medis)
+              : existingRow.jasa_pelayanan_non_medis,
           };
 
           importedData.push(updatedRow);
@@ -235,8 +284,11 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
         if (successCount > 0) {
           onImport(importedData);
           toast.success(
-            `Import berhasil: ${successCount} data diupdate${errorCount > 0 ? `, ${errorCount} data gagal` : ""}`
+            `Import berhasil: ${successCount} data diupdate${errorCount > 0 ? `, ${errorCount} baris tidak cocok (cek kembali kolom kode_tindakan & kode_unit_kerja)` : ""}`
           );
+          if (notFoundRows.length > 0) {
+            console.warn("Baris import skenario_tarif yang tidak ditemukan di data saat ini (contoh):", notFoundRows.slice(0, 10));
+          }
         } else {
           toast.error(`Import gagal: ${errorCount} data tidak valid`);
         }
@@ -252,6 +304,7 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
 
         // Process akomodasi import
         const importedData: any[] = [];
+        const notFoundRows: any[] = [];
         let successCount = 0;
         let errorCount = 0;
 
@@ -260,27 +313,39 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
           
           if (!kodeUnitKerja) {
             errorCount++;
+            notFoundRows.push(row);
             continue;
           }
 
-          // Find matching row in current data
+          // Cari baris yang cocok di data saat ini
           const existingRow = (data as SkenarioTarifAkomodasiRow[]).find(
             (d) => d.kode_unit_kerja === kodeUnitKerja
           );
 
           if (!existingRow) {
             errorCount++;
+            notFoundRows.push(row);
             continue;
           }
 
           // Only update manual input fields (tarif)
           const updatedRow = {
             id: existingRow.id,
-            tarif_vvip: row.tarif_vvip !== undefined ? parseFloat(String(row.tarif_vvip)) : existingRow.tarif_vvip,
-            tarif_vip: row.tarif_vip !== undefined ? parseFloat(String(row.tarif_vip)) : existingRow.tarif_vip,
-            tarif_i: row.tarif_i !== undefined ? parseFloat(String(row.tarif_i)) : existingRow.tarif_i,
-            tarif_ii: row.tarif_ii !== undefined ? parseFloat(String(row.tarif_ii)) : existingRow.tarif_ii,
-            tarif_iii: row.tarif_iii !== undefined ? parseFloat(String(row.tarif_iii)) : existingRow.tarif_iii,
+            tarif_vvip: row.tarif_vvip !== undefined
+              ? parseNumericCell(row.tarif_vvip, existingRow.tarif_vvip)
+              : existingRow.tarif_vvip,
+            tarif_vip: row.tarif_vip !== undefined
+              ? parseNumericCell(row.tarif_vip, existingRow.tarif_vip)
+              : existingRow.tarif_vip,
+            tarif_i: row.tarif_i !== undefined
+              ? parseNumericCell(row.tarif_i, existingRow.tarif_i)
+              : existingRow.tarif_i,
+            tarif_ii: row.tarif_ii !== undefined
+              ? parseNumericCell(row.tarif_ii, existingRow.tarif_ii)
+              : existingRow.tarif_ii,
+            tarif_iii: row.tarif_iii !== undefined
+              ? parseNumericCell(row.tarif_iii, existingRow.tarif_iii)
+              : existingRow.tarif_iii,
           };
 
           importedData.push(updatedRow);
@@ -290,8 +355,11 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
         if (successCount > 0) {
           onImport(importedData);
           toast.success(
-            `Import berhasil: ${successCount} data diupdate${errorCount > 0 ? `, ${errorCount} data gagal` : ""}`
+            `Import berhasil: ${successCount} data diupdate${errorCount > 0 ? `, ${errorCount} baris tidak cocok (cek kembali kolom kode_unit_kerja)` : ""}`
           );
+          if (notFoundRows.length > 0) {
+            console.warn("Baris import skenario_tarif_akomodasi yang tidak ditemukan di data saat ini (contoh):", notFoundRows.slice(0, 10));
+          }
         } else {
           toast.error(`Import gagal: ${errorCount} data tidak valid`);
         }
@@ -307,6 +375,7 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
         }
 
         const importedData: any[] = [];
+        const notFoundRows: any[] = [];
         let successCount = 0;
         let errorCount = 0;
 
@@ -315,25 +384,33 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
           
           if (!tindakan) {
             errorCount++;
+            notFoundRows.push(row);
             continue;
           }
 
-          // Find matching row in current data
+          // Cari baris yang cocok di data saat ini
           const existingRow = (data as SkenarioTarifVisitRow[]).find(
             (d) => d.tindakan === tindakan
           );
 
           if (!existingRow) {
             errorCount++;
+            notFoundRows.push(row);
             continue;
           }
 
           // Only update manual input fields
           const updatedRow = {
             id: existingRow.id,
-            jasa_sarana: row.jasa_sarana !== undefined ? parseFloat(String(row.jasa_sarana)) : existingRow.jasa_sarana,
-            jasa_pelayanan_medis: row.jasa_pelayanan_medis !== undefined ? parseFloat(String(row.jasa_pelayanan_medis)) : existingRow.jasa_pelayanan_medis,
-            jasa_pelayanan_non_medis: row.jasa_pelayanan_non_medis !== undefined ? parseFloat(String(row.jasa_pelayanan_non_medis)) : existingRow.jasa_pelayanan_non_medis,
+            jasa_sarana: row.jasa_sarana !== undefined
+              ? parseNumericCell(row.jasa_sarana, existingRow.jasa_sarana)
+              : existingRow.jasa_sarana,
+            jasa_pelayanan_medis: row.jasa_pelayanan_medis !== undefined
+              ? parseNumericCell(row.jasa_pelayanan_medis, existingRow.jasa_pelayanan_medis)
+              : existingRow.jasa_pelayanan_medis,
+            jasa_pelayanan_non_medis: row.jasa_pelayanan_non_medis !== undefined
+              ? parseNumericCell(row.jasa_pelayanan_non_medis, existingRow.jasa_pelayanan_non_medis)
+              : existingRow.jasa_pelayanan_non_medis,
           };
 
           importedData.push(updatedRow);
@@ -343,8 +420,11 @@ const SkenarioTarifImportExportToolbar: React.FC<SkenarioTarifImportExportToolba
         if (successCount > 0) {
           onImport(importedData);
           toast.success(
-            `Import berhasil: ${successCount} data diupdate${errorCount > 0 ? `, ${errorCount} data gagal` : ""}`
+            `Import berhasil: ${successCount} data diupdate${errorCount > 0 ? `, ${errorCount} baris tidak cocok (cek kembali kolom tindakan)` : ""}`
           );
+          if (notFoundRows.length > 0) {
+            console.warn("Baris import skenario_tarif_visit yang tidak ditemukan di data saat ini (contoh):", notFoundRows.slice(0, 10));
+          }
         } else {
           toast.error(`Import gagal: ${errorCount} data tidak valid`);
         }

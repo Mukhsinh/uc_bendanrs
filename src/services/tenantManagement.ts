@@ -135,31 +135,101 @@ export const createTenant = async (
   params: CreateTenantFormData
 ): Promise<{ success: boolean; data?: any; message?: string }> => {
   try {
-    console.log('Creating tenant with params:', params);
+    console.log('[createTenant] Starting tenant creation with params:', {
+      name: params.name,
+      slug: params.slug,
+      adminEmail: params.adminEmail,
+      adminName: params.adminName,
+      hasPassword: !!params.adminPassword
+    });
+    
+    // Validasi input sebelum memanggil service
+    if (!params.name || params.name.trim().length < 3) {
+      console.error('[createTenant] Validation failed: name too short');
+      return {
+        success: false,
+        message: 'Nama rumah sakit minimal 3 karakter'
+      };
+    }
+
+    if (!params.slug || params.slug.trim().length < 3) {
+      console.error('[createTenant] Validation failed: slug too short');
+      return {
+        success: false,
+        message: 'Slug minimal 3 karakter'
+      };
+    }
+
+    if (!params.adminEmail || !params.adminEmail.includes('@')) {
+      console.error('[createTenant] Validation failed: invalid email');
+      return {
+        success: false,
+        message: 'Email admin tidak valid'
+      };
+    }
+
+    if (!params.adminPassword || params.adminPassword.length < 8) {
+      console.error('[createTenant] Validation failed: password too short');
+      return {
+        success: false,
+        message: 'Password admin minimal 8 karakter'
+      };
+    }
+
+    if (!params.adminName || params.adminName.trim().length < 3) {
+      console.error('[createTenant] Validation failed: admin name too short');
+      return {
+        success: false,
+        message: 'Nama admin minimal 3 karakter'
+      };
+    }
     
     // Map CreateTenantFormData ke TenantOnboardingData format
     const onboardingParams = {
-      tenantName: params.name,
-      tenantSlug: params.slug,
-      adminEmail: params.adminEmail,
+      tenantName: params.name.trim(),
+      tenantSlug: params.slug.trim().toLowerCase(),
+      adminEmail: params.adminEmail.trim().toLowerCase(),
       adminPassword: params.adminPassword,
-      adminFullName: params.adminName
+      adminFullName: params.adminName.trim()
     };
+
+    console.log('[createTenant] Calling createTenantOnboarding with:', {
+      tenantName: onboardingParams.tenantName,
+      tenantSlug: onboardingParams.tenantSlug,
+      adminEmail: onboardingParams.adminEmail,
+      adminFullName: onboardingParams.adminFullName
+    });
 
     const result = await createTenantOnboarding(onboardingParams);
     
-    console.log('Tenant creation result:', result);
+    console.log('[createTenant] Tenant creation result:', {
+      success: result.success,
+      hasTenantId: !!result.tenantId,
+      hasAdminUserId: !!result.adminUserId,
+      error: result.error
+    });
     
     // Cek apakah result success
     if (!result.success) {
+      const errorMessage = result.error || 'Gagal membuat tenant';
+      console.error('[createTenant] Tenant creation failed:', errorMessage, result.details);
       return {
         success: false,
-        message: result.error || 'Gagal membuat tenant'
+        message: errorMessage
+      };
+    }
+
+    // Validasi bahwa tenantId ada
+    if (!result.tenantId) {
+      console.error('[createTenant] Success but missing tenantId:', result);
+      return {
+        success: false,
+        message: 'Tenant berhasil dibuat tetapi ID tidak ditemukan'
       };
     }
     
     // Log audit trail untuk tenant creation
-    if (result.tenantId) {
+    try {
       await logAuditTrail({
         action: 'CREATE_TENANT',
         table_name: 'tenants',
@@ -170,17 +240,40 @@ export const createTenant = async (
           admin_email: params.adminEmail
         },
         description: `Created new tenant: ${params.name} (${params.slug})`
-      }).catch(err => {
-        console.error('Failed to log audit trail:', err);
       });
+      console.log('[createTenant] Audit trail logged successfully');
+    } catch (auditError) {
+      console.error('[createTenant] Failed to log audit trail:', auditError);
+      // Jangan gagalkan operasi jika audit trail gagal
     }
 
-    return { success: true, data: result };
+    console.log('[createTenant] Tenant created successfully:', {
+      tenantId: result.tenantId,
+      adminUserId: result.adminUserId
+    });
+
+    return { 
+      success: true, 
+      data: {
+        tenantId: result.tenantId,
+        adminUserId: result.adminUserId
+      }
+    };
   } catch (error) {
-    console.error('Error creating tenant:', error);
+    console.error('[createTenant] Exception during tenant creation:', error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'Terjadi kesalahan saat membuat tenant';
+    
+    console.error('[createTenant] Error details:', {
+      message: errorMessage,
+      error: error,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+
     return {
       success: false,
-      message: error instanceof Error ? error.message : 'Gagal membuat tenant'
+      message: errorMessage
     };
   }
 };

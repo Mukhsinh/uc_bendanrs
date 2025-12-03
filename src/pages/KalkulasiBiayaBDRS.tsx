@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Calculator, RefreshCw, Download, Upload, Plus } from "lucide-react";
 import { manualRecalculateBdrs, handleDatabaseError } from "@/utils/database-operations";
@@ -181,7 +182,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
   const generateInitialData = async (currentUserId: string) => {
     try {
       console.log("Checking existing data for user:", currentUserId, "year:", year);
-      const { data: existingData, error: checkError } = await supabase
+      const { data: existingData, error: checkError } = await tenantSupabase
         .from("kalkulasi_bdrs")
         .select("id")
         .eq("tahun", year)
@@ -299,7 +300,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
         return;
       }
 
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("kalkulasi_bdrs")
         .select(`
         id, kode, kode_unit_kerja, jenis_pemeriksaan, jumlah, waktu_pemeriksaan, profesionalisme, tingkat_kesulitan, 
@@ -383,17 +384,21 @@ const KalkulasiBiayaBDRS: React.FC = () => {
 
     try {
       setRecalculating(true);
-      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+      setRecalcProgress({step: 1, total: 7, message: 'Memulai rekalkulasi (stepwise)...'});
 
       console.log("🔄 Starting manual recalculation...");
+      const startTime = performance.now();
 
-      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
+      setRecalcProgress({step: 2, total: 7, message: 'Menghitung hasil kali dan dasar alokasi...'});
       
-      // Jalankan rekalkulasi secara global (tanpa filter user) agar sesuai desain data saat ini
-      // Rekalkulasi menggunakan data terupdate dari data sumber sesuai kombinasi kode dan tahun
-      const result = await manualRecalculateBdrs(year, undefined);
+      // Jalankan rekalkulasi stepwise berbasis user (lebih ringan dan menghindari timeout global)
+      const result = await manualRecalculateBdrs(year, userId);
 
-      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
+      if (!result || !result.success) {
+        throw new Error(result?.error || 'Rekalkulasi gagal tanpa pesan error');
+      }
+
+      setRecalcProgress({step: 5, total: 7, message: 'Memperbarui tampilan data...'});
       
       // Refresh data setelah recalculation
       await updateData();
@@ -401,24 +406,54 @@ const KalkulasiBiayaBDRS: React.FC = () => {
       await new Promise((r) => setTimeout(r, 600));
       await updateData();
 
-      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+      setRecalcProgress({step: 6, total: 7, message: 'Menyelesaikan proses...'});
+      
+      const endTime = performance.now();
+      const totalTime = (endTime - startTime) / 1000;
+
+      setRecalcProgress({step: 7, total: 7, message: 'Selesai!'});
 
       // Show detailed success message
-      toast.success(
-        `🎉 Rekalkulasi berhasil diselesaikan!\n` +
-        `📊 ${result.affected_rows} records diperbarui\n` +
-        `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2)}s`
-      );
+      let successMessage = `🎉 Rekalkulasi berhasil diselesaikan!\n`;
+      successMessage += `📊 ${result.affected_rows || 0} records diperbarui\n`;
+      successMessage += `⏱️ Waktu eksekusi: ${result.execution_time_seconds?.toFixed(2) || totalTime.toFixed(2)}s`;
+      
+      if (result.refresh_warning) {
+        successMessage += `\n⚠️ Peringatan: ${result.refresh_warning}`;
+      }
+      
+      toast.success(successMessage);
 
       console.log("✅ Manual recalculation completed successfully");
       console.log("📈 Recalculation stats:", result);
+      console.log(`⚡ Total waktu client: ${totalTime.toFixed(2)}s`);
       
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
-      toast.error(`❌ Gagal melakukan rekalkulasi: ${error.message}`);
+      
+      // Better error messages based on error type
+      let errorMessage = error.message || 'Terjadi kesalahan yang tidak diketahui';
+      
+      if (error.message?.includes('timeout') || error.message?.includes('canceling statement')) {
+        errorMessage = `⏱️ Rekalkulasi dibatalkan karena timeout.\n\n` +
+          `Proses memakan waktu terlalu lama. Silakan:\n` +
+          `1. Coba lagi dalam beberapa saat\n` +
+          `2. Periksa koneksi internet Anda\n` +
+          `3. Hubungi administrator jika masalah berlanjut`;
+      } else if (error.message?.includes('network') || error.message?.includes('Failed to fetch')) {
+        errorMessage = `🌐 Masalah koneksi.\n\n` +
+          `Silakan periksa koneksi internet Anda dan coba lagi.`;
+      } else if (error.message?.includes('permission') || error.message?.includes('unauthorized')) {
+        errorMessage = `🔒 Tidak memiliki izin.\n\n` +
+          `Anda tidak memiliki izin untuk melakukan rekalkulasi. Silakan hubungi administrator.`;
+      }
+      
+      toast.error(`❌ Gagal melakukan rekalkulasi:\n${errorMessage}`, {
+        duration: 10000, // Show error for 10 seconds
+      });
     } finally {
       setRecalculating(false);
-      setRecalcProgress({step: 0, total: 5, message: ''});
+      setRecalcProgress({step: 0, total: 7, message: ''});
     }
   };
 
@@ -483,7 +518,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_bdrs")
         .update({ bahan_pemeriksaan: parsed })
         .eq("id", selectedRow.id);
@@ -526,7 +561,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_bdrs")
         .update({ bahan_pemeriksaan: bahanFarmasiList })
         .eq("id", selectedRowForBahan.id);
@@ -585,7 +620,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
 
       if (data.id) {
         // Update existing data
-        const { error: updateError } = await supabase
+        const { error: updateError } = await tenantSupabase
           .from("kalkulasi_bdrs")
           .update({
             kode: tindakan.kode,
@@ -689,7 +724,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
     try {
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_bdrs")
         .delete()
         .eq("id", row.id);
@@ -796,7 +831,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: latestData, error: fetchError } = await supabase
+      const { data: latestData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_bdrs')
         .select('*')
         .eq('tahun', year)
@@ -996,7 +1031,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
               console.log(`Final target jenis: ${targetJenis}`);
               
               // First check if record exists
-              const { data: existingRecord, error: checkError } = await supabase
+              const { data: existingRecord, error: checkError } = await tenantSupabase
                 .from("kalkulasi_bdrs")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
@@ -1018,7 +1053,7 @@ const KalkulasiBiayaBDRS: React.FC = () => {
               }
 
               // Now perform the update
-              const { error: updateError, count } = await supabase
+              const { error: updateError, count } = await tenantSupabase
                 .from("kalkulasi_bdrs")
                 .update({ 
                   jumlah, 

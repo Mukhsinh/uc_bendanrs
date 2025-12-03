@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showError } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -144,7 +145,8 @@ const BarangGiziFormTable: React.FC = () => {
         console.log('Current user ID:', currentUserId);
         
         // Fetch all data with explicit limit to ensure we get all records
-        const { data, error } = await supabase
+        // Use tenantSupabase for automatic tenant isolation
+        const { data, error } = await tenantSupabase
           .from('data_barang_gizi')
           .select('*')
           .order('created_at', { ascending: false })
@@ -177,7 +179,8 @@ const BarangGiziFormTable: React.FC = () => {
   };
 
   const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {
-    let query = supabase
+    // Use tenantSupabase for automatic tenant isolation
+    let query = tenantSupabase
       .from('data_barang_gizi')
       .select('id')
       .eq('kode_barang', kode);
@@ -211,7 +214,8 @@ const BarangGiziFormTable: React.FC = () => {
       }
 
       if (editingBarangGizi) {
-        const { error } = await supabase
+        // Use tenantSupabase for automatic tenant isolation
+        const { error } = await tenantSupabase
           .from('data_barang_gizi')
           .update({ 
             ...values, 
@@ -221,7 +225,8 @@ const BarangGiziFormTable: React.FC = () => {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        // Use tenantSupabase for automatic tenant isolation
+        const { error } = await tenantSupabase
           .from('data_barang_gizi')
           .insert([{
             ...values,
@@ -245,7 +250,8 @@ const BarangGiziFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     await deleteData(async () => {
-      const { error } = await supabase
+      // Use tenantSupabase for automatic tenant isolation
+      const { error } = await tenantSupabase
         .from('data_barang_gizi')
         .delete()
         .eq('id', id);

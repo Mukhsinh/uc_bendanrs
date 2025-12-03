@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -231,8 +232,8 @@ const UserManagement: React.FC = () => {
       if (roleError) throw roleError;
 
       // Delete existing permissions and menu items
-      await supabase.from('role_permissions').delete().eq('role_id', editingRole.id);
-      await supabase.from('role_menu_items').delete().eq('role_id', editingRole.id);
+      await tenantSupabase.from('role_permissions').delete().eq('role_id', editingRole.id);
+      await tenantSupabase.from('role_menu_items').delete().eq('role_id', editingRole.id);
 
       // Insert new permissions
       if (selectedPermissions.length > 0) {

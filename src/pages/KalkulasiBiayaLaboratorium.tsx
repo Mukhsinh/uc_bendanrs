@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { recalculateLaboratoriumBatched } from "@/utils/database-operations";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Calculator, RefreshCw, Download, Upload, Plus } from "lucide-react";
@@ -83,7 +84,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       }
 
       // Optimized query - only select columns needed for display and calculation
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('kalkulasi_biaya_laboratorium')
         .select(`
           id,
@@ -251,7 +252,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_laboratorium")
         .update({ bahan_pemeriksaan: parsed })
         .eq("id", selectedRow.id);
@@ -293,7 +294,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_laboratorium")
         .update({ bahan_pemeriksaan: bahanFarmasiList })
         .eq("id", selectedRowForBahan.id);
@@ -420,7 +421,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
     try {
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_laboratorium")
         .delete()
         .eq("id", row.id);
@@ -501,7 +502,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: latestData, error: fetchError } = await supabase
+      const { data: latestData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_biaya_laboratorium')
         .select('*')
         .eq('tahun', year)
@@ -694,7 +695,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
               
               // First check if record exists
               const currentUserId = (await supabase.auth.getUser())?.data?.user?.id;
-              const { data: existingRecord, error: checkError } = await supabase
+              const { data: existingRecord, error: checkError } = await tenantSupabase
                 .from("kalkulasi_biaya_laboratorium")
                 .select("id, jenis_pemeriksaan")
                 .eq("tahun", year)
@@ -716,7 +717,7 @@ const KalkulasiBiayaLaboratorium: React.FC = () => {
               }
 
               // Now perform the update
-              const { error: updateError, count } = await supabase
+              const { error: updateError, count } = await tenantSupabase
                 .from("kalkulasi_biaya_laboratorium")
                 .update({ 
                   jumlah, 

@@ -10,6 +10,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
+import { useTenant } from "@/contexts/TenantContext";
 import BahanFarmasiForm from "@/components/BahanFarmasiForm";
 import { Edit, Trash2, Download, Calculator, RefreshCw, Check } from "lucide-react";
 import { useReportDownload } from "@/components/report";
@@ -130,7 +132,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
   const generateInitialData = async (currentUserId: string): Promise<string | null> => {
     try {
-      const { data: existingData, error: checkError } = await supabase
+      const { data: existingData, error: checkError } = await tenantSupabase
         .from("kalkulasi_biaya_operatif")
         .select("id, user_id")
         .eq("tahun", year)
@@ -180,7 +182,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     try {
       const startTime = performance.now();
 
-      let query = supabase
+      // Use tenant-aware client for automatic tenant filtering
+      let query = tenantSupabase
         .from("kalkulasi_biaya_operatif")
         .select(`
           id,
@@ -371,7 +374,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
             const sulit = Math.max(1, Math.min(7, parseInt(r["Tingkat Kesulitan (1-7)"] || "1", 10) || 1));
 
             try {
-              const { data: existingRecord, error: checkError } = await supabase
+              const { data: existingRecord, error: checkError } = await tenantSupabase
                 .from("kalkulasi_biaya_operatif")
                 .select("id")
                 .eq("tahun", year)
@@ -383,7 +386,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                 continue;
               }
 
-              const { error: updateError } = await supabase
+              const { error: updateError } = await tenantSupabase
                 .from("kalkulasi_biaya_operatif")
                 .update({ jumlah, waktu_pemeriksaan: waktu, profesionalisme: prof, tingkat_kesulitan: sulit })
                 .eq("id", existingRecord.id);
@@ -463,7 +466,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
     try {
       setAutoCalculating(true);
       
-      const { error } = await supabase
+      // Use tenant-aware client for automatic tenant filtering
+      const { error } = await tenantSupabase
         .from("kalkulasi_biaya_operatif")
         .delete()
         .eq("id", row.id);
@@ -494,7 +498,8 @@ const KalkulasiBiayaOperatif: React.FC = () => {
 
       if (data.id) {
         // Update existing data
-        const { error: updateError } = await supabase
+        // Use tenant-aware client for automatic tenant filtering
+        const { error: updateError } = await tenantSupabase
           .from("kalkulasi_biaya_operatif")
           .update({
             jumlah: data.jumlah || 0,
@@ -558,7 +563,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
       }));
 
       // Records untuk Excel: menggunakan data database (fetch langsung dari database)
-      const { data: latestData, error: fetchError } = await supabase
+      const { data: latestData, error: fetchError } = await tenantSupabase
         .from('kalkulasi_biaya_operatif')
         .select('*')
         .eq('tahun', year)
@@ -1047,7 +1052,7 @@ const KalkulasiBiayaOperatif: React.FC = () => {
                   }
                   try {
                     setAutoCalculating(true);
-                    const { error } = await supabase
+                    const { error } = await tenantSupabase
                       .from("kalkulasi_biaya_operatif")
                       .update({ bahan_pemeriksaan: bahanFarmasiList })
                       .eq("id", selectedRowForBahan.id);

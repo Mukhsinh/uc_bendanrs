@@ -25,8 +25,7 @@ GENERATED ALWAYS AS (
   COALESCE(biaya_pendidikan_pelatihan, 0) +
   COALESCE(biaya_laundry, 0) +
   COALESCE(biaya_sterilisasi, 0) +
-  COALESCE(biaya_tidak_langsung_terdistribusi, 0) +
-  COALESCE(biaya_bhp, 0)
+  COALESCE(biaya_tidak_langsung_terdistribusi, 0)
 ) STORED;
 
 -- Step 2: Tambahkan index untuk performa query
@@ -35,13 +34,13 @@ ON kalkulasi_tindakan_inap(unit_cost_tindakan_inap);
 
 -- Step 3: Tambahkan comment untuk dokumentasi
 COMMENT ON COLUMN kalkulasi_tindakan_inap.unit_cost_tindakan_inap IS 
-'Generated column: Total unit cost tindakan inap (21 komponen biaya). 
+'Generated column: Total unit cost tindakan inap (20 komponen biaya, tanpa biaya_bhp). 
 Formula: SUM(biaya_gaji_tunjangan + biaya_makan_karyawan + biaya_rumah_tangga + 
 biaya_cetak + biaya_atk + biaya_listrik + biaya_air + biaya_telp + 
 biaya_pemeliharaan_bangunan + biaya_pemeliharaan_alat_medis + 
 biaya_pemeliharaan_alat_non_medis + biaya_operasional_lainnya + 
 biaya_penyusutan_gedung + biaya_penyusutan_jaringan + 
 biaya_penyusutan_alat_medis + biaya_penyusutan_alat_non_medis + 
-biaya_pendidikan_pelatihan + biaya_laundry + biaya_sterilisasi + 
-biaya_tidak_langsung_terdistribusi + biaya_bhp).
-CATATAN: Tidak termasuk biaya_bahan_tindakan (kolom terpisah).';
+biaya_pendidikan_pelatihan + biaya_laundry + biaya_sterilisasi +
+biaya_tidak_langsung_terdistribusi).
+CATATAN: Tidak termasuk biaya_bahan_tindakan (kolom terpisah) dan tidak menggunakan biaya_bhp.';

@@ -13,6 +13,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -158,7 +159,8 @@ const DataDiklatFormTable: React.FC = () => {
       return;
     }
 
-    const { data, error } = await supabase
+    // Use tenantSupabase for automatic tenant isolation
+    const { data, error } = await tenantSupabase
       .from("data_diklat")
       .select("id, kode_strata, kode_materi, nama_materi")
       .order("kode_strata", { ascending: true })
@@ -169,7 +171,7 @@ const DataDiklatFormTable: React.FC = () => {
       console.error(error);
       setDiklatList([]);
     } else {
-      setDiklatList((data || []) as DataDiklat[]);
+      setDiklatList((data || []) as DataDiklatForm[]);
     }
   };
 
@@ -187,7 +189,8 @@ const DataDiklatFormTable: React.FC = () => {
       if (editing) {
         // Check if kode_materi is being changed and if it already exists
         if (values.kode_materi !== editing.kode_materi) {
-          const { data: existingData } = await supabase
+          // Use tenantSupabase for automatic tenant isolation
+          const { data: existingData } = await tenantSupabase
             .from("data_diklat")
             .select("id")
             .eq("kode_materi", values.kode_materi)
@@ -200,7 +203,8 @@ const DataDiklatFormTable: React.FC = () => {
           }
         }
 
-        const { error } = await supabase
+        // Use tenantSupabase for automatic tenant isolation
+        const { error } = await tenantSupabase
           .from("data_diklat")
           .update({ 
             kode_strata: values.kode_strata,
@@ -216,7 +220,8 @@ const DataDiklatFormTable: React.FC = () => {
         toast.success("Data diklat diperbarui.");
       } else {
         // Check if kode_materi already exists for new entries
-        const { data: existingData } = await supabase
+        // Use tenantSupabase for automatic tenant isolation
+        const { data: existingData } = await tenantSupabase
           .from("data_diklat")
           .select("id")
           .eq("kode_materi", values.kode_materi)
@@ -239,7 +244,8 @@ const DataDiklatFormTable: React.FC = () => {
         };
         console.log("Insert data:", insertData);
         
-        const { data: insertResult, error } = await supabase
+        // Use tenantSupabase for automatic tenant isolation
+        const { data: insertResult, error } = await tenantSupabase
           .from("data_diklat")
           .insert([insertData])
           .select();
@@ -274,7 +280,7 @@ const DataDiklatFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("data_diklat").delete().eq("id", id);
+      const { error } = await tenantSupabase.from("data_diklat").delete().eq("id", id);
       if (error) throw error;
       await fetchDiklat();
       toast.success("Data diklat dihapus.");
@@ -326,7 +332,7 @@ const DataDiklatFormTable: React.FC = () => {
             startUpload(totalRows, "Sedang mengimpor data diklat...");
 
             // Get existing kode_materi to check duplicates
-            const { data: existingData } = await supabase
+            const { data: existingData } = await tenantSupabase
               .from("data_diklat")
               .select("kode_materi");
 
@@ -385,7 +391,7 @@ const DataDiklatFormTable: React.FC = () => {
             }
 
             // Insert data to database
-            const { error } = await supabase.from("data_diklat").insert(validRows);
+            const { error } = await tenantSupabase.from("data_diklat").insert(validRows);
             if (error) throw error;
             
             // Complete upload with final counts

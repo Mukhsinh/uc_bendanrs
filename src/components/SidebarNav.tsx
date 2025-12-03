@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -225,61 +225,104 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
   const [userRole, setUserRole] = useState<string | null>(null);
   const [filteredNavItems, setFilteredNavItems] = useState<NavItem[]>(navItems);
   const [openGroup, setOpenGroup] = useState<string | undefined>(undefined);
+  const [isLoadingRole, setIsLoadingRole] = useState(false);
+  const roleFetchedSuccessfullyRef = useRef(false);
 
-  useEffect(() => {
-    getUserRole();
-  }, []);
+  const getUserRole = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (isLoadingRole) {
+      console.log("Role fetching already in progress, skipping...");
+      return;
+    }
 
-  const getUserRole = async () => {
+    setIsLoadingRole(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (user) {
-        // Cek jika superadmin
-        const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: user.id });
-        
-        if (isSuperadmin) {
-          setUserRole("Super Admin");
-          setFilteredNavItems(navItems); // Super Admin bisa akses semua
-          return;
-        }
-
-        // Ambil role dari user_roles table dengan join ke role_akses_aplikasi
-        const { data: userRoles } = await supabase
-          .from('user_roles')
-          .select(`
-            role_akses_aplikasi!inner(role_name)
-          `)
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single();
-
-        if (userRoles && userRoles.role_akses_aplikasi) {
-          const roleName = (userRoles.role_akses_aplikasi as any).role_name;
-          setUserRole(roleName);
-          // Filter menu berdasarkan role
-          const filtered = navItems.filter(item => {
-            // Jika item tidak punya allowedRoles, berarti semua role bisa akses
-            if (!item.allowedRoles || item.allowedRoles.length === 0) {
-              return true;
-            }
-            // Jika item punya allowedRoles, cek apakah user role ada di list
-            return item.allowedRoles.includes(roleName);
-          });
-          setFilteredNavItems(filtered);
-        } else {
-          // Default: tampilkan semua menu kecuali yang restricted
+      if (!user) {
+        // Only update if we haven't successfully fetched before
+        if (!roleFetchedSuccessfullyRef.current) {
           const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
           setFilteredNavItems(filtered);
         }
+        setIsLoadingRole(false);
+        return;
+      }
+
+      // Cek jika superadmin (superadmin bisa akses semua tanpa isolasi tenant)
+      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: user.id });
+      
+      if (isSuperadmin) {
+        setUserRole("Super Admin");
+        setFilteredNavItems(navItems); // Super Admin bisa akses semua
+        roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
+        setIsLoadingRole(false);
+        return;
+      }
+
+      // Ambil role dari user_roles table dengan join ke role_akses_aplikasi
+      const { data: userRoles, error: roleError } = await supabase
+        .from('user_roles')
+        .select(`
+          role_akses_aplikasi!inner(role_name)
+        `)
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error("Error fetching user role:", roleError);
+        // Only update if we haven't successfully fetched before
+        if (!roleFetchedSuccessfullyRef.current) {
+          const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
+          setFilteredNavItems(filtered);
+        }
+        setIsLoadingRole(false);
+        return;
+      }
+
+      if (userRoles && userRoles.role_akses_aplikasi) {
+        const roleName = (userRoles.role_akses_aplikasi as any).role_name;
+        setUserRole(roleName);
+        // Filter menu berdasarkan role
+        const filtered = navItems.filter(item => {
+          // Jika item tidak punya allowedRoles, berarti semua role bisa akses
+          if (!item.allowedRoles || item.allowedRoles.length === 0) {
+            return true;
+          }
+          // Jika item punya allowedRoles, cek apakah user role ada di list
+          return item.allowedRoles.includes(roleName);
+        });
+        setFilteredNavItems(filtered);
+        roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
+      } else {
+        // Default: tampilkan semua menu kecuali yang restricted
+        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
+        setFilteredNavItems(filtered);
+        roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
       }
     } catch (error) {
       console.error("Error getting user role:", error);
       // Fallback: tampilkan semua menu kecuali yang restricted
-      const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-      setFilteredNavItems(filtered);
+      // Only update if we haven't successfully fetched before
+      if (!roleFetchedSuccessfullyRef.current) {
+        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
+        setFilteredNavItems(filtered);
+      }
+    } finally {
+      setIsLoadingRole(false);
     }
-  };
+  }, [isLoadingRole]);
+
+  // Re-fetch role when tenant is loaded or changes
+  useEffect(() => {
+    // Ambil role sekali saat mount
+    const timer = setTimeout(() => {
+      getUserRole();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [getUserRole]);
 
   // Prefetch halaman saat hover agar modul sudah siap sebelum diklik
   const prefetchRoute = (path?: string) => {
