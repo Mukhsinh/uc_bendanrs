@@ -179,13 +179,13 @@ const dedupeByKodeBarang = (items: any[]) => {
     const existingIndex = value.findIndex((v) => v.kode_barang === item.kode_barang);
     
     const hargaSatuan = item.harga || 0;
-    const hargaTotal = hargaSatuan * qty;
+    const hargaTotal = Math.round(hargaSatuan * qty);
 
     if (existingIndex >= 0) {
       // Update existing item
       const newValue = [...value];
       const newQtyTotal = newValue[existingIndex].qty + qty;
-      const newHargaTotal = newQtyTotal * hargaSatuan;
+      const newHargaTotal = Math.round(newQtyTotal * hargaSatuan);
       newValue[existingIndex] = {
         ...newValue[existingIndex],
         qty: newQtyTotal,
@@ -238,7 +238,7 @@ const dedupeByKodeBarang = (items: any[]) => {
     }
     
     const newValue = [...value];
-    const newHargaTotal = newQty * newValue[index].harga_satuan;
+    const newHargaTotal = Math.round(newQty * newValue[index].harga_satuan);
     newValue[index] = {
       ...newValue[index],
       qty: newQty,
@@ -355,7 +355,7 @@ const dedupeByKodeBarang = (items: any[]) => {
               if (!item) return null;
               
               const hargaSatuan = item.harga || 0;
-              const total = hargaSatuan * qty;
+              const total = Math.round(hargaSatuan * qty);
 
               return (
                 <div className="flex items-center justify-between text-sm">

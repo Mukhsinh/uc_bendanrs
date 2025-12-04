@@ -176,11 +176,17 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     return Array.from(map.values());
   };
 
-  const applyUserScope = (query: any, userId: string | null) => {
-    if (userId) {
-      return query.or(`user_id.is.null,user_id.eq.${userId}`);
-    }
-    return query.is("user_id", null);
+  /**
+   * applyUserScope
+   * ----------------
+   * Untuk tabel skenario_tarif dan turunannya, data sudah difilter oleh RLS/tenant_id,
+   * sehingga TIDAK boleh dibatasi lagi berdasarkan user_id. Semua user dalam tenant
+   * yang sama (admin, superadmin, dsb) harus melihat skenario yang sama.
+   *
+   * Karena itu, fungsi ini sekarang hanya mengembalikan query apa adanya.
+   */
+  const applyUserScope = (query: any, _userId: string | null) => {
+    return query;
   };
 
   const fetchServices = async () => {

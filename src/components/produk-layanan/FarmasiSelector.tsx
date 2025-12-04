@@ -192,7 +192,7 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
     const existingIndex = value.findIndex((v) => v.kode_barang === item.kode_barang);
     
     const hargaSatuan = item.harga || 0;
-    const hargaTotal = hargaSatuan * qty;
+    const hargaTotal = Math.round(hargaSatuan * qty);
 
     const newItem: FarmasiItem = {
       kode_barang: item.kode_barang,
@@ -208,7 +208,7 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
       // Update existing item
       const newValue = [...value];
       const newQtyTotal = newValue[existingIndex].qty + qty;
-      const newHargaTotal = newQtyTotal * hargaSatuan;
+      const newHargaTotal = Math.round(newQtyTotal * hargaSatuan);
       newValue[existingIndex] = {
         ...newValue[existingIndex],
         qty: newQtyTotal,
@@ -246,7 +246,7 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
     if (newQty <= 0) return;
     
     const newValue = [...value];
-    const newHargaTotal = newQty * newValue[index].harga_satuan;
+    const newHargaTotal = Math.round(newQty * newValue[index].harga_satuan);
     newValue[index] = {
       ...newValue[index],
       qty: newQty,
@@ -420,7 +420,7 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
                           if (!item) return null;
                           
                           const hargaSatuan = item.harga || 0;
-                          const total = hargaSatuan * qty;
+                          const total = Math.round(hargaSatuan * qty);
 
                           return (
                             <div className="space-y-2">
