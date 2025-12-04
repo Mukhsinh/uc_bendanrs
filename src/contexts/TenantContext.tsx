@@ -56,6 +56,16 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (userError || !user) {
+        // Jika tidak ada user, pastikan context tenant ikut dibersihkan
+        try {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('tenant_id');
+            sessionStorage.removeItem('tenant_name');
+          }
+        } catch (storageError) {
+          console.warn('Failed to clear tenant session storage on no-user state:', storageError);
+        }
+
         setTenant(null);
         setLoading(false);
         return;
@@ -120,6 +130,16 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
   const clearTenant = () => {
     setTenant(null);
     setError(null);
+
+    // Pastikan juga menghapus konteks tenant dari sessionStorage
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('tenant_id');
+        sessionStorage.removeItem('tenant_name');
+      }
+    } catch (err) {
+      console.warn('Failed to clear tenant session storage on clearTenant:', err);
+    }
   };
 
   // Load tenant on mount and when auth state changes

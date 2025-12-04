@@ -15,3 +15,6 @@ export { AccessMatrixToolbar } from './AccessMatrixToolbar';
 export { AccessMatrix } from './AccessMatrix';
 export { MenuRow } from './MenuRow';
 export { PermissionDetailDialog } from './PermissionDetailDialog';
+
+// Dummy Data Management
+export { default as DummyDataManagementTab } from './DummyDataManagementTab';

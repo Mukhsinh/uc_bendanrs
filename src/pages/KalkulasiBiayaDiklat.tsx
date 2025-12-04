@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
+import { getCurrentTenantId, requireTenantId } from "@/lib/tenantAwareClient";
 import { 
   Download, 
   RefreshCw, 
@@ -21,6 +22,7 @@ import { useReportDownload } from "@/components/report";
 interface KalkulasiDiklat {
   id: string;
   user_id: string;
+  tenant_id: string;
   tahun: number;
   jenis_diklat: string;
   lama_hari_diklat: number;
@@ -53,6 +55,17 @@ const KalkulasiBiayaDiklat: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Validasi tenant_id tersedia sebelum query
+      const tenantId = getCurrentTenantId();
+      if (!tenantId) {
+        console.error("Tenant ID tidak tersedia");
+        toast.error("Tenant context tidak tersedia. Silakan refresh halaman.");
+        setData([]);
+        setLoading(false);
+        return;
+      }
+
+      // Pastikan query selalu menambahkan filter tenant_id secara eksplisit
       const { data: result, error } = await tenantSupabase
         .from("kalkulasi_diklat")
         .select("*")
@@ -71,9 +84,15 @@ const KalkulasiBiayaDiklat: React.FC = () => {
         setData([]);
         return;
       }
+
+      // Validasi bahwa data yang diterima hanya dari tenant saat ini
+      const filteredResult = (result || []).filter(item => item.tenant_id === tenantId);
+      if (filteredResult.length !== (result || []).length) {
+        console.warn("Data dari tenant lain terdeteksi dan telah difilter");
+      }
       
       // Jika tidak ada data, buat data otomatis
-      if (!result || result.length === 0) {
+      if (!filteredResult || filteredResult.length === 0) {
         await createDefaultData();
         // Reload data setelah membuat data default
         const { data: newResult } = await tenantSupabase
@@ -81,9 +100,12 @@ const KalkulasiBiayaDiklat: React.FC = () => {
           .select("*")
           .eq("tahun", year)
           .eq("jenis_diklat", "basis_harian");
-        setData(newResult || []);
+        
+        // Validasi lagi setelah reload
+        const reloadFiltered = (newResult || []).filter(item => item.tenant_id === tenantId);
+        setData(reloadFiltered);
       } else {
-        setData(result);
+        setData(filteredResult);
       }
     } catch (error: any) {
       console.error("Error loading data:", error);
@@ -96,14 +118,19 @@ const KalkulasiBiayaDiklat: React.FC = () => {
 
   const createDefaultData = async () => {
     try {
+      // Validasi tenant_id tersedia
+      const tenantId = requireTenantId();
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error("User tidak terautentikasi");
         return;
       }
 
+      // Pastikan tenant_id selalu di-inject
       const defaultData = {
         user_id: user.id,
+        tenant_id: tenantId, // Explicitly set tenant_id
         tahun: year,
         jenis_diklat: "basis_harian",
         lama_hari_diklat: 1,

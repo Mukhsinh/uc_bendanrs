@@ -262,19 +262,30 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           }
         }
       } else if (filterType === "ibs") {
-        let query = supabase
-          .from("skenario_tarif")
-          .select("*, kode_unit_kerja, nama_unit_kerja")
-          .eq("tahun", tahun)
-          .eq("sumber_tabel", "kalkulasi_biaya_operatif");
+        console.log("🔍 Fetching IBS services (tindakan operatif) tanpa filter jenis/rawat:", {
+          tahun,
+          userId,
+        });
 
-        if (spesialisasiDokter) {
-          query = query.eq("nama_operator", spesialisasiDokter);
-        }
-        query = applyUserScope(query, userId);
-        const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
+        // Ambil SELURUH tindakan IBS (operatif) untuk tahun & tenant aktif
+        const result = await applyUserScope(
+          supabase
+            .from("skenario_tarif")
+            .select("*, kode_unit_kerja, nama_unit_kerja")
+            .eq("tahun", tahun)
+            .eq("sumber_tabel", "kalkulasi_biaya_operatif"),
+          userId
+        )
+          .order("nama_unit_kerja", { ascending: true })
+          .order("nama_tindakan", { ascending: true });
+
         data = result.data || [];
         error = result.error;
+
+        console.log("✅ IBS services loaded:", {
+          total: data.length,
+          sample: data.slice(0, 3),
+        });
       } else if (filterType === "laboratorium") {
         let query = supabase
           .from("skenario_tarif")

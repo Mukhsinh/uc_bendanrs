@@ -13,7 +13,8 @@ import { getCurrentTenantId, requireTenantId } from './tenantAwareClient';
  * This returns the actual Supabase query builder so chaining works properly
  */
 function createTenantAwareQueryBuilder(tableName: string) {
-  const tenantId = getCurrentTenantId();
+  // Get tenantId fresh on each call to avoid stale values
+  const getTenantId = () => getCurrentTenantId();
 
   // Return the actual query builder with tenant filtering
   const baseBuilder = supabase.from(tableName);
@@ -25,16 +26,24 @@ function createTenantAwareQueryBuilder(tableName: string) {
       if (prop === 'select') {
         return (columns?: string, options?: any) => {
           const query = target.select(columns, options);
+          const tenantId = getTenantId();
+          
           if (tenantId) {
+            // Always add tenant_id filter for SELECT queries
             return query.eq('tenant_id', tenantId);
+          } else {
+            // Log warning if tenant_id is not available
+            console.warn(`[tenantSupabase] Tenant ID not available for table ${tableName}. RLS policies will handle isolation, but explicit filter is recommended.`);
+            // Still return query - RLS will handle isolation at database level
+            return query;
           }
-          return query;
         };
       }
       
       if (prop === 'insert') {
         return (data: any, options?: any) => {
-          const currentTenantId = tenantId || requireTenantId();
+          // Always require tenant_id for INSERT operations
+          const currentTenantId = getTenantId() || requireTenantId();
           
           const dataWithTenant = Array.isArray(data)
             ? data.map(item => ({ ...item, tenant_id: item.tenant_id || currentTenantId }))
@@ -46,40 +55,35 @@ function createTenantAwareQueryBuilder(tableName: string) {
       
       if (prop === 'update') {
         return (data: any, options?: any) => {
-          const currentTenantId = tenantId || requireTenantId();
+          // Always require tenant_id for UPDATE operations
+          const currentTenantId = getTenantId() || requireTenantId();
           
           // Remove tenant_id from update data to prevent modification
           const { tenant_id, ...dataWithoutTenant } = data;
 
           const query = target.update(dataWithoutTenant, options);
           
-          // Add tenant_id filter
-          if (currentTenantId) {
-            return query.eq('tenant_id', currentTenantId);
-          }
-          
-          return query;
+          // Always add tenant_id filter for UPDATE queries
+          return query.eq('tenant_id', currentTenantId);
         };
       }
       
       if (prop === 'delete') {
         return (options?: any) => {
-          const currentTenantId = tenantId || requireTenantId();
+          // Always require tenant_id for DELETE operations
+          const currentTenantId = getTenantId() || requireTenantId();
           
           const query = target.delete(options);
           
-          // Add tenant_id filter
-          if (currentTenantId) {
-            return query.eq('tenant_id', currentTenantId);
-          }
-          
-          return query;
+          // Always add tenant_id filter for DELETE queries
+          return query.eq('tenant_id', currentTenantId);
         };
       }
       
       if (prop === 'upsert') {
         return (data: any, options?: any) => {
-          const currentTenantId = tenantId || requireTenantId();
+          // Always require tenant_id for UPSERT operations
+          const currentTenantId = getTenantId() || requireTenantId();
           
           const dataWithTenant = Array.isArray(data)
             ? data.map(item => ({ ...item, tenant_id: item.tenant_id || currentTenantId }))

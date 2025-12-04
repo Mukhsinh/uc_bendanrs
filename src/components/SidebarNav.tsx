@@ -44,6 +44,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface NavItem {
   title: string;
@@ -126,6 +127,7 @@ const navItems: NavItem[] = [
   {
     title: "Unit Diklat",
     icon: BookOpen,
+    allowedRoles: ["Super Admin", "Admin"], // Admin bisa akses Unit Diklat
     subItems: [
       { title: "Kalkulasi Biaya Diklat", href: "/kalkulasi-biaya-diklat", icon: GraduationCap },
       { title: "Kalkulasi Aktivitas Diklat", href: "/unit-diklat/kalkulasi-aktivitas", icon: Calculator },
@@ -190,7 +192,7 @@ const navItems: NavItem[] = [
   {
     title: "Pengaturan",
     icon: Cog,
-    allowedRoles: ["Super Admin", "Admin"],
+    allowedRoles: ["Super Admin", "Admin"], // Super Admin dan Admin bisa akses sesuai tenant
     subItems: [
       { title: "Pengaturan Umum", href: "/pengaturan-umum", icon: Settings },
     ],
@@ -222,11 +224,19 @@ interface SidebarNavProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function SidebarNav({ isMobile = false, onLinkClick, className, ...props }: SidebarNavProps) {
   const location = useLocation();
+  const { tenant, loading: tenantLoading } = useTenant();
   const [userRole, setUserRole] = useState<string | null>(null);
+  // Initialize with all navItems to ensure sidebar is ALWAYS visible immediately
+  // Sidebar will show all menus first, then filter based on role after role is fetched
+  // This ensures sidebar is visible from the very first render, no waiting
   const [filteredNavItems, setFilteredNavItems] = useState<NavItem[]>(navItems);
   const [openGroup, setOpenGroup] = useState<string | undefined>(undefined);
   const [isLoadingRole, setIsLoadingRole] = useState(false);
   const roleFetchedSuccessfullyRef = useRef(false);
+  const [isAccordionControlled, setIsAccordionControlled] = useState(false);
+  
+  // Track if we've ever successfully fetched role to prevent sidebar from disappearing
+  const hasEverFetchedRoleRef = useRef(false);
 
   const getUserRole = useCallback(async () => {
     // Prevent multiple simultaneous calls
@@ -235,15 +245,24 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       return;
     }
 
+    // Don't wait for tenant - fetch role immediately if tenant is available
+    // Sidebar is already visible with all items, we'll filter after role is fetched
+    if (tenantLoading) {
+      console.log("Waiting for tenant to load before fetching role...");
+      return;
+    }
+
     setIsLoadingRole(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        // Only update if we haven't successfully fetched before
+        // If no user, show only public menus (Dashboard and menus without allowedRoles)
+        // But don't block sidebar rendering - always show something
+        // Keep showing all navItems if no public menus found (better than empty)
         if (!roleFetchedSuccessfullyRef.current) {
           const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-          setFilteredNavItems(filtered);
+          setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
         }
         setIsLoadingRole(false);
         return;
@@ -255,6 +274,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       if (isSuperadmin) {
         setUserRole("Super Admin");
         setFilteredNavItems(navItems); // Super Admin bisa akses semua
+        hasEverFetchedRoleRef.current = true;
         roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
         setIsLoadingRole(false);
         return;
@@ -272,11 +292,13 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
 
       if (roleError) {
         console.error("Error fetching user role:", roleError);
-        // Only update if we haven't successfully fetched before
-        if (!roleFetchedSuccessfullyRef.current) {
-          const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-          setFilteredNavItems(filtered);
-        }
+        // On error, show public menus (Dashboard and menus without allowedRoles)
+        // Don't block sidebar - always show something
+        // Always update on error to ensure sidebar is visible
+        // Show all navItems if no public menus found (better than empty or just Dashboard)
+        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
+        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+        roleFetchedSuccessfullyRef.current = true; // Mark as attempted to prevent infinite retries
         setIsLoadingRole(false);
         return;
       }
@@ -293,22 +315,27 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
           // Jika item punya allowedRoles, cek apakah user role ada di list
           return item.allowedRoles.includes(roleName);
         });
-        setFilteredNavItems(filtered);
+        // Always set filtered items - even if empty, displayItems will handle fallback
+        // But we should always have at least Dashboard and public menus
+        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // If empty, show all (better than nothing)
+        hasEverFetchedRoleRef.current = true;
         roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
       } else {
-        // Default: tampilkan semua menu kecuali yang restricted
+        // If user has no role assigned, show public menus (Dashboard and menus without allowedRoles)
+        // But ensure sidebar is always visible - show all items if no public menus found
         const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-        setFilteredNavItems(filtered);
+        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+        hasEverFetchedRoleRef.current = true;
         roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
       }
     } catch (error) {
       console.error("Error getting user role:", error);
-      // Fallback: tampilkan semua menu kecuali yang restricted
-      // Only update if we haven't successfully fetched before
-      if (!roleFetchedSuccessfullyRef.current) {
-        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-        setFilteredNavItems(filtered);
-      }
+      // Fallback: tampilkan menu publik (Dashboard dan menu tanpa allowedRoles)
+      // Always ensure sidebar is visible - always update on error
+      // Show all navItems if no public menus found (better than empty or just Dashboard)
+      const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
+      setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+      roleFetchedSuccessfullyRef.current = true; // Mark as attempted
     } finally {
       setIsLoadingRole(false);
     }
@@ -316,13 +343,24 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
 
   // Re-fetch role when tenant is loaded or changes
   useEffect(() => {
-    // Ambil role sekali saat mount
-    const timer = setTimeout(() => {
-      getUserRole();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [getUserRole]);
+    // Sidebar should be visible immediately with all items
+    // Don't wait for tenant - show sidebar first, then filter after role is fetched
+    if (!tenantLoading) {
+      if (tenant) {
+        // Reset the ref to allow re-fetching when tenant changes
+        roleFetchedSuccessfullyRef.current = false;
+        // Fetch role immediately, but don't block sidebar rendering
+        getUserRole();
+      } else {
+        // If tenant is not available, show public menus but keep sidebar visible
+        // Show all navItems if no public menus found (better than empty or just Dashboard)
+        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
+        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+      }
+    }
+    // If tenant is still loading, sidebar already shows all navItems (initial state)
+    // This ensures sidebar is always visible immediately
+  }, [getUserRole, tenantLoading, tenant]);
 
   // Prefetch halaman saat hover agar modul sudah siap sebelum diklik
   const prefetchRoute = (path?: string) => {
@@ -404,6 +442,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
   );
 
   // Tentukan grup accordion yang harus terbuka berdasarkan path aktif
+  // Pastikan accordion selalu controlled sejak awal untuk menghindari warning
   useEffect(() => {
     const currentPath = location.pathname;
     const resolveGroupForPath = (): string | undefined => {
@@ -425,18 +464,44 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       if (currentPath.startsWith("/pengaturan-umum")) return "Pengaturan";
       return undefined;
     };
-    setOpenGroup(resolveGroupForPath());
+    const resolvedGroup = resolveGroupForPath();
+    setOpenGroup(resolvedGroup);
+    setIsAccordionControlled(true); // Mark as controlled after first resolution
   }, [location.pathname]);
+
+  // Ensure sidebar always has at least Dashboard visible
+  // Also ensure we always show menus that don't require roles (public menus)
+  // If filteredNavItems is empty or too small, show all items initially or public menus
+  const displayItems = filteredNavItems.length > 0 
+    ? filteredNavItems 
+    : navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0).length > 0
+      ? navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0)
+      : navItems; // Fallback to all items if nothing else available - better to show all than nothing
+
+  // Debug logging to track sidebar state (only in development)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      if (filteredNavItems.length === 0) {
+        console.warn("[SidebarNav] filteredNavItems is empty, showing fallback menus");
+      }
+      if (displayItems.length === 0) {
+        console.error("[SidebarNav] displayItems is empty, this should not happen!");
+      }
+    }
+  }, [filteredNavItems, displayItems]);
 
   return (
     <div className={cn("flex flex-col gap-2 bg-teal-800 text-white", className)} {...props}>
       <Accordion
         type="single"
         collapsible
-        value={openGroup}
-        onValueChange={setOpenGroup}
+        value={isAccordionControlled ? openGroup : undefined}
+        onValueChange={(value) => {
+          setIsAccordionControlled(true);
+          setOpenGroup(value);
+        }}
       >
-        {filteredNavItems.map((item) => (
+        {displayItems.length > 0 ? displayItems.map((item) => (
           item.subItems ? (
             <AccordionItem value={item.title} className="border-none" key={item.title}>
               <AccordionTrigger 
@@ -454,7 +519,10 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
           ) : (
             <div key={item.title}>{renderLink(item)}</div>
           )
-        ))}
+        )) : (
+          // Fallback: Always show at least Dashboard if something goes wrong
+          <div key="dashboard-fallback">{renderLink(navItems[0])}</div>
+        )}
       </Accordion>
     </div>
   );

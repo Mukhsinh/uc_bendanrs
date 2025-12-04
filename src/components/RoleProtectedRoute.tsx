@@ -112,21 +112,7 @@ export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
   }
 
   if (!hasAccess) {
-    return (
-      <div className="container mx-auto py-6">
-        <Alert>
-          <Shield className="h-4 w-4" />
-          <AlertDescription>
-            {fallbackMessage}
-            {userRole && (
-              <span className="block mt-2 text-sm text-muted-foreground">
-                Role Anda: <strong>{userRole}</strong>
-              </span>
-            )}
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <Navigate to="/" replace />;
   }
 
   return children;

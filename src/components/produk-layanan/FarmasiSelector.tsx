@@ -298,9 +298,13 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
                     <TableCell className="text-center">
                       <Input
                         type="number"
-                        min="1"
+                        min="0.01"
+                        step="0.01"
                         value={item.qty}
-                        onChange={(e) => handleUpdateQty(index, parseInt(e.target.value) || 1)}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateQty(index, Number.isNaN(val) ? 0 : val);
+                        }}
                         className="w-20 text-center"
                       />
                     </TableCell>
@@ -400,9 +404,13 @@ const FarmasiSelector: React.FC<FarmasiSelectorProps> = ({
                         <Input
                           id="qty"
                           type="number"
-                          min="1"
+                          min="0.01"
+                          step="0.01"
                           value={qty}
-                          onChange={(e) => setQty(parseInt(e.target.value) || 1)}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setQty(Number.isNaN(val) ? 0 : val);
+                          }}
                         />
                       </div>
 
