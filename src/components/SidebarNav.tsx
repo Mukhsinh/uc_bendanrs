@@ -187,6 +187,7 @@ const navItems: NavItem[] = [
     subItems: [
       { title: "Produk Layanan", href: "/produk-layanan", icon: ShoppingCart },
       { title: "Pola Remunerasi", href: "/pola-remunerasi", icon: PieChart },
+      { title: "Rasio Aktivitas", href: "/rasio-aktivitas", icon: Activity },
     ],
   },
   {

@@ -36,6 +36,7 @@ const KalkulasiBiayaBDRS = lazy(() => import("./pages/KalkulasiBiayaBDRS"));
 const RekapitulasiUnitCost = lazy(() => import("./pages/RekapitulasiUnitCost"));
 const ProdukLayanan = lazy(() => import("./pages/ProdukLayanan"));
 const PolaRemunerasi = lazy(() => import("./pages/PolaRemunerasi"));
+const RasioAktivitas = lazy(() => import("./pages/RasioAktivitas"));
 const SkenarioTarif = lazy(() => import("./pages/SkenarioTarif"));
 const SkenarioTarifAkomodasi = lazy(() => import("./pages/SkenarioTarifAkomodasi"));
 const SkenarioTarifVisit = lazy(() => import("./pages/SkenarioTarifVisit"));
@@ -390,6 +391,11 @@ const AppContent = () => {
           <Route path="/pola-remunerasi" element={
             <SessionGuard>
               <PolaRemunerasi />
+            </SessionGuard>
+          } />
+          <Route path="/rasio-aktivitas" element={
+            <SessionGuard>
+              <RasioAktivitas />
             </SessionGuard>
           } />
           <Route path="/skenario-tarif-tindakan" element={

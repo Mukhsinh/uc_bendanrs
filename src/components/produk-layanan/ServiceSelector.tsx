@@ -41,6 +41,8 @@ interface ServiceItem {
   tarif?: number; // untuk akomodasi
   qty: number;
   subtotal: number;
+  jasa_pelayanan_medis?: number; // Untuk visite dan konsultasi
+  jasa_pelayanan_non_medis?: number; // Untuk visite dan konsultasi
 }
 
 interface ServiceSelectorProps {
@@ -105,6 +107,19 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
     });
 
     return Array.from(map.values());
+  };
+
+  /**
+   * applyUserScope
+   * ----------------
+   * Untuk tabel skenario_tarif dan turunannya, data sudah difilter oleh RLS/tenant_id,
+   * sehingga TIDAK boleh dibatasi lagi berdasarkan user_id. Semua user dalam tenant
+   * yang sama (admin, superadmin, dsb) harus melihat skenario yang sama.
+   *
+   * Karena itu, fungsi ini sekarang hanya mengembalikan query apa adanya.
+   */
+  const applyUserScope = (query: any, _userId: string | null) => {
+    return query;
   };
 
   const fetchServices = async () => {
@@ -276,73 +291,72 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         }
         error = result.error;
       } else if (filterType === "visite") {
-        // Ambil dari skenario_tarif_visit
-        const result = await supabase
+        // Ambil dari skenario_tarif_visit dengan filter Visit%
+        let query = supabase
           .from("skenario_tarif_visit")
           .select("*")
           .eq("tahun", tahun)
-          .maybeSingle();
+          .ilike("tindakan", "Visit%");
+        query = applyUserScope(query, userId);
+        const result = await query;
         
-        if (result.data) {
-          const tarif = result.data;
-          // Transform ke format array
-          data = [
-            {
-              id: "visit_umum",
-              kode_tindakan: "VISIT.UMUM",
-              nama_tindakan: "Visit Dokter Umum",
-              jasa_sarana: tarif.visit_dokter_umum || 0,
+        if (result.data && result.data.length > 0) {
+          data = result.data.map((item: any) => {
+            let kodeTindakan = "VISIT.UMUM";
+            let tipeDokter = "umum";
+            
+            if (item.tindakan.includes("Spesialis") && !item.tindakan.includes("Subspesialis")) {
+              kodeTindakan = "VISIT.SPESIALIS";
+              tipeDokter = "spesialis";
+            } else if (item.tindakan.includes("Subspesialis")) {
+              kodeTindakan = "VISIT.SUBSPESIALIS";
+              tipeDokter = "subspesialis";
+            }
+            
+            return {
+              id: item.id,
+              kode_tindakan: kodeTindakan,
+              nama_tindakan: item.tindakan,
+              jasa_sarana: parseFloat(item.jasa_sarana || 0),
+              jasa_pelayanan_medis: parseFloat(item.jasa_pelayanan_medis || 0),
+              jasa_pelayanan_non_medis: parseFloat(item.jasa_pelayanan_non_medis || 0),
               biaya_bahan: 0,
-              tipe_dokter: "umum",
-            },
-            {
-              id: "visit_spesialis",
-              kode_tindakan: "VISIT.SPESIALIS",
-              nama_tindakan: "Visit Dokter Spesialis",
-              jasa_sarana: tarif.visit_dokter_spesialis || 0,
-              biaya_bahan: 0,
-              tipe_dokter: "spesialis",
-            },
-            {
-              id: "visit_subspesialis",
-              kode_tindakan: "VISIT.SUBSPESIALIS",
-              nama_tindakan: "Visit Dokter Subspesialis",
-              jasa_sarana: tarif.visit_dokter_subspesialis || 0,
-              biaya_bahan: 0,
-              tipe_dokter: "subspesialis",
-            },
-          ];
+              tipe_dokter: tipeDokter,
+            };
+          });
         }
         error = result.error;
       } else if (filterType === "konsultasi") {
-        // Ambil dari skenario_tarif_visit
-        const result = await supabase
+        // Ambil dari skenario_tarif_visit dengan filter Konsultasi%
+        let query = supabase
           .from("skenario_tarif_visit")
           .select("*")
           .eq("tahun", tahun)
-          .maybeSingle();
+          .ilike("tindakan", "Konsultasi%");
+        query = applyUserScope(query, userId);
+        const result = await query;
         
-        if (result.data) {
-          const tarif = result.data;
-          // Transform ke format array
-          data = [
-            {
-              id: "konsultasi_spesialis",
-              kode_tindakan: "KONSUL.SPESIALIS",
-              nama_tindakan: "Konsultasi Dokter Spesialis",
-              jasa_sarana: tarif.konsultasi_dokter_spesialis || 0,
+        if (result.data && result.data.length > 0) {
+          data = result.data.map((item: any) => {
+            let kodeTindakan = "KONSUL.SPESIALIS";
+            let tipeDokter = "spesialis";
+            
+            if (item.tindakan.includes("Subspesialis")) {
+              kodeTindakan = "KONSUL.SUBSPESIALIS";
+              tipeDokter = "subspesialis";
+            }
+            
+            return {
+              id: item.id,
+              kode_tindakan: kodeTindakan,
+              nama_tindakan: item.tindakan,
+              jasa_sarana: parseFloat(item.jasa_sarana || 0),
+              jasa_pelayanan_medis: parseFloat(item.jasa_pelayanan_medis || 0),
+              jasa_pelayanan_non_medis: parseFloat(item.jasa_pelayanan_non_medis || 0),
               biaya_bahan: 0,
-              tipe_dokter: "spesialis",
-            },
-            {
-              id: "konsultasi_subspesialis",
-              kode_tindakan: "KONSUL.SUBSPESIALIS",
-              nama_tindakan: "Konsultasi Dokter Subspesialis",
-              jasa_sarana: tarif.konsultasi_dokter_subspesialis || 0,
-              biaya_bahan: 0,
-              tipe_dokter: "subspesialis",
-            },
-          ];
+              tipe_dokter: tipeDokter,
+            };
+          });
         }
         error = result.error;
       }
@@ -414,13 +428,18 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
         subtotal: (service.biaya_bahan || 0) * qty,
       };
     } else if (filterType === "visite" || filterType === "konsultasi") {
-      // Untuk visite dan konsultasi, gunakan tarif_per_tindakan dari skenario_tarif
-      const totalPerItem = (service.jasa_sarana || 0) + (service.biaya_bahan || 0);
+      // Untuk visite dan konsultasi, gunakan jasa_sarana + jasa_pelayanan_medis + jasa_pelayanan_non_medis dari skenario_tarif_visit
+      const jasaSarana = service.jasa_sarana || 0;
+      const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+      const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+      const totalPerItem = jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis;
       newItem = {
         kode_tindakan: service.kode_tindakan,
         nama_tindakan: service.nama_tindakan,
-        jasa_sarana: service.jasa_sarana || 0,
-        biaya_bahan: service.biaya_bahan || 0,
+        jasa_sarana: jasaSarana,
+        jasa_pelayanan_medis: jasaPelayananMedis,
+        jasa_pelayanan_non_medis: jasaPelayananNonMedis,
+        biaya_bahan: 0,
         qty,
         subtotal: totalPerItem * qty,
       };
@@ -615,8 +634,11 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                           } else if (filterType === "farmasi") {
                             displayText += ` (Harga: ${formatCurrency(service.biaya_bahan || 0)})`;
                           } else if (filterType === "visite" || filterType === "konsultasi") {
-                            const jasa = service.jasa_sarana || 0;
-                            displayText += ` (Tarif: ${formatCurrency(jasa)})`;
+                            const jasaSarana = service.jasa_sarana || 0;
+                            const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+                            const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+                            const totalTarif = jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis;
+                            displayText += ` (Tarif: ${formatCurrency(totalTarif)})`;
                           } else {
                             const jasa = service.jasa_sarana || service.unit_cost_per_tindakan || 0;
                             const bahan = service.biaya_bahan || 0;
@@ -676,6 +698,18 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                               <div key="harga" className="flex justify-between">
                                 <span>Harga:</span>
                                 <span className="font-semibold">{formatCurrency(harga)}</span>
+                              </div>
+                            ];
+                          } else if (filterType === "visite" || filterType === "konsultasi") {
+                            const jasaSarana = service.jasa_sarana || 0;
+                            const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+                            const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+                            const totalTarif = jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis;
+                            total = totalTarif * qty;
+                            displayItems = [
+                              <div key="tarif" className="flex justify-between">
+                                <span>Tarif:</span>
+                                <span className="font-semibold">{formatCurrency(totalTarif)}</span>
                               </div>
                             ];
                           } else {

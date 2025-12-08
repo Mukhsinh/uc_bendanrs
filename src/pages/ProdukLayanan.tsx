@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, Edit, Plus, Upload, Download, RefreshCcw } from "lucide-react";
+import { Trash2, Edit, Plus, Upload, Download, RefreshCcw, Calculator } from "lucide-react";
 import * as XLSX from "xlsx";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import Papa from "papaparse";
@@ -97,6 +97,7 @@ const ProdukLayanan = () => {
   const [tahun, setTahun] = useState(2025);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [recalculatingJP, setRecalculatingJP] = useState(false);
   const [formData, setFormData] = useState<Partial<ProdukLayanan>>({
     tahun: 2025,
     jenis: "rawat jalan",
@@ -188,6 +189,40 @@ const ProdukLayanan = () => {
       });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleRecalculateJP = async () => {
+    if (!confirm("Apakah Anda yakin ingin menghitung ulang JP untuk semua data produk layanan? Proses ini akan memperbarui JP Tindakan, JP IBS, JP Laboratorium, JP Radiologi, JP Farmasi, JP Kamar Akomodasi, JP Visite, dan JP Konsultasi.")) {
+      return;
+    }
+
+    try {
+      setRecalculatingJP(true);
+      const { data, error } = await supabase.rpc("recalculate_jp_produk_layanan_rpc", {
+        p_tahun: tahun,
+        p_id: null,
+      });
+
+      if (error) throw error;
+
+      if (data && data.success) {
+        toast({
+          title: "Berhasil",
+          description: `JP berhasil dihitung ulang. ${data.affected_rows} data diperbarui dari ${data.total_processed} data yang diproses.`,
+        });
+        await fetchData();
+      } else {
+        throw new Error(data?.message || "Recalculate JP gagal");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Gagal menghitung ulang JP",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setRecalculatingJP(false);
     }
   };
 
@@ -876,7 +911,10 @@ const ProdukLayanan = () => {
                   Tambah Data
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+              <DialogContent 
+                className="max-w-6xl max-h-[90vh] overflow-y-auto"
+                onInteractOutside={(e) => e.preventDefault()}
+              >
                 <DialogHeader>
                   <DialogTitle>
                     {editingId ? "Edit Produk Layanan" : "Tambah Produk Layanan"}
@@ -1076,38 +1114,33 @@ const ProdukLayanan = () => {
                       }}
                     />
 
-                    {/* URUTAN 1: Klinik - Hanya untuk Rawat Jalan */}
-                    {formData.jenis === "rawat jalan" && (
-                      <KlinikInputTable
-                        value={formData.klinik || []}
-                        onChange={(value) => setFormData({ ...formData, klinik: value })}
-                        tahun={tahun}
-                      />
-                    )}
+                    {/* URUTAN 1: Klinik - Tersedia untuk semua jenis rawat */}
+                    <KlinikInputTable
+                      value={formData.klinik || []}
+                      onChange={(value) => setFormData({ ...formData, klinik: value })}
+                      tahun={tahun}
+                    />
 
-                    {/* URUTAN 2: Kamar Akomodasi - Hanya untuk Rawat Inap */}
-                    {formData.jenis === "rawat inap" && (
-                      <LayananInputTable
-                        label="Kamar Akomodasi"
-                        value={formData.kamar_akomodasi || []}
-                        onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
-                        tahun={tahun}
-                        filterType="akomodasi"
-                        refreshKey={refreshKey}
-                        onServicesLoaded={(services) => 
-                          setAvailableServices(prev => ({ ...prev, akomodasi: services }))
-                        }
-                      />
-                    )}
+                    {/* URUTAN 2: Kamar Akomodasi - Tersedia untuk semua jenis rawat */}
+                    <LayananInputTable
+                      label="Kamar Akomodasi"
+                      value={formData.kamar_akomodasi || []}
+                      onChange={(value) => setFormData({ ...formData, kamar_akomodasi: value })}
+                      tahun={tahun}
+                      filterType="akomodasi"
+                      refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, akomodasi: services }))
+                      }
+                    />
 
-                    {/* URUTAN 3: Tindakan - Filter berdasarkan Klinik (Rawat Jalan) atau Kamar (Rawat Inap) */}
+                    {/* URUTAN 3: Tindakan - Tersedia untuk semua jenis rawat */}
                     <LayananInputTable
                       label="Tindakan"
                       value={formData.tindakan || []}
                       onChange={(value) => setFormData({ ...formData, tindakan: value })}
                       tahun={tahun}
                       filterType="tindakan"
-                      jenisProduk={formData.jenis}
                       refreshKey={refreshKey}
                       selectedKamarAkomodasi={formData.kamar_akomodasi || []}
                       selectedKlinik={formData.klinik || []}
@@ -1217,13 +1250,23 @@ const ProdukLayanan = () => {
             </Button>
 
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={handleRefreshData}
               disabled={refreshing}
-              className="shadow-sm"
+              className="shadow-sm bg-cyan-600 hover:bg-cyan-700 text-white border-cyan-600"
             >
               <RefreshCcw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "Memperbarui…" : "Perbarui Data"}
+            </Button>
+
+            <Button
+              variant="default"
+              onClick={handleRecalculateJP}
+              disabled={recalculatingJP}
+              className="shadow-sm bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <Calculator className={`h-4 w-4 mr-2 ${recalculatingJP ? "animate-pulse" : ""}`} />
+              {recalculatingJP ? "Menghitung Ulang JP…" : "Recalculate JP"}
             </Button>
           </div>
 

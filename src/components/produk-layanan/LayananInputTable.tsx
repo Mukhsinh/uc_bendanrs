@@ -36,6 +36,8 @@ interface LayananItem {
   kode_unit_kerja?: string;
   nama_unit_kerja?: string;
   kelas?: string;
+  jasa_pelayanan_medis?: number; // Untuk visite dan konsultasi
+  jasa_pelayanan_non_medis?: number; // Untuk visite dan konsultasi
 }
 
 interface LayananInputTableProps {
@@ -199,73 +201,61 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       let error: any = null;
 
       if (filterType === "tindakan") {
-        let sumberTabel = "";
-        if (jenisProduk === "rawat jalan") {
-          sumberTabel = "kalkulasi_tindakan_rawat_jalan";
-        } else if (jenisProduk === "rawat inap") {
-          sumberTabel = "kalkulasi_tindakan_inap";
-        }
-
         console.log("=== FETCHING TINDAKAN ===");
-        console.log("Jenis Produk:", jenisProduk);
-        console.log("Sumber Tabel:", sumberTabel);
         console.log("Tahun:", tahun);
         console.log("Selected Kamar Akomodasi:", selectedKamarAkomodasi);
         console.log("Selected Klinik:", selectedKlinik);
 
-        if (sumberTabel) {
-          let query = supabase
-            .from("skenario_tarif")
-            .select("*, kode_unit_kerja, nama_unit_kerja")
-            .eq("tahun", tahun)
-            .eq("sumber_tabel", sumberTabel);
-          
-          // Filter berdasarkan kamar akomodasi atau klinik yang dipilih
-          if (jenisProduk === "rawat inap" && selectedKamarAkomodasi && selectedKamarAkomodasi.length > 0) {
-            // Ambil kode unit kerja dari kamar yang dipilih
-            const kodeUnitKerjaList = selectedKamarAkomodasi
-              .map(k => k.kode_unit_kerja)
-              .filter(k => k); // Hapus nilai null/undefined
-            
-            console.log("Filtering by Unit Kerja from Kamar:", kodeUnitKerjaList);
-            
-            if (kodeUnitKerjaList.length > 0) {
-              query = query.in("kode_unit_kerja", kodeUnitKerjaList);
-            }
-          } else if (jenisProduk === "rawat jalan" && selectedKlinik && selectedKlinik.length > 0) {
-            // Ambil kode unit kerja dari klinik yang dipilih
-            const kodeUnitKerjaList = selectedKlinik
-              .map(k => k.kode_unit_kerja)
-              .filter(k => k); // Hapus nilai null/undefined
-            
-            console.log("Filtering by Unit Kerja from Klinik:", kodeUnitKerjaList);
-            
-            if (kodeUnitKerjaList.length > 0) {
-              query = query.in("kode_unit_kerja", kodeUnitKerjaList);
-            }
-          }
-          
-          query = applyUserScope(query, userId);
-          const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
-          data = result.data || [];
-          error = result.error;
-          
-          console.log("📦 Query result:", {
-            totalFetched: data.length,
-            sampleData: data.slice(0, 3),
-            uniqueUnitKerja: [...new Set(data.map(d => d.kode_unit_kerja))],
-            uniqueNamaUnitKerja: [...new Set(data.map(d => d.nama_unit_kerja))]
-          });
-          
-          if (data.length === 0) {
-            console.warn("⚠️ No tindakan found. Check if:");
-            console.log("- Kamar/Klinik have valid kode_unit_kerja");
-            console.log("- Tindakan exists for those unit kerja in skenario_tarif");
-            console.log("- Selected unit kerja:", jenisProduk === "rawat inap" 
-              ? selectedKamarAkomodasi?.map(k => k.kode_unit_kerja)
-              : selectedKlinik?.map(k => k.kode_unit_kerja)
-            );
-          }
+        // Ambil semua tindakan dari kedua sumber tabel (rawat jalan dan rawat inap)
+        let query = supabase
+          .from("skenario_tarif")
+          .select("*, kode_unit_kerja, nama_unit_kerja")
+          .eq("tahun", tahun)
+          .in("sumber_tabel", ["kalkulasi_tindakan_rawat_jalan", "kalkulasi_tindakan_inap"]);
+        
+        // Filter berdasarkan kamar akomodasi atau klinik yang dipilih (jika ada)
+        // Tidak dibedakan berdasarkan jenis rawat
+        const kodeUnitKerjaList: string[] = [];
+        
+        if (selectedKamarAkomodasi && selectedKamarAkomodasi.length > 0) {
+          const kamarUnitKerja = selectedKamarAkomodasi
+            .map(k => k.kode_unit_kerja)
+            .filter(k => k) as string[];
+          kodeUnitKerjaList.push(...kamarUnitKerja);
+        }
+        
+        if (selectedKlinik && selectedKlinik.length > 0) {
+          const klinikUnitKerja = selectedKlinik
+            .map(k => k.kode_unit_kerja)
+            .filter(k => k) as string[];
+          kodeUnitKerjaList.push(...klinikUnitKerja);
+        }
+        
+        // Hapus duplikat
+        const uniqueUnitKerja = [...new Set(kodeUnitKerjaList)];
+        
+        if (uniqueUnitKerja.length > 0) {
+          console.log("Filtering by Unit Kerja:", uniqueUnitKerja);
+          query = query.in("kode_unit_kerja", uniqueUnitKerja);
+        }
+        
+        query = applyUserScope(query, userId);
+        const result = await query.order("nama_unit_kerja", { ascending: true }).order("nama_tindakan", { ascending: true });
+        data = result.data || [];
+        error = result.error;
+        
+        console.log("📦 Query result:", {
+          totalFetched: data.length,
+          sampleData: data.slice(0, 3),
+          uniqueUnitKerja: [...new Set(data.map(d => d.kode_unit_kerja))],
+          uniqueNamaUnitKerja: [...new Set(data.map(d => d.nama_unit_kerja))]
+        });
+        
+        if (data.length === 0) {
+          console.warn("⚠️ No tindakan found. Check if:");
+          console.log("- Kamar/Klinik have valid kode_unit_kerja");
+          console.log("- Tindakan exists for those unit kerja in skenario_tarif");
+          console.log("- Selected unit kerja:", uniqueUnitKerja);
         }
       } else if (filterType === "ibs") {
         console.log("🔍 Fetching IBS services (tindakan operatif) tanpa filter jenis/rawat:", {
@@ -386,7 +376,9 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
               id: item.id,
               kode_tindakan: kodeTindakan,
               nama_tindakan: item.tindakan,
-              jasa_sarana: parseFloat(item.tarif || 0),
+              jasa_sarana: parseFloat(item.jasa_sarana || 0),
+              jasa_pelayanan_medis: parseFloat(item.jasa_pelayanan_medis || 0),
+              jasa_pelayanan_non_medis: parseFloat(item.jasa_pelayanan_non_medis || 0),
               biaya_bahan: 0,
               tipe_dokter: tipeDokter,
             };
@@ -415,7 +407,9 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
               id: item.id,
               kode_tindakan: kodeTindakan,
               nama_tindakan: item.tindakan,
-              jasa_sarana: parseFloat(item.tarif || 0),
+              jasa_sarana: parseFloat(item.jasa_sarana || 0),
+              jasa_pelayanan_medis: parseFloat(item.jasa_pelayanan_medis || 0),
+              jasa_pelayanan_non_medis: parseFloat(item.jasa_pelayanan_non_medis || 0),
               biaya_bahan: 0,
               tipe_dokter: tipeDokter,
             };
@@ -528,11 +522,17 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         subtotal: itemTotal,
       };
     } else if (filterType === "visite" || filterType === "konsultasi") {
-      itemTotal = (service.jasa_sarana || 0) * qty;
+      // Untuk visite dan konsultasi, subtotal dihitung dari jasa_sarana + jasa_pelayanan_medis + jasa_pelayanan_non_medis
+      const jasaSarana = service.jasa_sarana || 0;
+      const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+      const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+      itemTotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * qty;
       newItem = {
         kode_tindakan: service.kode_tindakan,
         nama_tindakan: service.nama_tindakan,
-        jasa_sarana: service.jasa_sarana || 0,
+        jasa_sarana: jasaSarana,
+        jasa_pelayanan_medis: jasaPelayananMedis,
+        jasa_pelayanan_non_medis: jasaPelayananNonMedis,
         biaya_bahan: 0,
         qty,
         subtotal: itemTotal,
@@ -561,9 +561,21 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       // Update existing
       const newValue = [...value];
       const newQtyTotal = newValue[existingIndex].qty + qty;
-      const jasaSarana = newValue[existingIndex].jasa_sarana || newValue[existingIndex].tarif || 0;
-      const biayaBahan = newValue[existingIndex].biaya_bahan || 0;
-      const newSubtotal = (jasaSarana + biayaBahan) * newQtyTotal;
+      
+      let newSubtotal = 0;
+      if (filterType === "visite" || filterType === "konsultasi") {
+        const jasaSarana = newValue[existingIndex].jasa_sarana || 0;
+        const jasaPelayananMedis = newValue[existingIndex].jasa_pelayanan_medis || 0;
+        const jasaPelayananNonMedis = newValue[existingIndex].jasa_pelayanan_non_medis || 0;
+        newSubtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * newQtyTotal;
+      } else if (filterType === "akomodasi") {
+        const tarif = newValue[existingIndex].tarif || 0;
+        newSubtotal = tarif * newQtyTotal;
+      } else {
+        const jasaSarana = newValue[existingIndex].jasa_sarana || newValue[existingIndex].tarif || 0;
+        const biayaBahan = newValue[existingIndex].biaya_bahan || 0;
+        newSubtotal = (jasaSarana + biayaBahan) * newQtyTotal;
+      }
       
       newValue[existingIndex] = {
         ...newValue[existingIndex],
@@ -606,9 +618,21 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     }
     
     const newValue = [...value];
-    const jasaSarana = newValue[index].jasa_sarana || newValue[index].tarif || 0;
-    const biayaBahan = newValue[index].biaya_bahan || 0;
-    const newSubtotal = (jasaSarana + biayaBahan) * newQty;
+    let newSubtotal = 0;
+    
+    if (filterType === "visite" || filterType === "konsultasi") {
+      const jasaSarana = newValue[index].jasa_sarana || 0;
+      const jasaPelayananMedis = newValue[index].jasa_pelayanan_medis || 0;
+      const jasaPelayananNonMedis = newValue[index].jasa_pelayanan_non_medis || 0;
+      newSubtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * newQty;
+    } else if (filterType === "akomodasi") {
+      const tarif = newValue[index].tarif || 0;
+      newSubtotal = tarif * newQty;
+    } else {
+      const jasaSarana = newValue[index].jasa_sarana || newValue[index].tarif || 0;
+      const biayaBahan = newValue[index].biaya_bahan || 0;
+      newSubtotal = (jasaSarana + biayaBahan) * newQty;
+    }
     
     newValue[index] = {
       ...newValue[index],
@@ -763,7 +787,11 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                     if (filterType === "akomodasi") {
                       displayText += ` - Tarif: ${formatCurrency(service.tarif || 0)}`;
                     } else if (filterType === "visite" || filterType === "konsultasi") {
-                      displayText += ` - Tarif: ${formatCurrency(service.jasa_sarana || 0)}`;
+                      const jasaSarana = service.jasa_sarana || 0;
+                      const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+                      const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+                      const totalTarif = jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis;
+                      displayText += ` - Tarif: ${formatCurrency(totalTarif)}`;
                     } else {
                       const jasa = service.jasa_sarana || 0;
                       const bahan = service.biaya_bahan || 0;
@@ -824,9 +852,13 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                   <span key="tarif">Tarif: {formatCurrency(service.tarif || 0)}</span>
                 ];
               } else if (filterType === "visite" || filterType === "konsultasi") {
-                totalPerItem = (service.jasa_sarana || 0) * qty;
+                const jasaSarana = service.jasa_sarana || 0;
+                const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+                const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+                const totalTarif = jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis;
+                totalPerItem = totalTarif * qty;
                 displayInfo = [
-                  <span key="tarif">Tarif: {formatCurrency(service.jasa_sarana || 0)}</span>
+                  <span key="tarif">Tarif: {formatCurrency(totalTarif)}</span>
                 ];
               } else {
                 const jasa = service.jasa_sarana || 0;

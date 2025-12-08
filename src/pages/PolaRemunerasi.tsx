@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Download, Search, Coins, BarChart3, TrendingUp, TrendingDown } from "lucide-react";
+import { Download, Search, Coins, BarChart3, TrendingUp, TrendingDown, Calculator } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +54,7 @@ const PolaRemunerasi = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [jenisFilter, setJenisFilter] = useState("all");
   const [spesialisasiFilter, setSpesialisasiFilter] = useState("all");
+  const [recalculatingJP, setRecalculatingJP] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -118,6 +119,34 @@ const PolaRemunerasi = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRecalculateJP = async () => {
+    try {
+      setRecalculatingJP(true);
+      const { data, error } = await supabase.rpc("recalculate_jp_produk_layanan_rpc", {
+        p_tahun: tahun,
+        p_id: null,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Berhasil",
+        description: `Recalculate JP selesai. ${data?.affected_rows || 0} record diperbarui.`,
+      });
+
+      // Refresh data setelah recalculate
+      await fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setRecalculatingJP(false);
     }
   };
 
@@ -320,7 +349,16 @@ const PolaRemunerasi = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              <Button
+                variant="default"
+                onClick={handleRecalculateJP}
+                disabled={recalculatingJP}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Calculator className={`h-4 w-4 mr-2 ${recalculatingJP ? "animate-pulse" : ""}`} />
+                {recalculatingJP ? "Menghitung Ulang JP…" : "Recalculate JP"}
+              </Button>
               <Button onClick={handleExport} className="bg-red-600 hover:bg-red-700 text-white">
                 <Download className="h-4 w-4 mr-2" />
                 Unduh Laporan
