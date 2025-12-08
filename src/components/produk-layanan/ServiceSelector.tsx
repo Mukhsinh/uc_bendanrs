@@ -297,7 +297,7 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
           .select("*")
           .eq("tahun", tahun)
           .ilike("tindakan", "Visit%");
-        query = applyUserScope(query, userId);
+        query = applyUserScope(query, user?.id || null);
         const result = await query;
         
         if (result.data && result.data.length > 0) {
@@ -333,7 +333,7 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
           .select("*")
           .eq("tahun", tahun)
           .ilike("tindakan", "Konsultasi%");
-        query = applyUserScope(query, userId);
+        query = applyUserScope(query, user?.id || null);
         const result = await query;
         
         if (result.data && result.data.length > 0) {
