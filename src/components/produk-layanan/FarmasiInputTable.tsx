@@ -51,6 +51,7 @@ const FarmasiInputTable: React.FC<FarmasiInputTableProps> = ({
   const [selectedItem, setSelectedItem] = useState<string>("");
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [searchInputList, setSearchInputList] = useState<string>("");
 
   const getTimestamp = (item: any) => {
     const updated = item?.updated_at ? new Date(item.updated_at).getTime() : 0;
@@ -182,7 +183,7 @@ const dedupeByKodeBarang = (items: any[]) => {
     const hargaTotal = Math.round(hargaSatuan * qty);
 
     if (existingIndex >= 0) {
-      // Update existing item
+      // Update existing item - AKUMULASI OTOMATIS
       const newValue = [...value];
       const newQtyTotal = newValue[existingIndex].qty + qty;
       const newHargaTotal = Math.round(newQtyTotal * hargaSatuan);
@@ -196,10 +197,10 @@ const dedupeByKodeBarang = (items: any[]) => {
       
       toast({
         title: "Berhasil",
-        description: `Quantity ${item.nama_barang} berhasil ditambahkan`,
+        description: `Quantity ${item.nama_barang} berhasil ditambahkan (total: ${newQtyTotal})`,
       });
     } else {
-      // Add new item
+      // Add new item - SELALU DI POSISI PALING ATAS
       const newItem: FarmasiItem = {
         kode_barang: item.kode_barang,
         nama_barang: item.nama_barang,
@@ -209,16 +210,17 @@ const dedupeByKodeBarang = (items: any[]) => {
         harga_total: hargaTotal,
         subtotal: hargaTotal,
       };
-      onChange([...value, newItem]);
+      onChange([newItem, ...value]); // Unshift: item baru di atas
       
       toast({
         title: "Berhasil",
-        description: `${item.nama_barang} berhasil ditambahkan ke list`,
+        description: `${item.nama_barang} berhasil ditambahkan ke list (di paling atas)`,
       });
     }
 
-    // Reset selection, keep search
+    // Reset selection and search
     setSelectedItem("");
+    setSearchQuery("");
     setQty(1);
   };
 
@@ -268,52 +270,69 @@ const dedupeByKodeBarang = (items: any[]) => {
         </Badge>
       </div>
       
-      {/* Input Section */}
+      {/* Input Section - Combobox Pattern (Search & Select jadi satu) */}
       <div className="border rounded-lg p-4 bg-emerald-50 border-emerald-200 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Search */}
-          <div className="md:col-span-5">
-            <Label htmlFor="search" className="text-sm">Cari Barang</Label>
+          {/* Combobox - Search & Select jadi satu */}
+          <div className="md:col-span-9">
+            <Label htmlFor="search" className="text-sm">Cari & Pilih Barang Farmasi</Label>
             <div className="relative mt-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="search"
-                placeholder="Ketik kode atau nama barang..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+                <Input
+                  id="search"
+                  placeholder="Ketik kode atau nama barang... (akan muncul pilihan)"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    // Auto-select jika hanya 1 hasil
+                    const filtered = availableItems.filter(
+                      (item) =>
+                        item.kode_barang?.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        item.nama_barang?.toLowerCase().includes(e.target.value.toLowerCase())
+                    );
+                    if (filtered.length === 1 && e.target.value.length > 2) {
+                      setSelectedItem(filtered[0].id);
+                    }
+                  }}
+                  className="pl-8"
+                />
+              </div>
+              {searchQuery && (
+                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {loading ? (
+                    <div className="p-4 text-center text-sm">Loading...</div>
+                  ) : filteredItems.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      Tidak ada hasil untuk "{searchQuery}"
+                    </div>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`p-3 cursor-pointer hover:bg-gray-100 ${selectedItem === item.id ? 'bg-emerald-50 border-l-4 border-emerald-500' : ''}`}
+                        onClick={() => {
+                          setSelectedItem(item.id);
+                          setSearchQuery(item.nama_barang || '');
+                        }}
+                      >
+                        <div className="text-sm font-medium">
+                          {item.kode_barang} - {item.nama_barang} ({item.satuan})
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Harga: {formatCurrency(item.harga || 0)}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
-            {searchQuery && (
+            {filteredItems.length > 0 && searchQuery && (
               <p className="text-xs text-muted-foreground mt-1">
                 Ditemukan {filteredItems.length} dari {availableItems.length} barang
               </p>
             )}
-          </div>
-
-          {/* Select Barang */}
-          <div className="md:col-span-4">
-            <Label htmlFor="barang" className="text-sm">Pilih Barang</Label>
-            <Select value={selectedItem} onValueChange={setSelectedItem}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Pilih barang..." />
-              </SelectTrigger>
-              <SelectContent>
-                {loading ? (
-                  <div className="p-4 text-center text-sm">Loading...</div>
-                ) : filteredItems.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-muted-foreground">
-                    {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Tidak ada data barang farmasi"}
-                  </div>
-                ) : (
-                  filteredItems.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.kode_barang} - {item.nama_barang} ({item.satuan}) - {formatCurrency(item.harga || 0)}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Quantity */}
@@ -373,6 +392,23 @@ const dedupeByKodeBarang = (items: any[]) => {
           </div>
         )}
       </div>
+
+      {/* Search Input List - Cari barang yang sudah ditambahkan */}
+      {value.length > 0 && (
+        <div className="mb-3">
+          <Label htmlFor="search-list" className="text-sm">Cari barang yang sudah ditambahkan</Label>
+          <div className="relative mt-1">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              id="search-list"
+              placeholder="Cari dalam list..."
+              value={searchInputList}
+              onChange={(e) => setSearchInputList(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Table Display */}
       <div className="border rounded-lg overflow-hidden">

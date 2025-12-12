@@ -22,6 +22,9 @@ const DataTindakanLaboratorium = lazy(() => import("./pages/DataTindakanLaborato
 const DataTindakanRadiologi = lazy(() => import("./pages/DataTindakanRadiologi"));
 const DataTindakanOperatif = lazy(() => import("./pages/DataTindakanOperatif"));
 const DataTindakanCathlab = lazy(() => import("./pages/DataTindakanCathlab"));
+const DaftarLaboratoriumEksternal = lazy(() => import("./pages/DaftarLaboratoriumEksternal"));
+const DaftarRadiologiEksternal = lazy(() => import("./pages/DaftarRadiologiEksternal"));
+const AnalisaBahanPemeriksaan = lazy(() => import("./pages/AnalisaBahanPemeriksaan"));
 const DataPendapatan = lazy(() => import("./pages/DataPendapatan"));
 const DataBiaya = lazy(() => import("./pages/DataBiaya"));
 const KalkulasiBiayaGizi = lazy(() => import("./pages/KalkulasiBiayaGizi"));
@@ -242,6 +245,16 @@ const AppContent = () => {
               <DataTindakanCathlab />
             </SessionGuard>
           } />
+          <Route path="/data-master/laboratorium-eksternal" element={
+            <SessionGuard>
+              <DaftarLaboratoriumEksternal />
+            </SessionGuard>
+          } />
+          <Route path="/data-master/radiologi-eksternal" element={
+            <SessionGuard>
+              <DaftarRadiologiEksternal />
+            </SessionGuard>
+          } />
           <Route path="/data-master/pendapatan" element={
             <SessionGuard>
               <DataPendapatan />
@@ -386,6 +399,11 @@ const AppContent = () => {
           <Route path="/produk-layanan" element={
             <SessionGuard>
               <ProdukLayanan />
+            </SessionGuard>
+          } />
+          <Route path="/analisis-bisnis/analisa-bahan-pemeriksaan" element={
+            <SessionGuard>
+              <AnalisaBahanPemeriksaan />
             </SessionGuard>
           } />
           <Route path="/pola-remunerasi" element={

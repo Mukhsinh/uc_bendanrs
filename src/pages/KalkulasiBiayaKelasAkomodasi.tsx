@@ -14,7 +14,7 @@ import * as XLSX from 'xlsx';
 
 interface KalkulasiBiayaKelasAkomodasiData {
   id: string;
-  user_id: string;
+  user_id: string | null;
   tahun: number;
   kode_unit_kerja: string;
   nama_unit_kerja: string;

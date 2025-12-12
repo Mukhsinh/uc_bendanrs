@@ -1,16 +1,17 @@
 -- ============================================
--- Fix Function Populate Kalkulasi Biaya Kelas Akomodasi
+-- Migration: Recalculate Kalkulasi Biaya Kelas Akomodasi
+-- Date: 2024-12-11
 -- 
 -- Masalah:
--- 1. Function hanya mengambil data dengan user_id = p_user_id, sehingga tidak menemukan data master
--- 2. Relasi harus berdasarkan kode_unit_kerja dan tahun, dengan fallback ke master (user_id IS NULL)
+-- Nilai di tabel kalkulasi_biaya_kelas_akomodasi belum dikalikan dengan dasar alokasi
 -- 
--- Rumus yang Benar untuk alokasi_biaya_gizi:
--- alokasi_biaya_gizi = jumlah_kali_porsi_[kelas] / hari_rawat_[kelas]
--- 
--- Relasi: kode_unit_kerja, tahun, kelas (dengan prioritas user_id sama, lalu master)
+-- Solusi:
+-- 1. Re-apply function yang sudah benar
+-- 2. Hapus data lama
+-- 3. Recalculate semua data dengan function yang benar
 -- ============================================
 
+-- Step 1: Re-apply function populate_kalkulasi_biaya_kelas_akomodasi yang sudah benar
 CREATE OR REPLACE FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(
   p_user_id uuid,
   p_tahun integer
@@ -426,3 +427,60 @@ IS 'Populate kalkulasi_biaya_kelas_akomodasi dengan 3 jenis dasar alokasi:
 Rumus alokasi_biaya_gizi: jumlah_kali_porsi_[kelas] / hari_rawat_[kelas]. Prioritas: data user, lalu data master (user_id IS NULL)';
 
 GRANT EXECUTE ON FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(uuid, integer) TO authenticated;
+
+-- Step 2: Backup data lama (opsional, untuk safety)
+CREATE TEMP TABLE backup_kalkulasi_kelas_akomodasi AS 
+SELECT * FROM kalkulasi_biaya_kelas_akomodasi;
+
+-- Step 3: Recalculate semua data
+-- Ambil semua kombinasi user_id dan tahun yang unik
+DO $$
+DECLARE
+    rec RECORD;
+    v_count INTEGER := 0;
+BEGIN
+    -- Loop untuk setiap kombinasi user_id dan tahun
+    FOR rec IN 
+        SELECT DISTINCT user_id, tahun 
+        FROM kalkulasi_biaya_kelas_akomodasi 
+        WHERE user_id IS NOT NULL
+        ORDER BY tahun, user_id
+    LOOP
+        RAISE NOTICE 'Recalculating for user_id: %, tahun: %', rec.user_id, rec.tahun;
+        
+        -- Panggil function untuk recalculate
+        PERFORM public.populate_kalkulasi_biaya_kelas_akomodasi(rec.user_id, rec.tahun);
+        
+        v_count := v_count + 1;
+    END LOOP;
+    
+    RAISE NOTICE 'Total recalculated: % user-tahun combinations', v_count;
+END $$;
+
+-- Step 4: Verifikasi hasil untuk UK047 Kelas III
+SELECT 
+    'VERIFIKASI HASIL' as info,
+    kbka.kode_unit_kerja,
+    kbka.nama_unit_kerja,
+    kbka.kelas,
+    kbka.dasar_alokasi_hari_rawat,
+    kbka.dasar_alokasi_tempat_tidur,
+    kbka.dasar_alokasi_luas_kamar,
+    kbka.biaya_gaji_tunjangan as gaji_kelas_baru,
+    kba.biaya_gaji_tunjangan as gaji_unit,
+    ROUND(kba.biaya_gaji_tunjangan * kbka.dasar_alokasi_hari_rawat) as gaji_expected,
+    kbka.biaya_air as air_kelas_baru,
+    kba.biaya_air as air_unit,
+    ROUND(kba.biaya_air * kbka.dasar_alokasi_tempat_tidur) as air_expected,
+    kbka.biaya_pemeliharaan_bangunan as pem_bangunan_kelas_baru,
+    kba.biaya_pemeliharaan_bangunan as pem_bangunan_unit,
+    ROUND(kba.biaya_pemeliharaan_bangunan * kbka.dasar_alokasi_luas_kamar) as pem_bangunan_expected
+FROM kalkulasi_biaya_kelas_akomodasi kbka
+LEFT JOIN kalkulasi_biaya_akomodasi kba 
+    ON kba.kode_unit_kerja = kbka.kode_unit_kerja 
+    AND kba.tahun = kbka.tahun
+WHERE kbka.kode_unit_kerja = 'UK047' 
+    AND kbka.tahun = 2025
+    AND kbka.kelas = 'III'
+LIMIT 1;
+

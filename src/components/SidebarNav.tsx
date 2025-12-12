@@ -36,6 +36,7 @@ import {
   BookOpenCheck,
   Shield,
   RefreshCw,
+  FlaskConical,
 } from "lucide-react";
 import {
   Accordion,
@@ -78,6 +79,8 @@ const navItems: NavItem[] = [
       { title: "Tindakan Operatif", href: "/data-master/tindakan-operatif", icon: Scissors },
       { title: "Tindakan BDRS", href: "/data-master/tindakan-bdrs", icon: Droplet },
       { title: "Tindakan Cathlab", href: "/data-master/tindakan-cathlab", icon: ActivitySquare },
+      { title: "Daftar Laboratorium Eksternal", href: "/data-master/laboratorium-eksternal", icon: Microscope },
+      { title: "Daftar Radiologi Eksternal", href: "/data-master/radiologi-eksternal", icon: Scan },
     ],
   },
   {
@@ -188,6 +191,7 @@ const navItems: NavItem[] = [
       { title: "Produk Layanan", href: "/produk-layanan", icon: ShoppingCart },
       { title: "Pola Remunerasi", href: "/pola-remunerasi", icon: PieChart },
       { title: "Rasio Aktivitas", href: "/rasio-aktivitas", icon: Activity },
+      { title: "Analisa Bahan Pemeriksaan", href: "/analisis-bisnis/analisa-bahan-pemeriksaan", icon: FlaskConical },
     ],
   },
   {

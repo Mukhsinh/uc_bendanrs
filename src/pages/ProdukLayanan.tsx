@@ -68,6 +68,8 @@ interface ProdukLayanan {
   ibs: any[];
   laboratorium: any[];
   radiologi: any[];
+  laboratorium_eksternal: any[];
+  radiologi_eksternal: any[];
   farmasi: any[];
   kamar_akomodasi: any[];
   visite: any[];
@@ -107,6 +109,8 @@ const ProdukLayanan = () => {
     ibs: [],
     laboratorium: [],
     radiologi: [],
+    laboratorium_eksternal: [],
+    radiologi_eksternal: [],
     farmasi: [],
     kamar_akomodasi: [],
     visite: [],
@@ -119,6 +123,8 @@ const ProdukLayanan = () => {
     ibs: [] as any[],
     laboratorium: [] as any[],
     radiologi: [] as any[],
+    laboratorium_eksternal: [] as any[],
+    radiologi_eksternal: [] as any[],
     akomodasi: [] as any[],
     visite: [] as any[],
     konsultasi: [] as any[],
@@ -900,6 +906,8 @@ const ProdukLayanan = () => {
                       ibs: [],
                       laboratorium: [],
                       radiologi: [],
+                      laboratorium_eksternal: [],
+                      radiologi_eksternal: [],
                       farmasi: [],
                       kamar_akomodasi: [],
                       visite: [],
@@ -914,6 +922,7 @@ const ProdukLayanan = () => {
               <DialogContent 
                 className="max-w-6xl max-h-[90vh] overflow-y-auto"
                 onInteractOutside={(e) => e.preventDefault()}
+                onEscapeKeyDown={(e) => e.preventDefault()}
               >
                 <DialogHeader>
                   <DialogTitle>
@@ -942,9 +951,11 @@ const ProdukLayanan = () => {
                             setFormData({ 
                               ...formData, 
                               jenis: value,
-                              klinik: [],
-                              kamar_akomodasi: [],
-                              tindakan: [] // Reset tindakan juga karena filter berubah
+                      klinik: [],
+                      kamar_akomodasi: [],
+                      tindakan: [], // Reset tindakan juga karena filter berubah
+                      laboratorium_eksternal: [],
+                      radiologi_eksternal: []
                             });
                           }}
                         >
@@ -1107,6 +1118,8 @@ const ProdukLayanan = () => {
                           ibs: [...(formData.ibs || []), ...importedData.ibs],
                           laboratorium: [...(formData.laboratorium || []), ...importedData.laboratorium],
                           radiologi: [...(formData.radiologi || []), ...importedData.radiologi],
+                          laboratorium_eksternal: [...(formData.laboratorium_eksternal || []), ...importedData.laboratorium_eksternal],
+                          radiologi_eksternal: [...(formData.radiologi_eksternal || []), ...importedData.radiologi_eksternal],
                           kamar_akomodasi: [...(formData.kamar_akomodasi || []), ...importedData.akomodasi],
                           visite: [...(formData.visite || []), ...importedData.visite],
                           konsultasi: [...(formData.konsultasi || []), ...importedData.konsultasi],
@@ -1175,6 +1188,18 @@ const ProdukLayanan = () => {
                     />
 
                     <LayananInputTable
+                      label="Laboratorium Eksternal"
+                      value={formData.laboratorium_eksternal || []}
+                      onChange={(value) => setFormData({ ...formData, laboratorium_eksternal: value })}
+                      tahun={tahun}
+                      filterType="laboratorium_eksternal"
+                      refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, laboratorium_eksternal: services }))
+                      }
+                    />
+
+                    <LayananInputTable
                       label="Radiologi"
                       value={formData.radiologi || []}
                       onChange={(value) => setFormData({ ...formData, radiologi: value })}
@@ -1183,6 +1208,18 @@ const ProdukLayanan = () => {
                       refreshKey={refreshKey}
                       onServicesLoaded={(services) => 
                         setAvailableServices(prev => ({ ...prev, radiologi: services }))
+                      }
+                    />
+
+                    <LayananInputTable
+                      label="Radiologi Eksternal"
+                      value={formData.radiologi_eksternal || []}
+                      onChange={(value) => setFormData({ ...formData, radiologi_eksternal: value })}
+                      tahun={tahun}
+                      filterType="radiologi_eksternal"
+                      refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, radiologi_eksternal: services }))
                       }
                     />
 

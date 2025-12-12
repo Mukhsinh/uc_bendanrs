@@ -1,16 +1,54 @@
 -- ============================================
--- Fix Function Populate Kalkulasi Biaya Kelas Akomodasi
+-- Migration: Fix Kalkulasi Biaya Kelas Akomodasi - Dasar Alokasi (REVISED)
+-- Date: 2024-12-10 (Updated)
 -- 
--- Masalah:
--- 1. Function hanya mengambil data dengan user_id = p_user_id, sehingga tidak menemukan data master
--- 2. Relasi harus berdasarkan kode_unit_kerja dan tahun, dengan fallback ke master (user_id IS NULL)
--- 
--- Rumus yang Benar untuk alokasi_biaya_gizi:
--- alokasi_biaya_gizi = jumlah_kali_porsi_[kelas] / hari_rawat_[kelas]
--- 
--- Relasi: kode_unit_kerja, tahun, kelas (dengan prioritas user_id sama, lalu master)
+-- Perbaikan rumus kalkulasi biaya kelas akomodasi dengan 3 jenis dasar alokasi:
+-- 1. dasar_alokasi_hari_rawat - untuk 17 kolom biaya
+-- 2. dasar_alokasi_tempat_tidur - untuk 5 kolom biaya
+-- 3. dasar_alokasi_luas_kamar - untuk 2 kolom biaya
+--
+-- PERUBAHAN dari versi sebelumnya:
+-- - biaya_listrik: tempat_tidur → hari_rawat
+-- - biaya_penyusutan_alat_medis: tempat_tidur → hari_rawat
+-- - biaya_penyusutan_gedung: luas_kamar → hari_rawat
+-- - biaya_tidak_langsung_terdistribusi: luas_kamar → hari_rawat
 -- ============================================
 
+-- Pertama, pastikan kolom dasar_alokasi_tempat_tidur dan dasar_alokasi_luas_kamar ada di tabel
+DO $$ 
+BEGIN
+    -- Check dan tambahkan dasar_alokasi_tempat_tidur jika belum ada
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'kalkulasi_biaya_kelas_akomodasi' 
+        AND column_name = 'dasar_alokasi_tempat_tidur'
+    ) THEN
+        ALTER TABLE public.kalkulasi_biaya_kelas_akomodasi 
+        ADD COLUMN dasar_alokasi_tempat_tidur NUMERIC(10, 6) DEFAULT 0;
+        
+        RAISE NOTICE 'Kolom dasar_alokasi_tempat_tidur berhasil ditambahkan';
+    ELSE
+        RAISE NOTICE 'Kolom dasar_alokasi_tempat_tidur sudah ada';
+    END IF;
+
+    -- Check dan tambahkan dasar_alokasi_luas_kamar jika belum ada
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+        AND table_name = 'kalkulasi_biaya_kelas_akomodasi' 
+        AND column_name = 'dasar_alokasi_luas_kamar'
+    ) THEN
+        ALTER TABLE public.kalkulasi_biaya_kelas_akomodasi 
+        ADD COLUMN dasar_alokasi_luas_kamar NUMERIC(10, 6) DEFAULT 0;
+        
+        RAISE NOTICE 'Kolom dasar_alokasi_luas_kamar berhasil ditambahkan';
+    ELSE
+        RAISE NOTICE 'Kolom dasar_alokasi_luas_kamar sudah ada';
+    END IF;
+END $$;
+
+-- Update function populate_kalkulasi_biaya_kelas_akomodasi dengan rumus yang diperbaiki
 CREATE OR REPLACE FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(
   p_user_id uuid,
   p_tahun integer
@@ -76,7 +114,7 @@ BEGIN
     kelas_data AS (
         -- VVIP/SVIP
         SELECT
-            p_user_id AS user_id,  -- Gunakan p_user_id untuk insert, bukan user_id dari data_akomodasi_inap
+            p_user_id AS user_id,
             sd.tahun,
             sd.kode_unit_kerja,
             sd.nama_unit_kerja,
@@ -228,171 +266,151 @@ BEGIN
             ELSE 0 
         END AS dasar_alokasi_luas_kamar,
         -- ====================================================================
-        -- KATEGORI 1: Biaya dengan dasar_alokasi_hari_rawat
+        -- KATEGORI 1: Biaya dengan dasar_alokasi_hari_rawat (17 kolom)
         -- ====================================================================
-        -- 1. biaya_gaji_tunjangan (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_gaji_tunjangan, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_gaji_tunjangan,
-        -- 2. biaya_jasa_pelayanan (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_jasa_pelayanan, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_jasa_pelayanan,
-        -- 3. biaya_obat (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_obat, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_obat,
-        -- 4. biaya_bhp (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_bhp, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_bhp,
-        -- 5. biaya_makan_karyawan (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_makan_karyawan, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_makan_karyawan,
-        -- 6. biaya_makan_pasien (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_makan_pasien, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_makan_pasien,
-        -- 7. biaya_rumah_tangga (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_rumah_tangga, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_rumah_tangga,
-        -- 8. biaya_cetak (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_cetak, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_cetak,
-        -- 9. biaya_atk (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_atk, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_atk,
-        -- 10. biaya_listrik (dasar alokasi hari rawat) - DIPINDAH dari kategori tempat tidur
+        -- biaya_listrik MENGGUNAKAN hari_rawat (REVISED)
         ROUND(COALESCE(kba.biaya_listrik, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_listrik,
         -- ====================================================================
-        -- KATEGORI 2: Biaya dengan dasar_alokasi_tempat_tidur
+        -- KATEGORI 2: Biaya dengan dasar_alokasi_tempat_tidur (5 kolom)
         -- ====================================================================
-        -- 11. biaya_air (dasar alokasi tempat tidur)
         ROUND(COALESCE(kba.biaya_air, 0) * 
               CASE WHEN kd.total_tempat_tidur_unit > 0 
                    THEN (kd.tempat_tidur_kelas::NUMERIC / kd.total_tempat_tidur_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_air,
-        -- 12. biaya_telp (dasar alokasi tempat tidur)
         ROUND(COALESCE(kba.biaya_telp, 0) * 
               CASE WHEN kd.total_tempat_tidur_unit > 0 
                    THEN (kd.tempat_tidur_kelas::NUMERIC / kd.total_tempat_tidur_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_telp,
         -- ====================================================================
-        -- KATEGORI 3: Biaya dengan dasar_alokasi_luas_kamar
+        -- KATEGORI 3: Biaya dengan dasar_alokasi_luas_kamar (2 kolom)
         -- ====================================================================
-        -- 13. biaya_pemeliharaan_bangunan (dasar alokasi luas kamar)
         ROUND(COALESCE(kba.biaya_pemeliharaan_bangunan, 0) * 
               CASE WHEN kd.total_kamar_luas_unit > 0 
                    THEN (kd.kamar_luas_kelas::NUMERIC / kd.total_kamar_luas_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_pemeliharaan_bangunan,
         -- ====================================================================
-        -- KATEGORI 4: Biaya dengan dasar_alokasi_tempat_tidur (lanjutan)
+        -- Back to KATEGORI 2: dasar_alokasi_tempat_tidur
         -- ====================================================================
-        -- 14. biaya_pemeliharaan_alat_medis (dasar alokasi tempat tidur)
         ROUND(COALESCE(kba.biaya_pemeliharaan_alat_medis, 0) * 
               CASE WHEN kd.total_tempat_tidur_unit > 0 
                    THEN (kd.tempat_tidur_kelas::NUMERIC / kd.total_tempat_tidur_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_pemeliharaan_alat_medis,
-        -- 15. biaya_pemeliharaan_alat_non_medis (dasar alokasi tempat tidur)
         ROUND(COALESCE(kba.biaya_pemeliharaan_alat_non_medis, 0) * 
               CASE WHEN kd.total_tempat_tidur_unit > 0 
                    THEN (kd.tempat_tidur_kelas::NUMERIC / kd.total_tempat_tidur_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_pemeliharaan_alat_non_medis,
         -- ====================================================================
-        -- KATEGORI 5: Biaya dengan dasar_alokasi_hari_rawat (lanjutan)
+        -- Back to KATEGORI 1: dasar_alokasi_hari_rawat
         -- ====================================================================
-        -- 16. biaya_operasional_lainnya (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_operasional_lainnya, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_operasional_lainnya,
-        -- 17. biaya_penyusutan_gedung (dasar alokasi hari rawat) - DIPINDAH dari kategori luas kamar
+        -- biaya_penyusutan_gedung MENGGUNAKAN hari_rawat (REVISED)
         ROUND(COALESCE(kba.biaya_penyusutan_gedung, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_penyusutan_gedung,
         -- ====================================================================
-        -- KATEGORI 6: Biaya dengan dasar_alokasi_luas_kamar (lanjutan)
+        -- KATEGORI 3: dasar_alokasi_luas_kamar
         -- ====================================================================
-        -- 18. biaya_penyusutan_jaringan (dasar alokasi luas kamar)
         ROUND(COALESCE(kba.biaya_penyusutan_jaringan, 0) * 
               CASE WHEN kd.total_kamar_luas_unit > 0 
                    THEN (kd.kamar_luas_kelas::NUMERIC / kd.total_kamar_luas_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_penyusutan_jaringan,
         -- ====================================================================
-        -- KATEGORI 7: Biaya dengan dasar_alokasi_tempat_tidur (lanjutan)
+        -- Back to KATEGORI 1: dasar_alokasi_hari_rawat
         -- ====================================================================
-        -- 19. biaya_penyusutan_alat_medis (dasar alokasi hari rawat) - DIPINDAH dari kategori tempat tidur
+        -- biaya_penyusutan_alat_medis MENGGUNAKAN hari_rawat (REVISED)
         ROUND(COALESCE(kba.biaya_penyusutan_alat_medis, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_penyusutan_alat_medis,
-        -- 20. biaya_penyusutan_alat_non_medis (dasar alokasi tempat tidur)
+        -- ====================================================================
+        -- KATEGORI 2: dasar_alokasi_tempat_tidur
+        -- ====================================================================
         ROUND(COALESCE(kba.biaya_penyusutan_alat_non_medis, 0) * 
               CASE WHEN kd.total_tempat_tidur_unit > 0 
                    THEN (kd.tempat_tidur_kelas::NUMERIC / kd.total_tempat_tidur_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_penyusutan_alat_non_medis,
         -- ====================================================================
-        -- KATEGORI 8: Biaya dengan dasar_alokasi_hari_rawat (lanjutan)
+        -- Back to KATEGORI 1: dasar_alokasi_hari_rawat
         -- ====================================================================
-        -- 21. biaya_pendidikan_pelatihan (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_pendidikan_pelatihan, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_pendidikan_pelatihan,
-        -- 22. biaya_laundry (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_laundry, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_laundry,
-        -- 23. biaya_sterilisasi (dasar alokasi hari rawat)
         ROUND(COALESCE(kba.biaya_sterilisasi, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
                    ELSE 0 
               END)::BIGINT AS biaya_sterilisasi,
-        -- ====================================================================
-        -- KATEGORI 9: Biaya dengan dasar_alokasi_hari_rawat (lanjutan)
-        -- ====================================================================
-        -- 24. biaya_tidak_langsung_terdistribusi (dasar alokasi hari rawat) - DIPINDAH dari kategori luas kamar
+        -- biaya_tidak_langsung_terdistribusi MENGGUNAKAN hari_rawat (REVISED)
         ROUND(COALESCE(kba.biaya_tidak_langsung_terdistribusi, 0) * 
               CASE WHEN kd.total_hari_rawat_unit > 0 
                    THEN (kd.hari_rawat_kelas::NUMERIC / kd.total_hari_rawat_unit::NUMERIC)
@@ -408,7 +426,6 @@ BEGIN
         0::BIGINT AS unit_cost_per_kelas
     FROM kelas_data kd
     -- Join dengan kalkulasi_biaya_akomodasi untuk mendapatkan biaya per unit kerja
-    -- Tanpa memperhatikan user_id, hanya berdasarkan tahun dan kode_unit_kerja
     LEFT JOIN kalkulasi_biaya_akomodasi kba
         ON kba.tahun = kd.tahun
         AND kba.kode_unit_kerja = kd.kode_unit_kerja;
@@ -418,11 +435,31 @@ BEGIN
 END;
 $function$;
 
+-- Update comment untuk function
 COMMENT ON FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(uuid, integer)
-IS 'Populate kalkulasi_biaya_kelas_akomodasi dengan 3 jenis dasar alokasi:
+IS 'Populate kalkulasi_biaya_kelas_akomodasi dengan 3 jenis dasar alokasi (REVISED):
 1. dasar_alokasi_hari_rawat: untuk biaya_gaji_tunjangan, biaya_jasa_pelayanan, biaya_obat, biaya_bhp, biaya_makan_karyawan, biaya_makan_pasien, biaya_rumah_tangga, biaya_cetak, biaya_atk, biaya_listrik, biaya_operasional_lainnya, biaya_penyusutan_gedung, biaya_penyusutan_alat_medis, biaya_pendidikan_pelatihan, biaya_laundry, biaya_sterilisasi, biaya_tidak_langsung_terdistribusi (17 kolom)
 2. dasar_alokasi_tempat_tidur: untuk biaya_air, biaya_telp, biaya_pemeliharaan_alat_medis, biaya_pemeliharaan_alat_non_medis, biaya_penyusutan_alat_non_medis (5 kolom)
 3. dasar_alokasi_luas_kamar: untuk biaya_pemeliharaan_bangunan, biaya_penyusutan_jaringan (2 kolom)
 Rumus alokasi_biaya_gizi: jumlah_kali_porsi_[kelas] / hari_rawat_[kelas]. Prioritas: data user, lalu data master (user_id IS NULL)';
 
-GRANT EXECUTE ON FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(uuid, integer) TO authenticated;
+-- Log completion
+DO $$ 
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Migration REVISED completed successfully';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'PERUBAHAN dari versi sebelumnya:';
+    RAISE NOTICE '- biaya_listrik: tempat_tidur → hari_rawat';
+    RAISE NOTICE '- biaya_penyusutan_alat_medis: tempat_tidur → hari_rawat';
+    RAISE NOTICE '- biaya_penyusutan_gedung: luas_kamar → hari_rawat';
+    RAISE NOTICE '- biaya_tidak_langsung_terdistribusi: luas_kamar → hari_rawat';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'DISTRIBUSI AKHIR:';
+    RAISE NOTICE '- Kategori A (hari_rawat): 17 kolom';
+    RAISE NOTICE '- Kategori B (tempat_tidur): 5 kolom';
+    RAISE NOTICE '- Kategori C (luas_kamar): 2 kolom';
+    RAISE NOTICE '========================================';
+END $$;
+
+

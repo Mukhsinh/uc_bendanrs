@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2, Search, Activity, FlaskConical, Radiation, Bed, Stethoscope, MessageSquare, Scissors } from "lucide-react";
+import { Plus, Trash2, Search, Activity, FlaskConical, Radiation, Bed, Stethoscope, MessageSquare, Scissors, CheckSquare, Square } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,6 +71,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   const [availableServices, setAvailableServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedService, setSelectedService] = useState<string>("");
+  const [selectedServices, setSelectedServices] = useState<string[]>([]); // Multi-select mode
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
 
@@ -114,6 +116,22 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       case "radiologi":
         return { 
           color: "bg-yellow-500 text-white border-yellow-600", 
+          icon: Radiation,
+          bgLight: "bg-yellow-50",
+          borderLight: "border-yellow-200",
+          textDark: "text-yellow-700"
+        };
+      case "laboratorium_eksternal":
+        return { 
+          color: "bg-cyan-600 text-white border-cyan-700", 
+          icon: FlaskConical,
+          bgLight: "bg-cyan-50",
+          borderLight: "border-cyan-200",
+          textDark: "text-cyan-700"
+        };
+      case "radiologi_eksternal":
+        return { 
+          color: "bg-yellow-600 text-white border-yellow-700", 
           icon: Radiation,
           bgLight: "bg-yellow-50",
           borderLight: "border-yellow-200",
@@ -302,6 +320,42 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         const result = await query;
         data = result.data || [];
         error = result.error;
+      } else if (filterType === "laboratorium_eksternal") {
+        const result = await supabase
+          .from("daftar_laboratorium_eksternal")
+          .select("*")
+          .eq("tahun", tahun)
+          .order("nama_pemeriksaan");
+        
+        if (result.data && result.data.length > 0) {
+          data = result.data.map((item: any) => ({
+            id: item.id,
+            kode_tindakan: item.kode_pemeriksaan,
+            nama_tindakan: item.nama_pemeriksaan,
+            jasa_sarana: item.jasa_sarana || 0,
+            biaya_bahan: 0,
+            tarif: item.tarif || 0,
+          }));
+        }
+        error = result.error;
+      } else if (filterType === "radiologi_eksternal") {
+        const result = await supabase
+          .from("daftar_radiologi_eksternal")
+          .select("*")
+          .eq("tahun", tahun)
+          .order("nama_pemeriksaan");
+        
+        if (result.data && result.data.length > 0) {
+          data = result.data.map((item: any) => ({
+            id: item.id,
+            kode_tindakan: item.kode_pemeriksaan,
+            nama_tindakan: item.nama_pemeriksaan,
+            jasa_sarana: item.jasa_sarana || 0,
+            biaya_bahan: 0,
+            tarif: item.tarif || 0,
+          }));
+        }
+        error = result.error;
       } else if (filterType === "akomodasi") {
         // Ambil data dari skenario_tarif_akomodasi yang memiliki tarif per unit kerja per kelas
         let query = supabase
@@ -480,6 +534,103 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       const isAlreadySelected = value.some(item => item.kode_tindakan === service.kode_tindakan);
       return !isAlreadySelected;
     });
+
+  const handleAddMultipleToList = () => {
+    if (selectedServices.length === 0) {
+      toast({
+        title: "Error",
+        description: "Pilih minimal 1 layanan terlebih dahulu",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newItems: LayananItem[] = [];
+    let addedCount = 0;
+
+    selectedServices.forEach(serviceId => {
+      const service = filteredServices.find((s) => s.id === serviceId);
+      if (!service) return;
+
+      // Check duplicate
+      const existingIndex = value.findIndex(
+        (v) => v.kode_tindakan === service.kode_tindakan &&
+               v.kode_unit_kerja === service.kode_unit_kerja &&
+               v.kode_operator === service.kode_operator &&
+               v.kelas === service.kelas
+      );
+
+      if (existingIndex < 0) {
+        let subtotal = 0;
+        let newItem: LayananItem;
+
+        if (filterType === "akomodasi") {
+          subtotal = (service.tarif || 0) * qty;
+          newItem = {
+            kode_tindakan: service.kode_tindakan,
+            nama_tindakan: service.nama_tindakan,
+            tarif: service.tarif || 0,
+            kode_unit_kerja: service.kode_unit_kerja,
+            nama_unit_kerja: service.nama_unit_kerja,
+            kelas: service.kelas,
+            qty,
+            subtotal,
+          };
+        } else if (filterType === "visite" || filterType === "konsultasi") {
+          const jasaSarana = service.jasa_sarana || 0;
+          const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+          const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+          subtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * qty;
+          newItem = {
+            kode_tindakan: service.kode_tindakan,
+            nama_tindakan: service.nama_tindakan,
+            jasa_sarana: jasaSarana,
+            jasa_pelayanan_medis: jasaPelayananMedis,
+            jasa_pelayanan_non_medis: jasaPelayananNonMedis,
+            tipe_dokter: service.tipe_dokter,
+            kode_unit_kerja: service.kode_unit_kerja,
+            nama_unit_kerja: service.nama_unit_kerja,
+            kode_operator: service.kode_operator,
+            nama_operator: service.nama_operator,
+            qty,
+            subtotal,
+          };
+        } else {
+          const jasaSarana = service.jasa_sarana || service.tarif || 0;
+          const biayaBahan = service.biaya_bahan || 0;
+          subtotal = (jasaSarana + biayaBahan) * qty;
+          newItem = {
+            kode_tindakan: service.kode_tindakan || service.kode,
+            nama_tindakan: service.nama_tindakan || service.nama,
+            jasa_sarana: jasaSarana,
+            biaya_bahan: biayaBahan,
+            tipe_dokter: service.tipe_dokter,
+            kode_operator: service.kode_operator_spesialistik || service.kode_operator,
+            nama_operator: service.nama_operator_spesialistik || service.nama_operator,
+            kode_unit_kerja: service.kode_unit_kerja,
+            nama_unit_kerja: service.nama_unit_kerja,
+            qty,
+            subtotal,
+          };
+        }
+
+        newItems.push(newItem);
+        addedCount++;
+      }
+    });
+
+    if (newItems.length > 0) {
+      onChange([...value, ...newItems]);
+      toast({
+        title: "Berhasil",
+        description: `${addedCount} layanan berhasil ditambahkan`,
+      });
+    }
+
+    setSelectedServices([]);
+    setIsMultiSelectMode(false);
+    setSearchQuery("");
+  };
 
   const handleAddToList = () => {
     if (!selectedService) {
@@ -738,75 +889,128 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         </div>
       )}
 
+      {/* Toggle Multi-Select Mode */}
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant={isMultiSelectMode ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            setIsMultiSelectMode(!isMultiSelectMode);
+            setSelectedServices([]);
+            setSelectedService("");
+            setSearchQuery("");
+          }}
+          className={isMultiSelectMode ? badge.color : ""}
+        >
+          {isMultiSelectMode ? <CheckSquare className="h-4 w-4 mr-2" /> : <Square className="h-4 w-4 mr-2" />}
+          {isMultiSelectMode ? "Mode Multi-Select (Aktif)" : "Mode Multi-Select"}
+        </Button>
+        {isMultiSelectMode && selectedServices.length > 0 && (
+          <Badge variant="secondary" className="ml-2">
+            {selectedServices.length} item dipilih
+          </Badge>
+        )}
+      </div>
+
       {/* Input Section */}
       <div className={`border rounded-lg p-4 ${badge.bgLight} ${badge.borderLight} space-y-3`}>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-          {/* Search */}
-          <div className="md:col-span-5">
-            <Label htmlFor={`search-${filterType}`} className="text-sm">Cari {label}</Label>
+          {/* Combobox - Search & Select jadi satu */}
+          <div className="md:col-span-9">
+            <Label htmlFor={`search-${filterType}`} className="text-sm">Cari & Pilih {label}</Label>
             <div className="relative mt-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id={`search-${filterType}`}
-                placeholder={`Ketik kode atau nama ${label.toLowerCase()}...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8"
-              />
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+                <Input
+                  id={`search-${filterType}`}
+                  placeholder={`Ketik kode atau nama ${label.toLowerCase()}... (akan muncul pilihan)`}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    // Auto-select jika hanya 1 hasil dan bukan multi-select mode
+                    if (!isMultiSelectMode) {
+                      const filtered = availableServices.filter((service) =>
+                        service.nama_tindakan?.toLowerCase().includes(e.target.value.toLowerCase()) ||
+                        service.kode_tindakan?.toLowerCase().includes(e.target.value.toLowerCase())
+                      );
+                      if (filtered.length === 1 && e.target.value.length > 2) {
+                        setSelectedService(filtered[0].id);
+                      }
+                    }
+                  }}
+                  className="pl-8"
+                  list={`datalist-${filterType}`}
+                />
+              </div>
+              {searchQuery && (
+                <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {loading ? (
+                    <div className="p-4 text-center text-sm">Loading...</div>
+                  ) : filteredServices.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-muted-foreground">
+                      Tidak ada hasil untuk "{searchQuery}"
+                    </div>
+                  ) : (
+                    filteredServices.map((service) => {
+                      let displayText = `${service.kode_tindakan} - ${service.nama_tindakan}`;
+                      
+                      if ((filterType === "tindakan" || filterType === "ibs") && service.nama_unit_kerja) {
+                        displayText += ` (${service.nama_unit_kerja})`;
+                      }
+                      
+                      if (filterType === "akomodasi") {
+                        displayText += ` - Tarif: ${formatCurrency(service.tarif || 0)}`;
+                      } else if (filterType === "visite" || filterType === "konsultasi") {
+                        const totalTarif = (service.jasa_sarana || 0) + (service.jasa_pelayanan_medis || 0) + (service.jasa_pelayanan_non_medis || 0);
+                        displayText += ` - Tarif: ${formatCurrency(totalTarif)}`;
+                      } else {
+                        displayText += ` - Jasa: ${formatCurrency(service.jasa_sarana || 0)}, BHP: ${formatCurrency(service.biaya_bahan || 0)}`;
+                      }
+                      
+                      const isSelected = isMultiSelectMode 
+                        ? selectedServices.includes(service.id)
+                        : selectedService === service.id;
+
+                      return (
+                        <div
+                          key={service.id}
+                          className={`p-3 cursor-pointer hover:bg-gray-100 ${isSelected ? 'bg-teal-50 border-l-4 border-teal-500' : ''}`}
+                          onClick={() => {
+                            if (isMultiSelectMode) {
+                              // Toggle selection in multi-select mode
+                              setSelectedServices(prev => 
+                                prev.includes(service.id)
+                                  ? prev.filter(id => id !== service.id)
+                                  : [...prev, service.id]
+                              );
+                            } else {
+                              // Single select mode
+                              setSelectedService(service.id);
+                              setSearchQuery(service.nama_tindakan || '');
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isMultiSelectMode && (
+                              <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-gray-300'}`}>
+                                {isSelected && <CheckSquare className="h-4 w-4 text-white" />}
+                              </div>
+                            )}
+                            <div className="text-sm font-medium flex-1">{displayText}</div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
-            {searchQuery && (
+            {filteredServices.length > 0 && searchQuery && (
               <p className="text-xs text-muted-foreground mt-1">
                 Ditemukan {filteredServices.length} dari {availableServices.length} layanan
               </p>
             )}
-          </div>
-
-          {/* Select */}
-          <div className="md:col-span-4">
-            <Label htmlFor={`service-${filterType}`} className="text-sm">Pilih {label}</Label>
-            <Select value={selectedService} onValueChange={setSelectedService}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder={`Pilih ${label.toLowerCase()}...`} />
-              </SelectTrigger>
-              <SelectContent>
-                {loading ? (
-                  <div className="p-4 text-center text-sm">Loading...</div>
-                ) : filteredServices.length === 0 ? (
-                  <div className="p-4 text-center text-sm text-muted-foreground">
-                    {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : `Tidak ada data ${label.toLowerCase()}`}
-                  </div>
-                ) : (
-                  filteredServices.map((service) => {
-                    let displayText = `${service.kode_tindakan} - ${service.nama_tindakan}`;
-                    
-                    // Tambahkan nama unit kerja di belakang nama tindakan (untuk tindakan dan IBS)
-                    if ((filterType === "tindakan" || filterType === "ibs") && service.nama_unit_kerja) {
-                      displayText += ` (${service.nama_unit_kerja})`;
-                    }
-                    
-                    if (filterType === "akomodasi") {
-                      displayText += ` - Tarif: ${formatCurrency(service.tarif || 0)}`;
-                    } else if (filterType === "visite" || filterType === "konsultasi") {
-                      const jasaSarana = service.jasa_sarana || 0;
-                      const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
-                      const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
-                      const totalTarif = jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis;
-                      displayText += ` - Tarif: ${formatCurrency(totalTarif)}`;
-                    } else {
-                      const jasa = service.jasa_sarana || 0;
-                      const bahan = service.biaya_bahan || 0;
-                      displayText += ` - Jasa: ${formatCurrency(jasa)}, BHP: ${formatCurrency(bahan)}`;
-                    }
-                    
-                    return (
-                      <SelectItem key={service.id} value={service.id}>
-                        {displayText}
-                      </SelectItem>
-                    );
-                  })
-                )}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Quantity */}
@@ -826,12 +1030,16 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           {/* Button Add */}
           <div className="md:col-span-1 flex items-end">
             <Button 
-              onClick={handleAddToList} 
-              disabled={!selectedService}
+              onClick={isMultiSelectMode ? handleAddMultipleToList : handleAddToList} 
+              disabled={isMultiSelectMode ? selectedServices.length === 0 : !selectedService}
               className={`w-full ${badge.color}`}
               size="sm"
+              title={isMultiSelectMode ? `Tambahkan ${selectedServices.length} item` : "Tambahkan item"}
             >
               <Plus className="h-4 w-4" />
+              {isMultiSelectMode && selectedServices.length > 0 && (
+                <span className="ml-1">{selectedServices.length}</span>
+              )}
             </Button>
           </div>
         </div>
