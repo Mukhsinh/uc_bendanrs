@@ -24,6 +24,8 @@ interface LayananImportExportToolbarProps {
     ibs: any[];
     laboratorium: any[];
     radiologi: any[];
+    laboratorium_eksternal: any[];
+    radiologi_eksternal: any[];
     akomodasi: any[];
     visite: any[];
     konsultasi: any[];
@@ -33,6 +35,8 @@ interface LayananImportExportToolbarProps {
     ibs: LayananItem[];
     laboratorium: LayananItem[];
     radiologi: LayananItem[];
+    laboratorium_eksternal: LayananItem[];
+    radiologi_eksternal: LayananItem[];
     akomodasi: LayananItem[];
     visite: LayananItem[];
     konsultasi: LayananItem[];
@@ -63,6 +67,8 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
       ["ibs", "IBS.001", "Contoh IBS 1", "2"],
       ["laboratorium", "LAB.001", "Contoh Lab 1", "1"],
       ["radiologi", "RAD.001", "Contoh Radiologi 1", "1"],
+      ["laboratorium_eksternal", "LABEXT.001", "Contoh Lab Eksternal 1", "1"],
+      ["radiologi_eksternal", "RADEXT.001", "Contoh Radiologi Eksternal 1", "1"],
       ["akomodasi", "AKOM.VIP", "Kamar VIP", "3"],
       ["visite", "VISIT.UMUM", "Visit Dokter Umum", "1"],
       ["konsultasi", "KONSUL.SPESIALIS", "Konsultasi Dokter Spesialis", "1"],
@@ -124,6 +130,28 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
     allServices.radiologi.forEach((service) => {
       allData.push({
         jenis_layanan: "radiologi",
+        kode_tindakan: service.kode_tindakan || "",
+        nama_tindakan: service.nama_tindakan || "",
+        jasa_sarana: service.jasa_sarana || 0,
+        biaya_bahan: service.biaya_bahan || 0,
+      });
+    });
+
+    // Laboratorium Eksternal
+    allServices.laboratorium_eksternal.forEach((service) => {
+      allData.push({
+        jenis_layanan: "laboratorium_eksternal",
+        kode_tindakan: service.kode_tindakan || "",
+        nama_tindakan: service.nama_tindakan || "",
+        jasa_sarana: service.jasa_sarana || 0,
+        biaya_bahan: service.biaya_bahan || 0,
+      });
+    });
+
+    // Radiologi Eksternal
+    allServices.radiologi_eksternal.forEach((service) => {
+      allData.push({
+        jenis_layanan: "radiologi_eksternal",
         kode_tindakan: service.kode_tindakan || "",
         nama_tindakan: service.nama_tindakan || "",
         jasa_sarana: service.jasa_sarana || 0,
@@ -223,6 +251,8 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
         ibs: [] as LayananItem[],
         laboratorium: [] as LayananItem[],
         radiologi: [] as LayananItem[],
+        laboratorium_eksternal: [] as LayananItem[],
+        radiologi_eksternal: [] as LayananItem[],
         akomodasi: [] as LayananItem[],
         visite: [] as LayananItem[],
         konsultasi: [] as LayananItem[],
@@ -263,6 +293,12 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
             break;
           case "radiologi":
             serviceList = allServices.radiologi;
+            break;
+          case "laboratorium_eksternal":
+            serviceList = allServices.laboratorium_eksternal;
+            break;
+          case "radiologi_eksternal":
+            serviceList = allServices.radiologi_eksternal;
             break;
           case "akomodasi":
             serviceList = allServices.akomodasi;
