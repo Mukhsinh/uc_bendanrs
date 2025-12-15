@@ -315,3 +315,4 @@ KRITIS: Function ini MENJAMIN nilai dasar_alokasi_* yang tersimpan di kolom SAMA
 GRANT EXECUTE ON FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(uuid, integer) TO authenticated;
 
 
+

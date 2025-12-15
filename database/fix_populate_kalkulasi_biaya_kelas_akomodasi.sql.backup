@@ -361,3 +361,4 @@ IS 'Populate kalkulasi_biaya_kelas_akomodasi dengan rumus alokasi_biaya_gizi: ju
 GRANT EXECUTE ON FUNCTION public.populate_kalkulasi_biaya_kelas_akomodasi(uuid, integer) TO authenticated;
 
 
+

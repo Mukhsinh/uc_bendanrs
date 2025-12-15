@@ -82,6 +82,8 @@ interface ProdukLayanan {
   jp_ibs: number;
   jp_laboratorium: number;
   jp_radiologi: number;
+  jp_laboratorium_eksternal: number;
+  jp_radiologi_eksternal: number;
   jp_farmasi: number;
   jp_kamar_akomodasi: number;
   jp_visite: number;
@@ -242,7 +244,7 @@ const ProdukLayanan = () => {
       total_biaya,           // Computed dari sum semua biaya
       total_jp,              // GENERATED: sum dari semua jp_* columns
       saldo_distribusi,      // GENERATED: tarif_inacbgs_numeric - total_biaya
-      prosentase_saldo,      // GENERATED: (saldo_distribusi / tarif_inacbgs_numeric) * 100
+      prosentase_saldo,      // GENERATED: (saldo_distribusi / tarif_inacbg_numeric) * 100
       jp_tindakan,           // Computed dari tindakan array
       jp_ibs,                // Computed dari ibs array
       jp_laboratorium,       // Computed dari laboratorium array
@@ -251,10 +253,55 @@ const ProdukLayanan = () => {
       jp_kamar_akomodasi,    // Computed dari kamar_akomodasi array
       jp_visite,             // Computed dari visite array
       jp_konsultasi,         // Computed dari konsultasi array
+      jp_laboratorium_eksternal, // Computed dari laboratorium_eksternal array
+      jp_radiologi_eksternal,    // Computed dari radiologi_eksternal array
       ...cleanData
     } = data as any;
     
-    return cleanData;
+    // Pastikan data yang dikirim valid dan sesuai dengan schema database
+    const validatedData = {
+      ...cleanData,
+      // Pastikan jenis sesuai dengan constraint check
+      jenis: cleanData.jenis === 'rawat jalan' || cleanData.jenis === 'rawat inap' 
+        ? cleanData.jenis 
+        : 'rawat jalan', // default fallback
+      // Pastikan array fields adalah valid JSON
+      tindakan: Array.isArray(cleanData.tindakan) ? cleanData.tindakan : [],
+      ibs: Array.isArray(cleanData.ibs) ? cleanData.ibs : [],
+      laboratorium: Array.isArray(cleanData.laboratorium) ? cleanData.laboratorium : [],
+      radiologi: Array.isArray(cleanData.radiologi) ? cleanData.radiologi : [],
+      farmasi: Array.isArray(cleanData.farmasi) ? cleanData.farmasi : [],
+      kamar_akomodasi: Array.isArray(cleanData.kamar_akomodasi) ? cleanData.kamar_akomodasi : [],
+      visite: Array.isArray(cleanData.visite) ? cleanData.visite : [],
+      konsultasi: Array.isArray(cleanData.konsultasi) ? cleanData.konsultasi : [],
+      klinik: Array.isArray(cleanData.klinik) ? cleanData.klinik : [],
+      laboratorium_eksternal: Array.isArray(cleanData.laboratorium_eksternal) ? cleanData.laboratorium_eksternal : [],
+      radiologi_eksternal: Array.isArray(cleanData.radiologi_eksternal) ? cleanData.radiologi_eksternal : [],
+      // Pastikan numeric fields valid
+      los: typeof cleanData.los === 'number' ? cleanData.los : 0,
+      tarif_inacbgs_numeric: typeof cleanData.tarif_inacbgs_numeric === 'number' ? cleanData.tarif_inacbgs_numeric : 0,
+      jp_farmasi_prosentase: typeof cleanData.jp_farmasi_prosentase === 'number' ? cleanData.jp_farmasi_prosentase : 0,
+      // Pastikan string fields tidak undefined
+      deskripsi_inacbg: cleanData.deskripsi_inacbg || null,
+      grouper: cleanData.grouper || null,
+      diaglist: cleanData.diaglist || null,
+      diagnosa_1: cleanData.diagnosa_1 || null,
+      diagnosa_2: cleanData.diagnosa_2 || null,
+      diagnosa_3: cleanData.diagnosa_3 || null,
+      diagnosa_4: cleanData.diagnosa_4 || null,
+      diagnosa_5: cleanData.diagnosa_5 || null,
+      proclist: cleanData.proclist || null,
+      proc_1: cleanData.proc_1 || null,
+      proc_2: cleanData.proc_2 || null,
+      proc_3: cleanData.proc_3 || null,
+      proc_4: cleanData.proc_4 || null,
+      proc_5: cleanData.proc_5 || null,
+      spesialisasi_dokter: cleanData.spesialisasi_dokter || null,
+      nama_dokter: cleanData.nama_dokter || null,
+      kode_dokter: cleanData.kode_dokter || null,
+    };
+    
+    return validatedData;
   };
 
   const handleSave = async () => {
@@ -270,11 +317,46 @@ const ProdukLayanan = () => {
         return;
       }
 
+      // Validasi data sebelum disimpan
+      if (!formData.jenis) {
+        toast({
+          title: "Error",
+          description: "Jenis produk layanan harus dipilih",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!formData.deskripsi_inacbg || formData.deskripsi_inacbg.trim() === '') {
+        toast({
+          title: "Error",
+          description: "Deskripsi INA-CBG harus diisi",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const dataToSave = prepareDataForSave({
         ...formData,
         user_id: user.id,
         tahun,
+        // Pastikan array fields tidak null
+        tindakan: formData.tindakan || [],
+        ibs: formData.ibs || [],
+        laboratorium: formData.laboratorium || [],
+        radiologi: formData.radiologi || [],
+        farmasi: formData.farmasi || [],
+        kamar_akomodasi: formData.kamar_akomodasi || [],
+        visite: formData.visite || [],
+        konsultasi: formData.konsultasi || [],
+        klinik: formData.klinik || [],
+        // Pastikan numeric fields tidak null
+        los: formData.los || 0,
+        tarif_inacbgs_numeric: formData.tarif_inacbgs_numeric || 0,
+        jp_farmasi_prosentase: formData.jp_farmasi_prosentase || 0,
       });
+
+      console.log('Data yang akan disimpan:', dataToSave);
 
       if (editingId) {
         const { error } = await supabase
@@ -282,7 +364,10 @@ const ProdukLayanan = () => {
           .update(dataToSave)
           .eq("id", editingId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating data:', error);
+          throw error;
+        }
 
         toast({
           title: "Berhasil",
@@ -293,7 +378,10 @@ const ProdukLayanan = () => {
           .from("produk_layanan")
           .insert(dataToSave);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting data:', error);
+          throw error;
+        }
 
         toast({
           title: "Berhasil",
@@ -312,6 +400,8 @@ const ProdukLayanan = () => {
         ibs: [],
         laboratorium: [],
         radiologi: [],
+        laboratorium_eksternal: [],
+        radiologi_eksternal: [],
         farmasi: [],
         kamar_akomodasi: [],
         visite: [],
