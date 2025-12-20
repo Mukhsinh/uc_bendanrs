@@ -76,7 +76,9 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [doctors, setDoctors] = useState<any[]>([]);
-  const [selectedDoctor, setSelectedDoctor] = useState<string>("");
+  const [selectedDoctors, setSelectedDoctors] = useState<string[]>([]);
+  const [doctorSearchQuery, setDoctorSearchQuery] = useState<string>("");
+  const [isDoctorDropdownOpen, setIsDoctorDropdownOpen] = useState<boolean>(false);
 
   // Computed keys untuk dependency detection - menghindari infinite loop
   const selectedKamarKeys = useMemo(() => 
@@ -659,17 +661,14 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     }
 
     // Validation for doctor selection on visite and konsultasi
-    if ((filterType === "visite" || filterType === "konsultasi") && !selectedDoctor) {
+    if ((filterType === "visite" || filterType === "konsultasi") && selectedDoctors.length === 0) {
       toast({
         title: "Error",
-        description: `Pilih dokter terlebih dahulu untuk ${filterType}`,
+        description: `Pilih minimal satu dokter terlebih dahulu untuk ${filterType}`,
         variant: "destructive",
       });
       return;
     }
-
-    // Get selected doctor info
-    const doctorInfo = doctors.find((d) => d.kode_dokter === selectedDoctor);
 
     const newItems: LayananItem[] = [];
     let addedCount = 0;
@@ -678,70 +677,88 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       const service = filteredServices.find((s) => s.id === serviceId);
       if (!service) return;
 
-      // Check duplicate
-      const existingIndex = value.findIndex(
-        (v) => v.kode_tindakan === service.kode_tindakan &&
-               v.kode_unit_kerja === service.kode_unit_kerja &&
-               v.kode_operator === service.kode_operator &&
-               v.kelas === service.kelas
-      );
+      // For visite and konsultasi, create items for each doctor
+      if (filterType === "visite" || filterType === "konsultasi") {
+        selectedDoctors.forEach((doctorKode) => {
+          const doctorInfo = doctors.find((d) => d.kode_dokter === doctorKode);
+          if (!doctorInfo) return;
 
-      if (existingIndex < 0) {
-        let subtotal = 0;
-        let newItem: LayananItem;
+          // Check duplicate for this service + doctor combination
+          const existingIndex = value.findIndex(
+            (v) => v.kode_tindakan === service.kode_tindakan && v.kode_operator === doctorKode
+          );
 
-        if (filterType === "akomodasi") {
-          subtotal = (service.tarif || 0) * qty;
-          newItem = {
-            kode_tindakan: service.kode_tindakan,
-            nama_tindakan: service.nama_tindakan,
-            tarif: service.tarif || 0,
-            kode_unit_kerja: service.kode_unit_kerja,
-            nama_unit_kerja: service.nama_unit_kerja,
-            kelas: service.kelas,
-            qty,
-            subtotal,
-          };
-        } else if (filterType === "visite" || filterType === "konsultasi") {
-          const jasaSarana = service.jasa_sarana || 0;
-          const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
-          const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
-          subtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * qty;
-          newItem = {
-            kode_tindakan: service.kode_tindakan,
-            nama_tindakan: service.nama_tindakan,
-            jasa_sarana: jasaSarana,
-            jasa_pelayanan_medis: jasaPelayananMedis,
-            jasa_pelayanan_non_medis: jasaPelayananNonMedis,
-            tipe_dokter: service.tipe_dokter,
-            kode_unit_kerja: service.kode_unit_kerja,
-            nama_unit_kerja: service.nama_unit_kerja,
-            kode_operator: doctorInfo?.kode_dokter,
-            nama_operator: doctorInfo?.nama_dokter,
-            qty,
-            subtotal,
-          };
-        } else {
-          const jasaSarana = service.jasa_sarana || service.tarif || 0;
-          const biayaBahan = service.biaya_bahan || 0;
-          subtotal = (jasaSarana + biayaBahan) * qty;
-          newItem = {
-            kode_tindakan: service.kode_tindakan || service.kode,
-            nama_tindakan: service.nama_tindakan || service.nama,
-            jasa_sarana: jasaSarana,
-            biaya_bahan: biayaBahan,
-            tipe_dokter: service.tipe_dokter,
-            kode_operator: service.kode_operator_spesialistik || service.kode_operator,
-            nama_operator: service.nama_operator_spesialistik || service.nama_operator,
-            kode_unit_kerja: service.kode_unit_kerja,
-            nama_unit_kerja: service.nama_unit_kerja,
-            qty,
-            subtotal,
-          };
+          if (existingIndex < 0) {
+            const jasaSarana = service.jasa_sarana || 0;
+            const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+            const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+            const subtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * qty;
+            
+            const newItem: LayananItem = {
+              kode_tindakan: service.kode_tindakan,
+              nama_tindakan: service.nama_tindakan,
+              jasa_sarana: jasaSarana,
+              jasa_pelayanan_medis: jasaPelayananMedis,
+              jasa_pelayanan_non_medis: jasaPelayananNonMedis,
+              tipe_dokter: service.tipe_dokter,
+              kode_unit_kerja: service.kode_unit_kerja,
+              nama_unit_kerja: service.nama_unit_kerja,
+              kode_operator: doctorInfo.kode_dokter,
+              nama_operator: doctorInfo.nama_dokter,
+              qty,
+              subtotal,
+            };
+            newItems.push(newItem);
+            addedCount++;
+          }
+        });
+      } else {
+        // For other service types, use original logic
+        const existingIndex = value.findIndex(
+          (v) => v.kode_tindakan === service.kode_tindakan &&
+                 v.kode_unit_kerja === service.kode_unit_kerja &&
+                 v.kode_operator === service.kode_operator &&
+                 v.kelas === service.kelas
+        );
+
+        if (existingIndex < 0) {
+          let subtotal = 0;
+          let newItem: LayananItem;
+
+          if (filterType === "akomodasi") {
+            subtotal = (service.tarif || 0) * qty;
+            newItem = {
+              kode_tindakan: service.kode_tindakan,
+              nama_tindakan: service.nama_tindakan,
+              tarif: service.tarif || 0,
+              kode_unit_kerja: service.kode_unit_kerja,
+              nama_unit_kerja: service.nama_unit_kerja,
+              kelas: service.kelas,
+              qty,
+              subtotal,
+            };
+          } else {
+            const jasaSarana = service.jasa_sarana || service.tarif || 0;
+            const biayaBahan = service.biaya_bahan || 0;
+            subtotal = (jasaSarana + biayaBahan) * qty;
+            newItem = {
+              kode_tindakan: service.kode_tindakan || service.kode,
+              nama_tindakan: service.nama_tindakan || service.nama,
+              jasa_sarana: jasaSarana,
+              biaya_bahan: biayaBahan,
+              tipe_dokter: service.tipe_dokter,
+              kode_operator: service.kode_operator_spesialistik || service.kode_operator,
+              nama_operator: service.nama_operator_spesialistik || service.nama_operator,
+              kode_unit_kerja: service.kode_unit_kerja,
+              nama_unit_kerja: service.nama_unit_kerja,
+              qty,
+              subtotal,
+            };
+          }
+
+          newItems.push(newItem);
+          addedCount++;
         }
-
-        newItems.push(newItem);
-        addedCount++;
       }
     });
 
@@ -756,6 +773,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     setSelectedServices([]);
     setIsMultiSelectMode(false);
     setSearchQuery("");
+    setSelectedDoctors([]);
   };
 
   const handleAddToList = () => {
@@ -778,10 +796,10 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     }
 
     // Validation for doctor selection on visite and konsultasi
-    if ((filterType === "visite" || filterType === "konsultasi") && !selectedDoctor) {
+    if ((filterType === "visite" || filterType === "konsultasi") && selectedDoctors.length === 0) {
       toast({
         title: "Error",
-        description: `Pilih dokter terlebih dahulu untuk ${filterType}`,
+        description: `Pilih minimal satu dokter terlebih dahulu untuk ${filterType}`,
         variant: "destructive",
       });
       return;
@@ -790,10 +808,73 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     const service = filteredServices.find((s) => s.id === selectedService);
     if (!service) return;
 
-    // Get selected doctor info
-    const doctorInfo = doctors.find((d) => d.kode_dokter === selectedDoctor);
+    // For visite and konsultasi, create separate item for each selected doctor
+    if (filterType === "visite" || filterType === "konsultasi") {
+      const newItems: LayananItem[] = [];
+      let addedCount = 0;
 
-    // Check duplicate
+      selectedDoctors.forEach((doctorKode) => {
+        const doctorInfo = doctors.find((d) => d.kode_dokter === doctorKode);
+        if (!doctorInfo) return;
+
+        // Check duplicate for this service + doctor combination
+        const existingIndex = value.findIndex(
+          (v) => v.kode_tindakan === service.kode_tindakan && v.kode_operator === doctorKode
+        );
+
+        const jasaSarana = service.jasa_sarana || 0;
+        const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
+        const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
+        const itemTotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * qty;
+
+        if (existingIndex >= 0) {
+          // Update existing
+          const newValue = [...value];
+          const newQtyTotal = newValue[existingIndex].qty + qty;
+          const newSubtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * newQtyTotal;
+          
+          newValue[existingIndex] = {
+            ...newValue[existingIndex],
+            qty: newQtyTotal,
+            subtotal: newSubtotal,
+          };
+          onChange(newValue);
+        } else {
+          // Add new
+          const newItem: LayananItem = {
+            kode_tindakan: service.kode_tindakan,
+            nama_tindakan: service.nama_tindakan,
+            jasa_sarana: jasaSarana,
+            jasa_pelayanan_medis: jasaPelayananMedis,
+            jasa_pelayanan_non_medis: jasaPelayananNonMedis,
+            biaya_bahan: 0,
+            qty,
+            subtotal: itemTotal,
+            tipe_dokter: service.tipe_dokter,
+            kode_operator: doctorInfo.kode_dokter,
+            nama_operator: doctorInfo.nama_dokter,
+          };
+          newItems.push(newItem);
+          addedCount++;
+        }
+      });
+
+      if (newItems.length > 0) {
+        onChange([...value, ...newItems]);
+      }
+
+      toast({
+        title: "Berhasil",
+        description: `${service.nama_tindakan} berhasil ditambahkan untuk ${selectedDoctors.length} dokter`,
+      });
+
+      setSelectedService("");
+      setQty(1);
+      setSelectedDoctors([]);
+      return;
+    }
+
+    // For non-visite/konsultasi services, use original logic
     const existingIndex = value.findIndex((v) => v.kode_tindakan === service.kode_tindakan);
     
     let newItem: LayananItem;
@@ -810,25 +891,6 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         kelas: service.kelas,
         qty,
         subtotal: itemTotal,
-      };
-    } else if (filterType === "visite" || filterType === "konsultasi") {
-      // Untuk visite dan konsultasi, subtotal dihitung dari jasa_sarana + jasa_pelayanan_medis + jasa_pelayanan_non_medis
-      const jasaSarana = service.jasa_sarana || 0;
-      const jasaPelayananMedis = service.jasa_pelayanan_medis || 0;
-      const jasaPelayananNonMedis = service.jasa_pelayanan_non_medis || 0;
-      itemTotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * qty;
-      newItem = {
-        kode_tindakan: service.kode_tindakan,
-        nama_tindakan: service.nama_tindakan,
-        jasa_sarana: jasaSarana,
-        jasa_pelayanan_medis: jasaPelayananMedis,
-        jasa_pelayanan_non_medis: jasaPelayananNonMedis,
-        biaya_bahan: 0,
-        qty,
-        subtotal: itemTotal,
-        tipe_dokter: service.tipe_dokter,
-        kode_operator: doctorInfo?.kode_dokter,
-        nama_operator: doctorInfo?.nama_dokter,
       };
     } else {
       const jasaSarana = service.jasa_sarana || 0;
@@ -855,12 +917,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       const newQtyTotal = newValue[existingIndex].qty + qty;
       
       let newSubtotal = 0;
-      if (filterType === "visite" || filterType === "konsultasi") {
-        const jasaSarana = newValue[existingIndex].jasa_sarana || 0;
-        const jasaPelayananMedis = newValue[existingIndex].jasa_pelayanan_medis || 0;
-        const jasaPelayananNonMedis = newValue[existingIndex].jasa_pelayanan_non_medis || 0;
-        newSubtotal = (jasaSarana + jasaPelayananMedis + jasaPelayananNonMedis) * newQtyTotal;
-      } else if (filterType === "akomodasi") {
+      if (filterType === "akomodasi") {
         const tarif = newValue[existingIndex].tarif || 0;
         newSubtotal = tarif * newQtyTotal;
       } else {
@@ -1075,44 +1132,6 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         )}
       </div>
 
-      {/* Doctor Selection for Visite */}
-      {filterType === "visite" && (
-        <div className="border rounded-lg p-4 bg-teal-50 border-teal-200 space-y-3">
-          <Label className="text-sm font-semibold text-teal-800">Pilih Dokter untuk Visite</Label>
-          <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
-            <SelectTrigger>
-              <SelectValue placeholder="Pilih dokter..." />
-            </SelectTrigger>
-            <SelectContent>
-              {doctors.map((doctor) => (
-                <SelectItem key={doctor.kode_dokter} value={doctor.kode_dokter}>
-                  {doctor.nama_dokter} - {doctor.spesialistik}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Doctor Selection for Konsultasi */}
-      {filterType === "konsultasi" && (
-        <div className="border rounded-lg p-4 bg-purple-50 border-purple-200 space-y-3">
-          <Label className="text-sm font-semibold text-purple-800">Pilih Dokter untuk Konsultasi</Label>
-          <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
-            <SelectTrigger>
-              <SelectValue placeholder="Pilih dokter..." />
-            </SelectTrigger>
-            <SelectContent>
-              {doctors.map((doctor) => (
-                <SelectItem key={doctor.kode_dokter} value={doctor.kode_dokter}>
-                  {doctor.nama_dokter} - {doctor.spesialistik}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
       {/* Input Section */}
       <div className={`border rounded-lg p-4 ${badge.bgLight} ${badge.borderLight} space-y-3`}>
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -1295,6 +1314,288 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           </div>
         )}
       </div>
+
+      {/* Doctor Selection for Visite - Multi-Select Dropdown with Search */}
+      {filterType === "visite" && (
+        <div className="border rounded-lg p-4 bg-teal-50 border-teal-200 space-y-3">
+          <Label className="text-sm font-semibold text-teal-800">Pilih Dokter untuk Visite (dapat memilih lebih dari satu)</Label>
+          
+          <div className="relative">
+            {/* Selected Doctors Display */}
+            <div 
+              className="min-h-[42px] w-full border border-gray-300 rounded-md bg-white p-2 cursor-pointer hover:border-teal-500 focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500 focus-within:ring-opacity-20"
+              onClick={() => setIsDoctorDropdownOpen(!isDoctorDropdownOpen)}
+            >
+              {selectedDoctors.length === 0 ? (
+                <span className="text-gray-400 text-sm">Pilih dokter...</span>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {selectedDoctors.map((kodeDokter) => {
+                    const doctor = doctors.find(d => d.kode_dokter === kodeDokter);
+                    if (!doctor) return null;
+                    return (
+                      <Badge 
+                        key={kodeDokter} 
+                        variant="secondary" 
+                        className="bg-teal-100 text-teal-800 text-xs flex items-center gap-1"
+                      >
+                        {doctor.nama_dokter}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDoctors(selectedDoctors.filter(k => k !== kodeDokter));
+                          }}
+                          className="ml-1 hover:text-teal-900"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown Menu */}
+            {isDoctorDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                {/* Search Input */}
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Cari nama dokter..."
+                      value={doctorSearchQuery}
+                      onChange={(e) => setDoctorSearchQuery(e.target.value)}
+                      className="pl-8"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </div>
+
+                {/* Doctor List */}
+                <div className="max-h-60 overflow-y-auto">
+                  {doctors
+                    .filter((doctor) => {
+                      if (!doctorSearchQuery) return true;
+                      const query = doctorSearchQuery.toLowerCase();
+                      return (
+                        doctor.nama_dokter?.toLowerCase().includes(query) ||
+                        doctor.spesialistik?.toLowerCase().includes(query)
+                      );
+                    })
+                    .map((doctor) => {
+                      const isSelected = selectedDoctors.includes(doctor.kode_dokter);
+                      return (
+                        <div
+                          key={doctor.kode_dokter}
+                          className={`p-3 cursor-pointer hover:bg-teal-50 flex items-center gap-2 ${
+                            isSelected ? 'bg-teal-50 border-l-4 border-teal-500' : ''
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isSelected) {
+                              setSelectedDoctors(selectedDoctors.filter(k => k !== doctor.kode_dokter));
+                            } else {
+                              setSelectedDoctors([...selectedDoctors, doctor.kode_dokter]);
+                            }
+                          }}
+                        >
+                          <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
+                            isSelected ? 'bg-teal-500 border-teal-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <CheckSquare className="h-4 w-4 text-white" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">{doctor.nama_dokter}</div>
+                            <div className="text-xs text-gray-500">{doctor.spesialistik}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {doctors.filter((doctor) => {
+                    if (!doctorSearchQuery) return true;
+                    const query = doctorSearchQuery.toLowerCase();
+                    return (
+                      doctor.nama_dokter?.toLowerCase().includes(query) ||
+                      doctor.spesialistik?.toLowerCase().includes(query)
+                    );
+                  }).length === 0 && (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      Tidak ada dokter ditemukan
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="p-2 border-t bg-gray-50 flex justify-between items-center">
+                  <span className="text-xs text-gray-600">
+                    {selectedDoctors.length} dokter dipilih
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDoctorDropdownOpen(false);
+                      setDoctorSearchQuery("");
+                    }}
+                  >
+                    Tutup
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Badge variant="secondary" className="bg-teal-100 text-teal-800">
+            {selectedDoctors.length} dokter dipilih
+          </Badge>
+        </div>
+      )}
+
+      {/* Doctor Selection for Konsultasi - Multi-Select Dropdown with Search */}
+      {filterType === "konsultasi" && (
+        <div className="border rounded-lg p-4 bg-indigo-50 border-indigo-200 space-y-3">
+          <Label className="text-sm font-semibold text-indigo-800">Pilih Dokter untuk Konsultasi (dapat memilih lebih dari satu)</Label>
+          
+          <div className="relative">
+            {/* Selected Doctors Display */}
+            <div 
+              className="min-h-[42px] w-full border border-gray-300 rounded-md bg-white p-2 cursor-pointer hover:border-indigo-500 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-opacity-20"
+              onClick={() => setIsDoctorDropdownOpen(!isDoctorDropdownOpen)}
+            >
+              {selectedDoctors.length === 0 ? (
+                <span className="text-gray-400 text-sm">Pilih dokter...</span>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {selectedDoctors.map((kodeDokter) => {
+                    const doctor = doctors.find(d => d.kode_dokter === kodeDokter);
+                    if (!doctor) return null;
+                    return (
+                      <Badge 
+                        key={kodeDokter} 
+                        variant="secondary" 
+                        className="bg-indigo-100 text-indigo-800 text-xs flex items-center gap-1"
+                      >
+                        {doctor.nama_dokter}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedDoctors(selectedDoctors.filter(k => k !== kodeDokter));
+                          }}
+                          className="ml-1 hover:text-indigo-900"
+                        >
+                          ×
+                        </button>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown Menu */}
+            {isDoctorDropdownOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
+                {/* Search Input */}
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Cari nama dokter..."
+                      value={doctorSearchQuery}
+                      onChange={(e) => setDoctorSearchQuery(e.target.value)}
+                      className="pl-8"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </div>
+
+                {/* Doctor List */}
+                <div className="max-h-60 overflow-y-auto">
+                  {doctors
+                    .filter((doctor) => {
+                      if (!doctorSearchQuery) return true;
+                      const query = doctorSearchQuery.toLowerCase();
+                      return (
+                        doctor.nama_dokter?.toLowerCase().includes(query) ||
+                        doctor.spesialistik?.toLowerCase().includes(query)
+                      );
+                    })
+                    .map((doctor) => {
+                      const isSelected = selectedDoctors.includes(doctor.kode_dokter);
+                      return (
+                        <div
+                          key={doctor.kode_dokter}
+                          className={`p-3 cursor-pointer hover:bg-indigo-50 flex items-center gap-2 ${
+                            isSelected ? 'bg-indigo-50 border-l-4 border-indigo-500' : ''
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isSelected) {
+                              setSelectedDoctors(selectedDoctors.filter(k => k !== doctor.kode_dokter));
+                            } else {
+                              setSelectedDoctors([...selectedDoctors, doctor.kode_dokter]);
+                            }
+                          }}
+                        >
+                          <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
+                            isSelected ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && (
+                              <CheckSquare className="h-4 w-4 text-white" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">{doctor.nama_dokter}</div>
+                            <div className="text-xs text-gray-500">{doctor.spesialistik}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {doctors.filter((doctor) => {
+                    if (!doctorSearchQuery) return true;
+                    const query = doctorSearchQuery.toLowerCase();
+                    return (
+                      doctor.nama_dokter?.toLowerCase().includes(query) ||
+                      doctor.spesialistik?.toLowerCase().includes(query)
+                    );
+                  }).length === 0 && (
+                    <div className="p-4 text-center text-sm text-gray-500">
+                      Tidak ada dokter ditemukan
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="p-2 border-t bg-gray-50 flex justify-between items-center">
+                  <span className="text-xs text-gray-600">
+                    {selectedDoctors.length} dokter dipilih
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDoctorDropdownOpen(false);
+                      setDoctorSearchQuery("");
+                    }}
+                  >
+                    Tutup
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
+            {selectedDoctors.length} dokter dipilih
+          </Badge>
+        </div>
+      )}
 
       {/* Table Display */}
       <div className="border rounded-lg overflow-hidden">
