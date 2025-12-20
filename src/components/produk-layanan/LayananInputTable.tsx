@@ -75,6 +75,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
   const [qty, setQty] = useState<number>(1);
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [selectedDoctor, setSelectedDoctor] = useState<string>("");
 
   // Computed keys untuk dependency detection - menghindari infinite loop
   const selectedKamarKeys = useMemo(() => 
@@ -161,6 +163,14 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           borderLight: "border-indigo-200",
           textDark: "text-indigo-700"
         };
+      case "bdrs":
+        return { 
+          color: "bg-purple-500 text-white border-purple-600", 
+          icon: FlaskConical,
+          bgLight: "bg-purple-50",
+          borderLight: "border-purple-200",
+          textDark: "text-purple-700"
+        };
       default:
         return { 
           color: "bg-gray-500 text-white border-gray-600", 
@@ -181,13 +191,21 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     return Math.max(updated, created);
   };
 
-  const dedupeByKodeTindakan = (items: any[]) => {
+  const dedupeByKodeTindakan = (items: any[], useUnitKerja: boolean = false) => {
     const map = new Map<string, any>();
     items.forEach((item) => {
       const kode = item?.kode_tindakan || item?.id;
       if (!kode) return;
 
-      const key = String(kode);
+      // Untuk tindakan dan IBS, gunakan kombinasi kode_tindakan + kode_unit_kerja
+      // karena tindakan sama bisa ada di berbagai unit dengan harga berbeda
+      let key: string;
+      if (useUnitKerja && item.kode_unit_kerja) {
+        key = `${kode}_${item.kode_unit_kerja}`;
+      } else {
+        key = String(kode);
+      }
+      
       const existing = map.get(key);
       if (!existing || getTimestamp(item) >= getTimestamp(existing)) {
         map.set(key, item);
@@ -209,6 +227,34 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
     return query;
   };
 
+  const fetchDoctors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("data_dokter")
+        .select("kode_dokter, nama_dokter, spesialistik")
+        .order("nama_dokter", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching doctors:", error);
+        toast({
+          title: "Error",
+          description: "Gagal mengambil data dokter",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setDoctors(data || []);
+    } catch (error: any) {
+      console.error("Error fetching doctors:", error);
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   const fetchServices = async () => {
     try {
       setLoading(true);
@@ -221,8 +267,17 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       if (filterType === "tindakan") {
         console.log("=== FETCHING TINDAKAN ===");
         console.log("Tahun:", tahun);
+        console.log("Jenis Produk:", jenisProduk);
         console.log("Selected Kamar Akomodasi:", selectedKamarAkomodasi);
         console.log("Selected Klinik:", selectedKlinik);
+        
+        // Log detail kode_unit_kerja
+        if (selectedKamarAkomodasi && selectedKamarAkomodasi.length > 0) {
+          console.log("Kamar kode_unit_kerja:", selectedKamarAkomodasi.map(k => k.kode_unit_kerja));
+        }
+        if (selectedKlinik && selectedKlinik.length > 0) {
+          console.log("Klinik kode_unit_kerja:", selectedKlinik.map(k => k.kode_unit_kerja));
+        }
 
         // Ambil semua tindakan dari kedua sumber tabel (rawat jalan dan rawat inap)
         let query = supabase
@@ -268,6 +323,13 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           uniqueUnitKerja: [...new Set(data.map(d => d.kode_unit_kerja))],
           uniqueNamaUnitKerja: [...new Set(data.map(d => d.nama_unit_kerja))]
         });
+        
+        // TAMBAHKAN logging untuk cek mismatch
+        if (uniqueUnitKerja.length > 0 && data.length === 0) {
+          console.error("⚠️ FILTER MISMATCH: Unit kerja dipilih tapi tidak ada tindakan!");
+          console.log("Selected unit kerja:", uniqueUnitKerja);
+          console.log("Hint: Cek apakah tindakan di skenario_tarif memiliki kode_unit_kerja yang sesuai");
+        }
         
         if (data.length === 0) {
           console.warn("⚠️ No tindakan found. Check if:");
@@ -470,14 +532,28 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           });
         }
         error = result.error;
+      } else if (filterType === "bdrs") {
+        // Fetch BDRS dari skenario_tarif dengan sumber_tabel = 'kalkulasi_bdrs'
+        let query = supabase
+          .from("skenario_tarif")
+          .select("*")
+          .eq("tahun", tahun)
+          .eq("sumber_tabel", "kalkulasi_bdrs");
+        query = applyUserScope(query, userId).order("nama_tindakan");
+        const result = await query;
+        data = result.data || [];
+        error = result.error;
       }
 
       if (error) throw error;
 
+      // Untuk tindakan dan IBS, gunakan dedupe dengan unit kerja untuk mempertahankan tindakan sama dari unit berbeda
+      const useUnitKerjaInDedupe = filterType === "tindakan" || filterType === "ibs";
+      
       const normalizedData =
-        filterType === "akomodasi" || filterType === "visite" || filterType === "konsultasi"
+        filterType === "akomodasi" || filterType === "visite" || filterType === "konsultasi" || filterType === "bdrs"
           ? data || []
-          : dedupeByKodeTindakan(data || []).sort((a, b) =>
+          : dedupeByKodeTindakan(data || [], useUnitKerjaInDedupe).sort((a, b) =>
               (a?.nama_tindakan || "").localeCompare(b?.nama_tindakan || "", "id", {
                 sensitivity: "base",
               })
@@ -485,6 +561,17 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
 
       setAvailableServices(normalizedData);
       console.log("✅ availableServices updated:", normalizedData.length, "services");
+      
+      if (filterType === "tindakan") {
+        console.log("📊 Tindakan details:");
+        console.log("- Raw data from query:", data?.length || 0);
+        console.log("- After dedupe & sort:", normalizedData.length);
+        console.log("- Sample tindakan:", normalizedData.slice(0, 3).map(t => ({
+          kode: t.kode_tindakan,
+          nama: t.nama_tindakan,
+          unit: t.nama_unit_kerja
+        })));
+      }
       
       // Notify parent component about loaded services
       if (onServicesLoaded) {
@@ -504,6 +591,12 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
   useEffect(() => {
     fetchServices();
   }, [tahun, jenisProduk, spesialisasiDokter, refreshKey, selectedKamarKeys, selectedKlinikKeys]);
+
+  useEffect(() => {
+    if (filterType === "visite" || filterType === "konsultasi") {
+      fetchDoctors();
+    }
+  }, [filterType]);
 
   // Filter berdasarkan kamar akomodasi atau klinik yang dipilih (untuk tindakan)
   // NOTE: Data sudah difilter di server-side dalam fetchServices() berdasarkan kode_unit_kerja
@@ -530,8 +623,28 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       }
       
       // Filter: exclude tindakan yang sudah dipilih
-      // Cek apakah kode_tindakan sudah ada di list value
-      const isAlreadySelected = value.some(item => item.kode_tindakan === service.kode_tindakan);
+      // Untuk tindakan, cek kombinasi kode_tindakan + kode_unit_kerja karena tindakan sama bisa ada di berbagai unit
+      // Untuk layanan lain (akomodasi, visite, dll), cukup cek kode_tindakan saja
+      let isAlreadySelected = false;
+      
+      if (filterType === "tindakan" || filterType === "ibs") {
+        // Cek berdasarkan kode_tindakan + kode_unit_kerja
+        isAlreadySelected = value.some(item => 
+          item.kode_tindakan === service.kode_tindakan && 
+          item.kode_unit_kerja === service.kode_unit_kerja
+        );
+      } else if (filterType === "akomodasi") {
+        // Untuk akomodasi, cek berdasarkan kode_tindakan + kode_unit_kerja + kelas
+        isAlreadySelected = value.some(item => 
+          item.kode_tindakan === service.kode_tindakan && 
+          item.kode_unit_kerja === service.kode_unit_kerja &&
+          item.kelas === service.kelas
+        );
+      } else {
+        // Untuk layanan lain, cukup cek kode_tindakan
+        isAlreadySelected = value.some(item => item.kode_tindakan === service.kode_tindakan);
+      }
+      
       return !isAlreadySelected;
     });
 
@@ -544,6 +657,19 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       });
       return;
     }
+
+    // Validation for doctor selection on visite and konsultasi
+    if ((filterType === "visite" || filterType === "konsultasi") && !selectedDoctor) {
+      toast({
+        title: "Error",
+        description: `Pilih dokter terlebih dahulu untuk ${filterType}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get selected doctor info
+    const doctorInfo = doctors.find((d) => d.kode_dokter === selectedDoctor);
 
     const newItems: LayananItem[] = [];
     let addedCount = 0;
@@ -590,8 +716,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
             tipe_dokter: service.tipe_dokter,
             kode_unit_kerja: service.kode_unit_kerja,
             nama_unit_kerja: service.nama_unit_kerja,
-            kode_operator: service.kode_operator,
-            nama_operator: service.nama_operator,
+            kode_operator: doctorInfo?.kode_dokter,
+            nama_operator: doctorInfo?.nama_dokter,
             qty,
             subtotal,
           };
@@ -651,8 +777,21 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       return;
     }
 
+    // Validation for doctor selection on visite and konsultasi
+    if ((filterType === "visite" || filterType === "konsultasi") && !selectedDoctor) {
+      toast({
+        title: "Error",
+        description: `Pilih dokter terlebih dahulu untuk ${filterType}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const service = filteredServices.find((s) => s.id === selectedService);
     if (!service) return;
+
+    // Get selected doctor info
+    const doctorInfo = doctors.find((d) => d.kode_dokter === selectedDoctor);
 
     // Check duplicate
     const existingIndex = value.findIndex((v) => v.kode_tindakan === service.kode_tindakan);
@@ -688,6 +827,8 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         qty,
         subtotal: itemTotal,
         tipe_dokter: service.tipe_dokter,
+        kode_operator: doctorInfo?.kode_dokter,
+        nama_operator: doctorInfo?.nama_dokter,
       };
     } else {
       const jasaSarana = service.jasa_sarana || 0;
@@ -813,8 +954,29 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         </Badge>
       </div>
       
+      {/* Peringatan jika tidak ada unit sama sekali yang dipilih */}
+      {filterType === "tindakan" && 
+       selectedKamarAkomodasi.length === 0 && 
+       selectedKlinik.length === 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 flex items-start gap-2">
+          <div className="text-orange-600 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-orange-800">
+              Pilih Klinik atau Kamar Akomodasi Terlebih Dahulu
+            </p>
+            <p className="text-xs text-orange-700 mt-1">
+              Untuk menambahkan tindakan, silakan pilih klinik (rawat jalan) atau kamar akomodasi (rawat inap) terlebih dahulu.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Peringatan jika tindakan rawat jalan tapi belum pilih klinik */}
-      {filterType === "tindakan" && jenisProduk === "rawat jalan" && selectedKlinik.length === 0 && (
+      {filterType === "tindakan" && jenisProduk === "rawat jalan" && selectedKlinik.length === 0 && selectedKamarAkomodasi.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
           <div className="text-yellow-600 mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -852,7 +1014,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
       )}
 
       {/* Peringatan jika tindakan rawat inap tapi belum pilih kamar */}
-      {filterType === "tindakan" && jenisProduk === "rawat inap" && selectedKamarAkomodasi.length === 0 && (
+      {filterType === "tindakan" && jenisProduk === "rawat inap" && selectedKamarAkomodasi.length === 0 && selectedKlinik.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2">
           <div className="text-yellow-600 mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -912,6 +1074,44 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
           </Badge>
         )}
       </div>
+
+      {/* Doctor Selection for Visite */}
+      {filterType === "visite" && (
+        <div className="border rounded-lg p-4 bg-teal-50 border-teal-200 space-y-3">
+          <Label className="text-sm font-semibold text-teal-800">Pilih Dokter untuk Visite</Label>
+          <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih dokter..." />
+            </SelectTrigger>
+            <SelectContent>
+              {doctors.map((doctor) => (
+                <SelectItem key={doctor.kode_dokter} value={doctor.kode_dokter}>
+                  {doctor.nama_dokter} - {doctor.spesialistik}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Doctor Selection for Konsultasi */}
+      {filterType === "konsultasi" && (
+        <div className="border rounded-lg p-4 bg-purple-50 border-purple-200 space-y-3">
+          <Label className="text-sm font-semibold text-purple-800">Pilih Dokter untuk Konsultasi</Label>
+          <Select value={selectedDoctor} onValueChange={setSelectedDoctor}>
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih dokter..." />
+            </SelectTrigger>
+            <SelectContent>
+              {doctors.map((doctor) => (
+                <SelectItem key={doctor.kode_dokter} value={doctor.kode_dokter}>
+                  {doctor.nama_dokter} - {doctor.spesialistik}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Input Section */}
       <div className={`border rounded-lg p-4 ${badge.bgLight} ${badge.borderLight} space-y-3`}>
@@ -1105,23 +1305,26 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
         ) : (
           <Table>
             <TableHeader>
-              <TableRow className={badge.bgLight}>
-                <TableHead className="w-[120px]">Kode</TableHead>
-                <TableHead>Nama {label}</TableHead>
+              <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
+                <TableHead className="w-[120px] text-white font-bold">Kode</TableHead>
+                <TableHead className="text-white font-bold">Nama {label}</TableHead>
                 {(filterType === "tindakan" || filterType === "ibs" || filterType === "akomodasi") && (
-                  <TableHead className="w-[180px]">Unit Kerja</TableHead>
+                  <TableHead className="w-[180px] text-white font-bold">Unit Kerja</TableHead>
+                )}
+                {(filterType === "visite" || filterType === "konsultasi") && (
+                  <TableHead className="w-[200px] text-white font-bold">Dokter</TableHead>
                 )}
                 {filterType === "akomodasi" ? (
-                  <TableHead className="text-right w-[130px]">Tarif</TableHead>
+                  <TableHead className="text-right w-[130px] text-white font-bold">Tarif</TableHead>
                 ) : (
                   <>
-                    <TableHead className="text-right w-[130px]">Jasa Sarana</TableHead>
-                    <TableHead className="text-right w-[130px]">Biaya Bahan</TableHead>
+                    <TableHead className="text-right w-[130px] text-white font-bold">Jasa Sarana</TableHead>
+                    <TableHead className="text-right w-[130px] text-white font-bold">Biaya Bahan</TableHead>
                   </>
                 )}
-                <TableHead className="text-center w-[100px]">Qty</TableHead>
-                <TableHead className="text-right w-[130px]">Subtotal</TableHead>
-                <TableHead className="text-right w-[80px]">Aksi</TableHead>
+                <TableHead className="text-center w-[100px] text-white font-bold">Qty</TableHead>
+                <TableHead className="text-right w-[130px] text-white font-bold">Subtotal</TableHead>
+                <TableHead className="text-right w-[80px] text-white font-bold">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1132,6 +1335,11 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                   {(filterType === "tindakan" || filterType === "ibs" || filterType === "akomodasi") && (
                     <TableCell className="text-sm text-muted-foreground">
                       {item.nama_unit_kerja || "-"}
+                    </TableCell>
+                  )}
+                  {(filterType === "visite" || filterType === "konsultasi") && (
+                    <TableCell className="text-sm text-muted-foreground">
+                      {item.nama_operator || "-"}
                     </TableCell>
                   )}
                   {filterType === "akomodasi" ? (
@@ -1166,6 +1374,7 @@ const LayananInputTable: React.FC<LayananInputTableProps> = ({
                   colSpan={
                     filterType === "akomodasi" ? 5 : 
                     (filterType === "tindakan" || filterType === "ibs") ? 6 : 
+                    (filterType === "visite" || filterType === "konsultasi") ? 6 :
                     5
                   } 
                   className="text-right"

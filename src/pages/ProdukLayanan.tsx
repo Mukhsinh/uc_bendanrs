@@ -74,6 +74,7 @@ interface ProdukLayanan {
   kamar_akomodasi: any[];
   visite: any[];
   konsultasi: any[];
+  bdrs: any[];
   total_biaya: number;
   tarif_inacbgs_numeric: number;
   saldo_distribusi: number;
@@ -88,6 +89,7 @@ interface ProdukLayanan {
   jp_kamar_akomodasi: number;
   jp_visite: number;
   jp_konsultasi: number;
+  jp_bdrs: number;
   jp_farmasi_prosentase: number;
 }
 
@@ -117,6 +119,7 @@ const ProdukLayanan = () => {
     kamar_akomodasi: [],
     visite: [],
     konsultasi: [],
+    bdrs: [],
   });
   
   // State untuk menyimpan available services dari setiap jenis layanan
@@ -130,6 +133,7 @@ const ProdukLayanan = () => {
     akomodasi: [] as any[],
     visite: [] as any[],
     konsultasi: [] as any[],
+    bdrs: [] as any[],
   });
 
   const fetchData = async () => {
@@ -255,6 +259,7 @@ const ProdukLayanan = () => {
       jp_konsultasi,         // Computed dari konsultasi array
       jp_laboratorium_eksternal, // Computed dari laboratorium_eksternal array
       jp_radiologi_eksternal,    // Computed dari radiologi_eksternal array
+      jp_bdrs,               // Computed dari bdrs array
       ...cleanData
     } = data as any;
     
@@ -277,6 +282,7 @@ const ProdukLayanan = () => {
       klinik: Array.isArray(cleanData.klinik) ? cleanData.klinik : [],
       laboratorium_eksternal: Array.isArray(cleanData.laboratorium_eksternal) ? cleanData.laboratorium_eksternal : [],
       radiologi_eksternal: Array.isArray(cleanData.radiologi_eksternal) ? cleanData.radiologi_eksternal : [],
+      bdrs: Array.isArray(cleanData.bdrs) ? cleanData.bdrs : [],
       // Pastikan numeric fields valid
       los: typeof cleanData.los === 'number' ? cleanData.los : 0,
       tarif_inacbgs_numeric: typeof cleanData.tarif_inacbgs_numeric === 'number' ? cleanData.tarif_inacbgs_numeric : 0,
@@ -349,6 +355,7 @@ const ProdukLayanan = () => {
         kamar_akomodasi: formData.kamar_akomodasi || [],
         visite: formData.visite || [],
         konsultasi: formData.konsultasi || [],
+        bdrs: formData.bdrs || [],
         klinik: formData.klinik || [],
         // Pastikan numeric fields tidak null
         los: formData.los || 0,
@@ -406,6 +413,7 @@ const ProdukLayanan = () => {
         kamar_akomodasi: [],
         visite: [],
         konsultasi: [],
+        bdrs: [],
       });
       fetchData();
     } catch (error: any) {
@@ -419,7 +427,10 @@ const ProdukLayanan = () => {
 
   const handleEdit = (item: ProdukLayanan) => {
     setEditingId(item.id);
-    setFormData(item);
+    setFormData({
+      ...item,
+      bdrs: item.bdrs || [], // Pastikan bdrs selalu array
+    });
     setDialogOpen(true);
   };
 
@@ -493,7 +504,8 @@ const ProdukLayanan = () => {
       "JP Farmasi": item.jp_farmasi || 0,
       "JP Kamar Akomodasi": item.jp_kamar_akomodasi || 0,
       "JP Visite": item.jp_visite || 0,
-      "JP Konsultasi": item.jp_konsultasi || 0
+      "JP Konsultasi": item.jp_konsultasi || 0,
+      "JP BDRS": item.jp_bdrs || 0
     }));
 
     await downloadReport({
@@ -1210,6 +1222,7 @@ const ProdukLayanan = () => {
                           radiologi: [...(formData.radiologi || []), ...importedData.radiologi],
                           laboratorium_eksternal: [...(formData.laboratorium_eksternal || []), ...importedData.laboratorium_eksternal],
                           radiologi_eksternal: [...(formData.radiologi_eksternal || []), ...importedData.radiologi_eksternal],
+                          bdrs: [...(formData.bdrs || []), ...importedData.bdrs],
                           kamar_akomodasi: [...(formData.kamar_akomodasi || []), ...importedData.akomodasi],
                           visite: [...(formData.visite || []), ...importedData.visite],
                           konsultasi: [...(formData.konsultasi || []), ...importedData.konsultasi],
@@ -1244,6 +1257,7 @@ const ProdukLayanan = () => {
                       onChange={(value) => setFormData({ ...formData, tindakan: value })}
                       tahun={tahun}
                       filterType="tindakan"
+                      jenisProduk={formData.jenis}
                       refreshKey={refreshKey}
                       selectedKamarAkomodasi={formData.kamar_akomodasi || []}
                       selectedKlinik={formData.klinik || []}
@@ -1310,6 +1324,18 @@ const ProdukLayanan = () => {
                       refreshKey={refreshKey}
                       onServicesLoaded={(services) => 
                         setAvailableServices(prev => ({ ...prev, radiologi_eksternal: services }))
+                      }
+                    />
+
+                    <LayananInputTable
+                      label="BDRS"
+                      value={formData.bdrs || []}
+                      onChange={(value) => setFormData({ ...formData, bdrs: value })}
+                      tahun={tahun}
+                      filterType="bdrs"
+                      refreshKey={refreshKey}
+                      onServicesLoaded={(services) => 
+                        setAvailableServices(prev => ({ ...prev, bdrs: services }))
                       }
                     />
 
@@ -1423,6 +1449,7 @@ const ProdukLayanan = () => {
                       <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Kamar</TableHead>
                       <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Visite</TableHead>
                       <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />Konsultasi</TableHead>
+                      <TableHead className="text-right text-white font-bold text-xs px-1 py-2 min-w-[80px] whitespace-normal">JP<br />BDRS</TableHead>
                       <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[100px] whitespace-normal">Total<br />JP</TableHead>
                       <TableHead className="text-right text-white font-bold text-xs px-2 py-2 min-w-[100px] whitespace-normal">Saldo<br />Distribusi</TableHead>
                       <TableHead className="text-center text-white font-bold text-xs px-2 py-2 min-w-[80px] whitespace-normal">%<br />Saldo</TableHead>
@@ -1446,8 +1473,9 @@ const ProdukLayanan = () => {
                         <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_kamar_akomodasi || 0)}</TableCell>
                         <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_visite || 0)}</TableCell>
                         <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_konsultasi || 0)}</TableCell>
+                        <TableCell className="text-right text-xs px-1 py-2 font-mono">{formatCurrency(item.jp_bdrs || 0)}</TableCell>
                         <TableCell className="text-right text-xs px-2 py-2 font-bold text-green-600 font-mono">
-                          {formatCurrency((item.jp_tindakan || 0) + (item.jp_ibs || 0) + (item.jp_laboratorium || 0) + (item.jp_radiologi || 0) + (item.jp_farmasi || 0) + (item.jp_kamar_akomodasi || 0) + (item.jp_visite || 0) + (item.jp_konsultasi || 0))}
+                          {formatCurrency((item.jp_tindakan || 0) + (item.jp_ibs || 0) + (item.jp_laboratorium || 0) + (item.jp_radiologi || 0) + (item.jp_farmasi || 0) + (item.jp_kamar_akomodasi || 0) + (item.jp_visite || 0) + (item.jp_konsultasi || 0) + (item.jp_bdrs || 0))}
                         </TableCell>
                         <TableCell className={`text-right text-xs px-2 py-2 font-semibold font-mono ${
                           (item.saldo_distribusi || 0) >= 0 ? "text-green-600" : "text-red-600"

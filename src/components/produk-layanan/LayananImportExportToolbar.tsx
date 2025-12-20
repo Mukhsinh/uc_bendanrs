@@ -29,6 +29,7 @@ interface LayananImportExportToolbarProps {
     akomodasi: any[];
     visite: any[];
     konsultasi: any[];
+    bdrs: any[];
   };
   onImport: (data: {
     tindakan: LayananItem[];
@@ -40,6 +41,7 @@ interface LayananImportExportToolbarProps {
     akomodasi: LayananItem[];
     visite: LayananItem[];
     konsultasi: LayananItem[];
+    bdrs: LayananItem[];
   }) => void;
 }
 
@@ -69,6 +71,7 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
       ["radiologi", "RAD.001", "Contoh Radiologi 1", "1"],
       ["laboratorium_eksternal", "LABEXT.001", "Contoh Lab Eksternal 1", "1"],
       ["radiologi_eksternal", "RADEXT.001", "Contoh Radiologi Eksternal 1", "1"],
+      ["bdrs", "BDRS.001", "Contoh BDRS 1", "1"],
       ["akomodasi", "AKOM.VIP", "Kamar VIP", "3"],
       ["visite", "VISIT.UMUM", "Visit Dokter Umum", "1"],
       ["konsultasi", "KONSUL.SPESIALIS", "Konsultasi Dokter Spesialis", "1"],
@@ -152,6 +155,17 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
     allServices.radiologi_eksternal.forEach((service) => {
       allData.push({
         jenis_layanan: "radiologi_eksternal",
+        kode_tindakan: service.kode_tindakan || "",
+        nama_tindakan: service.nama_tindakan || "",
+        jasa_sarana: service.jasa_sarana || 0,
+        biaya_bahan: service.biaya_bahan || 0,
+      });
+    });
+
+    // BDRS
+    allServices.bdrs.forEach((service) => {
+      allData.push({
+        jenis_layanan: "bdrs",
         kode_tindakan: service.kode_tindakan || "",
         nama_tindakan: service.nama_tindakan || "",
         jasa_sarana: service.jasa_sarana || 0,
@@ -253,6 +267,7 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
         radiologi: [] as LayananItem[],
         laboratorium_eksternal: [] as LayananItem[],
         radiologi_eksternal: [] as LayananItem[],
+        bdrs: [] as LayananItem[],
         akomodasi: [] as LayananItem[],
         visite: [] as LayananItem[],
         konsultasi: [] as LayananItem[],
@@ -299,6 +314,9 @@ const LayananImportExportToolbar: React.FC<LayananImportExportToolbarProps> = ({
             break;
           case "radiologi_eksternal":
             serviceList = allServices.radiologi_eksternal;
+            break;
+          case "bdrs":
+            serviceList = allServices.bdrs;
             break;
           case "akomodasi":
             serviceList = allServices.akomodasi;
