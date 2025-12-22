@@ -20,10 +20,21 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $function$
+DECLARE
+    v_tenant_id UUID;
 BEGIN
-    -- Delete existing data for the user and year
+    -- Get tenant_id for current user
+    v_tenant_id := public.get_tenant_id();
+    
+    -- Delete existing data for the user and year, considering tenant_id
+    -- Also delete any records that might conflict with the unique constraint (kode_unit_kerja, kelas, tahun, tenant_id)
     DELETE FROM kalkulasi_biaya_kelas_akomodasi
-    WHERE user_id = p_user_id AND tahun = p_tahun;
+    WHERE (user_id = p_user_id AND tahun = p_tahun)
+       OR (tahun = p_tahun AND tenant_id = v_tenant_id AND kode_unit_kerja IN (
+           SELECT DISTINCT kode_unit_kerja 
+           FROM data_akomodasi_inap 
+           WHERE tahun = p_tahun AND (user_id = p_user_id OR user_id IS NULL)
+       ));
 
     -- Insert new data with corrected formulas
     -- CTE untuk mengambil data dari data_akomodasi_inap dengan prioritas: user_id = p_user_id, lalu master (user_id IS NULL)
@@ -173,6 +184,7 @@ BEGIN
         kode_unit_kerja,
         nama_unit_kerja,
         kelas,
+        tenant_id,
         dasar_alokasi_hari_rawat,
         dasar_alokasi_tempat_tidur,
         dasar_alokasi_luas_kamar,
@@ -200,8 +212,7 @@ BEGIN
         biaya_laundry,
         biaya_sterilisasi,
         biaya_tidak_langsung_terdistribusi,
-        alokasi_biaya_gizi,
-        unit_cost_per_kelas
+        alokasi_biaya_gizi
     )
     SELECT
         kd.user_id,
@@ -209,6 +220,7 @@ BEGIN
         kd.kode_unit_kerja,
         kd.nama_unit_kerja,
         kd.kelas,
+        v_tenant_id AS tenant_id,
         -- Dasar alokasi hari rawat: (hari_rawat_kelas / total_hari_rawat_unit)
         CASE 
             WHEN kd.total_hari_rawat_unit > 0 
@@ -403,15 +415,48 @@ BEGIN
             WHEN kd.hari_rawat_kelas > 0 AND kd.jumlah_kali_porsi_kelas > 0
             THEN ROUND((kd.jumlah_kali_porsi_kelas::NUMERIC / NULLIF(kd.hari_rawat_kelas::NUMERIC, 0)))::BIGINT
             ELSE 0
-        END AS alokasi_biaya_gizi,
-        -- Unit cost per kelas (akan dihitung nanti atau dihitung dari total biaya / hari_rawat)
-        0::BIGINT AS unit_cost_per_kelas
+        END AS alokasi_biaya_gizi
+        -- unit_cost_per_kelas adalah GENERATED COLUMN, tidak perlu diisi manual
     FROM kelas_data kd
     -- Join dengan kalkulasi_biaya_akomodasi untuk mendapatkan biaya per unit kerja
     -- Tanpa memperhatikan user_id, hanya berdasarkan tahun dan kode_unit_kerja
     LEFT JOIN kalkulasi_biaya_akomodasi kba
         ON kba.tahun = kd.tahun
-        AND kba.kode_unit_kerja = kd.kode_unit_kerja;
+        AND kba.kode_unit_kerja = kd.kode_unit_kerja
+    ON CONFLICT (kode_unit_kerja, kelas, tahun, tenant_id) 
+    DO UPDATE SET
+        user_id = EXCLUDED.user_id,
+        nama_unit_kerja = EXCLUDED.nama_unit_kerja,
+        dasar_alokasi_hari_rawat = EXCLUDED.dasar_alokasi_hari_rawat,
+        dasar_alokasi_tempat_tidur = EXCLUDED.dasar_alokasi_tempat_tidur,
+        dasar_alokasi_luas_kamar = EXCLUDED.dasar_alokasi_luas_kamar,
+        biaya_gaji_tunjangan = EXCLUDED.biaya_gaji_tunjangan,
+        biaya_jasa_pelayanan = EXCLUDED.biaya_jasa_pelayanan,
+        biaya_obat = EXCLUDED.biaya_obat,
+        biaya_bhp = EXCLUDED.biaya_bhp,
+        biaya_makan_karyawan = EXCLUDED.biaya_makan_karyawan,
+        biaya_makan_pasien = EXCLUDED.biaya_makan_pasien,
+        biaya_rumah_tangga = EXCLUDED.biaya_rumah_tangga,
+        biaya_cetak = EXCLUDED.biaya_cetak,
+        biaya_atk = EXCLUDED.biaya_atk,
+        biaya_listrik = EXCLUDED.biaya_listrik,
+        biaya_air = EXCLUDED.biaya_air,
+        biaya_telp = EXCLUDED.biaya_telp,
+        biaya_pemeliharaan_bangunan = EXCLUDED.biaya_pemeliharaan_bangunan,
+        biaya_pemeliharaan_alat_medis = EXCLUDED.biaya_pemeliharaan_alat_medis,
+        biaya_pemeliharaan_alat_non_medis = EXCLUDED.biaya_pemeliharaan_alat_non_medis,
+        biaya_operasional_lainnya = EXCLUDED.biaya_operasional_lainnya,
+        biaya_penyusutan_gedung = EXCLUDED.biaya_penyusutan_gedung,
+        biaya_penyusutan_jaringan = EXCLUDED.biaya_penyusutan_jaringan,
+        biaya_penyusutan_alat_medis = EXCLUDED.biaya_penyusutan_alat_medis,
+        biaya_penyusutan_alat_non_medis = EXCLUDED.biaya_penyusutan_alat_non_medis,
+        biaya_pendidikan_pelatihan = EXCLUDED.biaya_pendidikan_pelatihan,
+        biaya_laundry = EXCLUDED.biaya_laundry,
+        biaya_sterilisasi = EXCLUDED.biaya_sterilisasi,
+        biaya_tidak_langsung_terdistribusi = EXCLUDED.biaya_tidak_langsung_terdistribusi,
+        alokasi_biaya_gizi = EXCLUDED.alokasi_biaya_gizi,
+        updated_at = now();
+        -- unit_cost_per_kelas adalah GENERATED COLUMN, akan dihitung otomatis oleh database
 
     -- Update alokasi_biaya_gizi untuk memastikan semua data menggunakan rumus yang benar
     PERFORM public.update_alokasi_biaya_gizi_kelas_akomodasi(p_user_id, p_tahun);
