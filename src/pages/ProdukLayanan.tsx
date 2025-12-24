@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Trash2, Edit, Plus, Upload, Download, RefreshCcw, Calculator } from "lucide-react";
+import { Trash2, Edit, Plus, Upload, Download, RefreshCcw, Calculator, Search, Filter, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import Papa from "papaparse";
@@ -104,6 +104,13 @@ const ProdukLayanan = () => {
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [recalculatingJP, setRecalculatingJP] = useState(false);
+  
+  // Filter states
+  const [filterJenis, setFilterJenis] = useState<string>("semua");
+  const [filterDeskripsi, setFilterDeskripsi] = useState<string>("");
+  const [filterNamaDokter, setFilterNamaDokter] = useState<string>("");
+  const [showFilters, setShowFilters] = useState(false);
+  
   const [formData, setFormData] = useState<Partial<ProdukLayanan>>({
     tahun: 2025,
     jenis: "rawat jalan",
@@ -926,10 +933,48 @@ const ProdukLayanan = () => {
     );
   };
 
-  // Hitung rata-rata prosentase saldo
-  const rataRataProsentase = data.length > 0
-    ? data.reduce((sum, item) => sum + (item.prosentase_saldo || 0), 0) / data.length
+  // Filter data berdasarkan kriteria
+  const filteredData = useMemo(() => {
+    return data.filter((item) => {
+      // Filter berdasarkan jenis
+      if (filterJenis !== "semua" && item.jenis !== filterJenis) {
+        return false;
+      }
+      
+      // Filter berdasarkan deskripsi INA-CBG
+      if (filterDeskripsi.trim() !== "") {
+        const deskripsi = item.deskripsi_inacbg?.toLowerCase() || "";
+        if (!deskripsi.includes(filterDeskripsi.toLowerCase().trim())) {
+          return false;
+        }
+      }
+      
+      // Filter berdasarkan nama dokter
+      if (filterNamaDokter.trim() !== "") {
+        const namaDokter = item.nama_dokter?.toLowerCase() || "";
+        if (!namaDokter.includes(filterNamaDokter.toLowerCase().trim())) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [data, filterJenis, filterDeskripsi, filterNamaDokter]);
+
+  // Hitung rata-rata prosentase saldo dari data yang sudah difilter
+  const rataRataProsentase = filteredData.length > 0
+    ? filteredData.reduce((sum, item) => sum + (item.prosentase_saldo || 0), 0) / filteredData.length
     : 0;
+
+  // Reset semua filter
+  const handleResetFilters = () => {
+    setFilterJenis("semua");
+    setFilterDeskripsi("");
+    setFilterNamaDokter("");
+  };
+
+  // Cek apakah ada filter aktif
+  const hasActiveFilters = filterJenis !== "semua" || filterDeskripsi.trim() !== "" || filterNamaDokter.trim() !== "";
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-full">
@@ -939,12 +984,17 @@ const ProdukLayanan = () => {
             <div className="flex-1">
               <div className="flex items-center gap-3">
                 <CardTitle>Produk Layanan</CardTitle>
-                {data.length > 0 && (
+                {filteredData.length > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-muted-foreground">
                       Rata-rata Prosentase Saldo:
                     </span>
                     {getProsentaseBadge(rataRataProsentase)}
+                    {hasActiveFilters && (
+                      <span className="text-xs text-slate-500">
+                        ({filteredData.length} data)
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -1421,13 +1471,137 @@ const ProdukLayanan = () => {
               <Calculator className={`h-4 w-4 mr-2 ${recalculatingJP ? "animate-pulse" : ""}`} />
               {recalculatingJP ? "Menghitung Ulang JP…" : "Recalculate JP"}
             </Button>
+
+            <Button
+              variant={showFilters ? "secondary" : "outline"}
+              onClick={() => setShowFilters(!showFilters)}
+              className={`shadow-sm ${hasActiveFilters ? "border-blue-500 text-blue-600" : ""}`}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+              {hasActiveFilters && (
+                <span className="ml-1 bg-blue-500 text-white rounded-full text-xs px-1.5 py-0.5">
+                  {(filterJenis !== "semua" ? 1 : 0) + (filterDeskripsi.trim() !== "" ? 1 : 0) + (filterNamaDokter.trim() !== "" ? 1 : 0)}
+                </span>
+              )}
+            </Button>
           </div>
+
+          {/* Panel Filter */}
+          {showFilters && (
+            <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filter Data
+                </h3>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetFilters}
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <X className="h-4 w-4 mr-1" />
+                    Reset Filter
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Filter Jenis */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-jenis" className="text-xs text-slate-600">
+                    Jenis Layanan
+                  </Label>
+                  <Select value={filterJenis} onValueChange={setFilterJenis}>
+                    <SelectTrigger id="filter-jenis" className="bg-white">
+                      <SelectValue placeholder="Pilih Jenis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="semua">Semua Jenis</SelectItem>
+                      <SelectItem value="rawat jalan">Rawat Jalan</SelectItem>
+                      <SelectItem value="rawat inap">Rawat Inap</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Deskripsi INA-CBG */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-deskripsi" className="text-xs text-slate-600">
+                    Deskripsi INA-CBG
+                  </Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="filter-deskripsi"
+                      placeholder="Cari deskripsi..."
+                      value={filterDeskripsi}
+                      onChange={(e) => setFilterDeskripsi(e.target.value)}
+                      className="pl-9 bg-white"
+                    />
+                    {filterDeskripsi && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFilterDeskripsi("")}
+                        className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-slate-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filter Nama Dokter */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-dokter" className="text-xs text-slate-600">
+                    Nama Dokter
+                  </Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      id="filter-dokter"
+                      placeholder="Cari nama dokter..."
+                      value={filterNamaDokter}
+                      onChange={(e) => setFilterNamaDokter(e.target.value)}
+                      className="pl-9 bg-white"
+                    />
+                    {filterNamaDokter && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setFilterNamaDokter("")}
+                        className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-slate-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Info hasil filter */}
+              {hasActiveFilters && (
+                <div className="mt-3 text-xs text-slate-500">
+                  Menampilkan <span className="font-semibold text-blue-600">{filteredData.length}</span> dari{" "}
+                  <span className="font-semibold">{data.length}</span> data
+                </div>
+              )}
+            </div>
+          )}
 
           {loading ? (
             <div className="text-center py-10">Loading...</div>
           ) : data.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
               Belum ada data. Klik "Tambah Data" untuk memulai.
+            </div>
+          ) : filteredData.length === 0 ? (
+            <div className="text-center py-10 text-gray-500">
+              <div className="mb-2">Tidak ada data yang sesuai dengan filter.</div>
+              <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                Reset Filter
+              </Button>
             </div>
           ) : (
             <div className="w-full">
@@ -1457,7 +1631,7 @@ const ProdukLayanan = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.map((item) => (
+                    {filteredData.map((item) => (
                       <TableRow key={item.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium capitalize text-xs px-2 py-2 sticky left-0 bg-white z-10 border-r">{item.jenis}</TableCell>
                         <TableCell className="text-xs px-2 py-2">{item.deskripsi_inacbg || "-"}</TableCell>
