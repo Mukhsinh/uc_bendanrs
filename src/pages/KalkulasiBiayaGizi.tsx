@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
-import { Download, Upload, Plus, Edit, Trash2, Calculator, Clock, RefreshCw } from "lucide-react";
+import { Download, Upload, Plus, Edit, Trash2, Calculator, Clock, RefreshCw, Search } from "lucide-react";
 import * as XLSX from "xlsx";
 import BahanPorsiForm from "@/components/BahanPorsiForm";
 import { manualRecalculateGizi, handleDatabaseError } from "@/utils/database-operations";
@@ -116,10 +116,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
   const [downloadingSummary, setDownloadingSummary] = useState(false);
   const [downloadingDetail, setDownloadingDetail] = useState(false);
   const [downloadingDetailBiaya, setDownloadingDetailBiaya] = useState(false);
-  
+
   // State untuk manual recalculation
   const [recalculating, setRecalculating] = useState(false);
-  const [recalcProgress, setRecalcProgress] = useState({step: 0, total: 5, message: ''});
+  const [recalcProgress, setRecalcProgress] = useState({ step: 0, total: 5, message: '' });
 
   // Summary AUC per kelas (SVIP/VIP/I/II/III)
   const [aucSummary, setAucSummary] = useState({
@@ -189,7 +189,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       .subscribe();
 
     return () => {
-      try { supabase.removeChannel(channel); } catch (_) {}
+      try { supabase.removeChannel(channel); } catch (_) { }
     };
   }, [currentYear]);
 
@@ -197,7 +197,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
     try {
       setLoading(true);
       const startTime = performance.now();
-      
+
       // Optimized query - only select columns needed for display and calculation
       const { data: kalkulasiData, error } = await tenantSupabase
         .from('kalkulasi_biaya_gizi')
@@ -485,26 +485,26 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
     try {
       setRecalculating(true);
-      setRecalcProgress({step: 1, total: 5, message: 'Memulai rekalkulasi...'});
+      setRecalcProgress({ step: 1, total: 5, message: 'Memulai rekalkulasi...' });
 
       console.log("🔄 Starting manual recalculation for gizi...");
       const startTime = performance.now();
 
-      setRecalcProgress({step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...'});
-      
+      setRecalcProgress({ step: 2, total: 5, message: 'Menghitung hasil kali dan dasar alokasi...' });
+
       const result = await manualRecalculateGizi(currentYear, userId);
 
-      setRecalcProgress({step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...'});
-      
-      setRecalcProgress({step: 4, total: 5, message: 'Memperbarui tampilan data...'});
-      
+      setRecalcProgress({ step: 3, total: 5, message: 'Mendistribusikan biaya tidak langsung...' });
+
+      setRecalcProgress({ step: 4, total: 5, message: 'Memperbarui tampilan data...' });
+
       // Refresh data setelah recalculation
       await fetchData();
 
       const endTime = performance.now();
       const totalTime = (endTime - startTime) / 1000;
 
-      setRecalcProgress({step: 5, total: 5, message: 'Selesai!'});
+      setRecalcProgress({ step: 5, total: 5, message: 'Selesai!' });
 
       // Show detailed success message with performance metrics
       toast({
@@ -516,10 +516,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
       console.log("✅ Manual recalculation completed successfully");
       console.log("📈 Recalculation stats:", result);
       console.log(`⚡ Performance: Total ${totalTime.toFixed(2)}s, DB ${result.execution_time_seconds?.toFixed(2)}s`);
-      
+
     } catch (error: any) {
       console.error("Manual recalculation failed:", error);
-      
+
       // Better error messages based on error type
       let errorMessage = error.message;
       if (error.message?.includes('timeout')) {
@@ -529,7 +529,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       } else if (error.message?.includes('permission')) {
         errorMessage = "Tidak memiliki izin untuk melakukan rekalkulasi. Hubungi administrator.";
       }
-      
+
       toast({
         title: "❌ Gagal melakukan rekalkulasi",
         description: errorMessage,
@@ -538,7 +538,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
       });
     } finally {
       setRecalculating(false);
-      setRecalcProgress({step: 0, total: 5, message: ''});
+      setRecalcProgress({ step: 0, total: 5, message: '' });
     }
   };
 
@@ -667,11 +667,11 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
       if (error) throw error;
       setBahanPorsi(bahanData || []);
-      
+
       // Update menus with bahan porsi
       const menusWithBahanSet = new Set(bahanData?.map(item => item.jenis_makanan) || []);
       setMenusWithBahan(menusWithBahanSet);
-      
+
     } catch (error) {
       console.error('Error fetching bahan porsi:', error);
     }
@@ -750,7 +750,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
     const kelasII = item.jumlah_kelas_ii || 0;
     const kelasIII = item.jumlah_kelas_iii || 0;
     const totalJumlah = calculateJumlah(svip, vip, kelasI, kelasII, kelasIII);
-    
+
     setFormData({
       tahun: item.tahun,
       kode: item.kode,
@@ -971,7 +971,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
     ];
 
     const ws = XLSX.utils.json_to_sheet(templateData);
-    
+
     // Set column widths for better readability (removed Waktu_Total column)
     ws['!cols'] = [
       { width: 10 }, // Kode
@@ -1001,11 +1001,11 @@ const KalkulasiBiayaGizi: React.FC = () => {
       setLoading(true);
       setImportProgress(0);
       setImportStatus('Membaca file Excel...');
-      
+
       const data = await file.arrayBuffer();
       setImportProgress(20);
       setImportStatus('Memproses data...');
-      
+
       const workbook = XLSX.read(data);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
@@ -1034,20 +1034,20 @@ const KalkulasiBiayaGizi: React.FC = () => {
         const waktuTotal = waktuMeracik + waktuMemasak + waktuMenata;
         const kode = row['Kode'] || '';
         const jenisMakanan = row['Jenis_Makanan'] || '';
-        
+
         // Validate kode
         if (!kode) {
           throw new Error(`Baris ${index + 2}: Kode tidak boleh kosong`);
         }
-        
+
         if (!validKodes.includes(kode)) {
           throw new Error(`Baris ${index + 2}: Kode "${kode}" tidak ditemukan di menu gizi`);
         }
-        
+
         if (!jenisMakanan) {
           throw new Error(`Baris ${index + 2}: Jenis makanan tidak boleh kosong`);
         }
-        
+
         return {
           tahun: currentYear,
           kode: kode,
@@ -1092,7 +1092,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
       setImportProgress(60);
       setImportStatus('Menyimpan ke database...');
-      
+
       console.log('Importing data:', importData);
 
       const { error } = await tenantSupabase
@@ -1106,14 +1106,14 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
       setImportProgress(100);
       setImportStatus('Import selesai!');
-      
+
       toast({
         title: "Berhasil",
         description: `${importData.length} data berhasil diimpor`,
       });
-      
+
       fetchData();
-      
+
       // Reset progress after 2 seconds
       setTimeout(() => {
         setImportProgress(0);
@@ -1174,8 +1174,8 @@ const KalkulasiBiayaGizi: React.FC = () => {
   };
 
   // Filter bahan porsi berdasarkan pencarian jenis makanan
-  const filteredBahanPorsi = bahanPorsi.filter(item => 
-    searchJenisMakanan === '' || 
+  const filteredBahanPorsi = bahanPorsi.filter(item =>
+    searchJenisMakanan === '' ||
     item.jenis_makanan.toLowerCase().includes(searchJenisMakanan.toLowerCase())
   );
 
@@ -1209,17 +1209,48 @@ const KalkulasiBiayaGizi: React.FC = () => {
             onChange={handleFileUpload}
             className="hidden"
           />
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-slate-700 whitespace-nowrap">Tahun:</label>
+            <Select
+              value={currentYear.toString()}
+              onValueChange={(value) => setCurrentYear(parseInt(value))}
+            >
+              <SelectTrigger className="w-[100px] h-9 bg-white border-slate-200">
+                <SelectValue placeholder="Tahun" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 3 + i).map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 flex-grow max-w-sm">
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+              <Input
+                placeholder="Cari jenis makanan..."
+                className="pl-9 h-9 bg-white border-slate-200"
+                value={searchJenisMakanan}
+                onChange={(e) => setSearchJenisMakanan(e.target.value)}
+              />
+            </div>
+          </div>
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button
-                variant="destructive"
                 onClick={() => {
                   setEditingItem(null);
                   resetForm();
                 }}
+                className="bg-blue-600 hover:bg-blue-700 h-9"
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Tambah Data Unit Kerja
+                <Plus className="w-4 h-4 mr-2" />
+                Tambah Data Gizi
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1237,7 +1268,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
                     <TabsTrigger value="basic">Data Dasar</TabsTrigger>
                     <TabsTrigger value="time">Waktu</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="basic" className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -1567,7 +1598,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
                 <span>{importProgress}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
+                <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${importProgress}%` }}
                 ></div>
@@ -1604,16 +1635,20 @@ const KalkulasiBiayaGizi: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.map((item) => {
+                  {data.filter(item =>
+                    searchJenisMakanan === '' ||
+                    item.jenis_makanan?.toLowerCase().includes(searchJenisMakanan.toLowerCase()) ||
+                    item.kode?.toLowerCase().includes(searchJenisMakanan.toLowerCase())
+                  ).map((item) => {
                     const hasBahanPorsi = menusWithBahan.has(item.jenis_makanan);
-                    
+
                     // Debug logging
                     console.log('Rendering item:', {
                       kode: item.kode,
                       jenis_makanan: item.jenis_makanan,
                       length: item.jenis_makanan?.length
                     });
-                    
+
                     return (
                       <TableRow key={item.id}>
                         <TableCell className="min-w-[200px] max-w-[300px]">
@@ -1623,11 +1658,10 @@ const KalkulasiBiayaGizi: React.FC = () => {
                               <Button
                                 size="sm"
                                 variant={hasBahanPorsi ? "default" : "outline"}
-                                className={`${
-                                  hasBahanPorsi 
-                                    ? "bg-green-600 hover:bg-green-700 text-white" 
-                                    : "hover:bg-gray-50"
-                                } text-xs px-2 py-1 min-w-[60px]`}
+                                className={`${hasBahanPorsi
+                                  ? "bg-green-600 hover:bg-green-700 text-white"
+                                  : "hover:bg-gray-50"
+                                  } text-xs px-2 py-1 min-w-[60px]`}
                                 onClick={() => {
                                   const selectedMenu = menuGizi.find(menu => menu.nama_makanan === item.jenis_makanan);
                                   if (selectedMenu) {
@@ -1738,33 +1772,20 @@ const KalkulasiBiayaGizi: React.FC = () => {
         </CardHeader>
         <CardContent>
           {/* Search Section */}
-          <div className="mb-6">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label htmlFor="search-jenis-makanan">Cari berdasarkan Jenis Makanan</Label>
-                <Input
-                  id="search-jenis-makanan"
-                  placeholder="Ketik jenis makanan untuk mencari..."
-                  value={searchJenisMakanan}
-                  onChange={(e) => setSearchJenisMakanan(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {filteredBahanPorsi.length} dari {bahanPorsi.length} bahan
-                </Badge>
-                {searchJenisMakanan && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSearchJenisMakanan('')}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            </div>
+          <div className="flex justify-between items-center mb-4">
+            <Badge variant="outline" className="px-3 py-1">
+              Menampilkan {filteredBahanPorsi.length} dari {bahanPorsi.length} Menu Gizi
+            </Badge>
+            {searchJenisMakanan && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchJenisMakanan('')}
+                className="text-slate-500 hover:text-slate-700"
+              >
+                Reset Pencarian
+              </Button>
+            )}
           </div>
           {/* Bahan Porsi Form Dialog */}
           <Dialog open={isBahanPorsiDialogOpen} onOpenChange={setIsBahanPorsiDialogOpen}>
@@ -1808,7 +1829,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
 
                       const { error: kalkulasiError } = await tenantSupabase
                         .from('kalkulasi_biaya_gizi')
-                        .update({ 
+                        .update({
                           bahan_porsi: dataForKalkulasi,
                           biaya_bahan_porsi_numeric: dataForKalkulasi.reduce((sum, item) => sum + item.biaya_bahan_porsi, 0)
                         })
@@ -1816,12 +1837,12 @@ const KalkulasiBiayaGizi: React.FC = () => {
                         .eq('jenis_makanan', selectedMenuForBahan.nama_makanan);
 
                       if (kalkulasiError) throw kalkulasiError;
-                      
+
                       toast({
                         title: "Berhasil",
                         description: `${dataArray.length} bahan porsi berhasil ditambahkan`,
                       });
-                      
+
                       // 3. Refresh kedua data
                       fetchBahanPorsi();
                       fetchData(); // Refresh data utama agar tampilan langsung update
@@ -1895,8 +1916,8 @@ const KalkulasiBiayaGizi: React.FC = () => {
             </Table>
             {filteredBahanPorsi.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                {searchJenisMakanan ? 
-                  `Tidak ada bahan porsi yang cocok dengan pencarian "${searchJenisMakanan}"` : 
+                {searchJenisMakanan ?
+                  `Tidak ada bahan porsi yang cocok dengan pencarian "${searchJenisMakanan}"` :
                   'Belum ada data bahan porsi'
                 }
               </div>
@@ -2001,7 +2022,7 @@ const UpdateWaktuForm: React.FC<UpdateWaktuFormProps> = ({ item, onSave, onCance
           />
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between">
         <Button type="button" variant="outline" onClick={handleSetDefault}>
           Set Default
