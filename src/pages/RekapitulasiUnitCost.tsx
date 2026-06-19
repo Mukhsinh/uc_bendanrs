@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useYear } from "@/contexts/YearContext";
 import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { FileDown, RefreshCw, TrendingUp, Package, Users, Clock3, Trophy, ListOrdered } from "lucide-react";

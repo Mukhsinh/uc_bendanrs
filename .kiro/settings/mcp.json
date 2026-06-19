@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "supabase": {
-      "url": "https://mcp.supabase.com/mcp?project_ref=koepzicdtovtknsqlnac",
+      "url": "https://mcp.supabase.com/mcp?project_ref=iryiykkzapmjioazjcwf",
       "disabled": false,
       "autoApprove": [
         "list_tables",
@@ -10,7 +10,8 @@
         "execute_sql",
         "apply_migration",
         "get_logs",
-        "get_advisors"
+        "get_advisors",
+        "get_publishable_keys"
       ]
     }
   }

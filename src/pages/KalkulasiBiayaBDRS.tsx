@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useYear } from "@/contexts/YearContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,10 @@ import { useReportDownload } from "@/components/report";
 
 
 const KalkulasiBiayaBDRS: React.FC = () => {
+  const { selectedYear: contextYear } = useYear();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = useState<number>(contextYear);
   const [userId, setUserId] = useState<string | null>(null);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [bahanText, setBahanText] = useState<string>(

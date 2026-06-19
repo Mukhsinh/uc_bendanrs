@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Loader2, Save, Building2, Palette, Settings as SettingsIcon } from 'lucide-react';
+import { Loader2, Save, Building2, Palette, Settings as SettingsIcon, Database, Copy, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -41,6 +41,9 @@ export default function TenantSettings() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [settings, setSettings] = useState<any>(null);
+  const [fromYear, setFromYear] = useState<number>(2025);
+  const [toYear, setToYear] = useState<number>(2026);
+  const [copying, setCopying] = useState(false);
 
   // Form untuk tenant info
   const {
@@ -263,6 +266,53 @@ export default function TenantSettings() {
     }
   };
 
+  const handleCopyYearData = async () => {
+    if (!tenant) return;
+
+    if (fromYear === toYear) {
+      toast({
+        title: 'Peringatan',
+        description: 'Tahun sumber dan tujuan tidak boleh sama.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmMessage = `Apakah Anda yakin ingin menyalin semua data dari tahun ${fromYear} ke tahun ${toYear}? Data tahun ${toYear} yang sudah ada akan dihapus.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setCopying(true);
+    try {
+      const { error } = await supabase.rpc('copy_year_data', {
+        from_year: fromYear,
+        to_year: toYear,
+        p_tenant_id: tenant.id
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Berhasil',
+        description: `Data dari tahun ${fromYear} berhasil disalin ke tahun ${toYear}.`,
+      });
+
+      // Log audit trail
+      await logAuditTrail('copy_year_data', {
+        from_year: fromYear,
+        to_year: toYear
+      });
+    } catch (error: any) {
+      console.error('Error copying year data:', error);
+      toast({
+        title: 'Gagal Menyalin Data',
+        description: error.message || 'Terjadi kesalahan saat menyalin data. Pastikan fungsi database sudah terpasang.',
+        variant: 'destructive'
+      });
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const logAuditTrail = async (action: string, changes: any) => {
     if (!tenant) return;
 
@@ -329,6 +379,10 @@ export default function TenantSettings() {
           <TabsTrigger value="calculation">
             <SettingsIcon className="h-4 w-4 mr-2" />
             Preferensi Kalkulasi
+          </TabsTrigger>
+          <TabsTrigger value="data">
+            <Database className="h-4 w-4 mr-2" />
+            Manajemen Data
           </TabsTrigger>
         </TabsList>
 
@@ -411,7 +465,7 @@ export default function TenantSettings() {
                   {errorsBranding.primaryColor && (
                     <p className="text-sm text-red-600 mt-1">{errorsBranding.primaryColor.message}</p>
                   )}
-                  <div 
+                  <div
                     className="mt-2 h-12 rounded border"
                     style={{ backgroundColor: watchBranding('primaryColor') }}
                   />
@@ -434,7 +488,7 @@ export default function TenantSettings() {
                   {errorsBranding.secondaryColor && (
                     <p className="text-sm text-red-600 mt-1">{errorsBranding.secondaryColor.message}</p>
                   )}
-                  <div 
+                  <div
                     className="mt-2 h-12 rounded border"
                     style={{ backgroundColor: watchBranding('secondaryColor') }}
                   />
@@ -472,7 +526,7 @@ export default function TenantSettings() {
                   <Checkbox
                     id="includeJasaPelayanan"
                     checked={watchCalculation('includeJasaPelayanan')}
-                    onCheckedChange={(checked) => 
+                    onCheckedChange={(checked) =>
                       setValueCalculation('includeJasaPelayanan', checked as boolean)
                     }
                   />
@@ -534,6 +588,79 @@ export default function TenantSettings() {
                   )}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="data">
+          <Card>
+            <CardHeader>
+              <CardTitle>Salin Data Antar Tahun</CardTitle>
+              <CardDescription>
+                Duplikasi seluruh data transaksi dan kalkulasi dari satu tahun ke tahun lainnya.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-amber-800">
+                <AlertTriangle className="h-5 w-5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-semibold">Peringatan Penting:</p>
+                  <ul className="list-disc ml-4 mt-1 space-y-1">
+                    <li>Proses ini akan <strong>menghapus seluruh data yang sudah ada</strong> di tahun tujuan.</li>
+                    <li>Pastikan Anda memilih tahun sumber dan tujuan dengan benar.</li>
+                    <li>Sistem hanya menyalin data transaksi dan kalkulasi, data master tidak terpengaruh.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="fromYear">Tahun Sumber (Copy dari)</Label>
+                  <select
+                    id="fromYear"
+                    value={fromYear}
+                    onChange={(e) => setFromYear(parseInt(e.target.value))}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {[2025, 2026, 2027, 2028, 2029, 2030].map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="toYear">Tahun Tujuan (Salin ke)</Label>
+                  <select
+                    id="toYear"
+                    value={toYear}
+                    onChange={(e) => setToYear(parseInt(e.target.value))}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {[2025, 2026, 2027, 2028, 2029, 2030].map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleCopyYearData}
+                disabled={copying}
+                className="w-full md:w-auto"
+                variant="destructive"
+              >
+                {copying ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sedang Menyalin Data...
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Salin Seluruh Data
+                  </>
+                )}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

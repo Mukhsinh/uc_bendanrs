@@ -95,3 +95,8 @@ create-table-*.js
 test-*.js
 fix-db-*.js
 fix-database-*.js
+
+# Environment variables
+.env
+.env.*
+!.env.example

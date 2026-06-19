@@ -5,14 +5,14 @@ const getSupabaseConfig = () => {
   // Try multiple sources for configuration
   const envUrl = import.meta.env.VITE_SUPABASE_URL;
   const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  
+
   // Fallback values (hardcoded for reliability)
-  const fallbackUrl = 'https://koepzicdtovtknsqlnac.supabase.co';
-  const fallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvZXB6aWNkdG92dGtuc3FsbmFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMDg1NzgsImV4cCI6MjA3Mjg4NDU3OH0.QUpuIaPDlDVp2LKSJYkBj4z3IY0aJwyCNhOXyVC2Ui0';
-  
+  const fallbackUrl = 'https://iryiykkzapmjioazjcwf.supabase.co';
+  const fallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlyeWl5a2t6YXBtamlvYXpqY3dmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MzUxMDcsImV4cCI6MjA5NzQxMTEwN30.QLBwRfRS5WHdlgM0bNlqBT8A3fNqZr_3rjIV8UJWCuQ';
+
   const supabaseUrl = envUrl || fallbackUrl;
   const supabaseAnonKey = envKey || fallbackKey;
-  
+
   console.log('🔧 Supabase Configuration Debug:');
   console.log('Environment URL:', envUrl || 'Not found');
   console.log('Environment Key:', envKey ? 'Present' : 'Not found');
@@ -24,7 +24,7 @@ const getSupabaseConfig = () => {
   if (usingFallback) {
     console.warn('⚠️ Supabase fallback credentials sedang digunakan. Set nilai VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY untuk lingkungan produksi.');
   }
-  
+
   return { supabaseUrl, supabaseAnonKey };
 };
 

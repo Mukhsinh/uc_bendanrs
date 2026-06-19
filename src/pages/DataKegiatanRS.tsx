@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useYear } from "@/contexts/YearContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";

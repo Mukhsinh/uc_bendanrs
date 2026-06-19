@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useYear } from "@/contexts/YearContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,6 +96,7 @@ interface KalkulasiBiayaGiziData {
 }
 
 const KalkulasiBiayaGizi: React.FC = () => {
+  const { selectedYear: contextYear } = useYear();
   const [data, setData] = useState<KalkulasiBiayaGiziData[]>([]);
   const [menuGizi, setMenuGizi] = useState<MenuGizi[]>([]);
   const [bahanPorsi, setBahanPorsi] = useState<BahanPorsi[]>([]);
@@ -104,7 +106,7 @@ const KalkulasiBiayaGizi: React.FC = () => {
   const [importStatus, setImportStatus] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<KalkulasiBiayaGiziData | null>(null);
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [currentYear, setCurrentYear] = useState(contextYear);
   const [isBahanPorsiDialogOpen, setIsBahanPorsiDialogOpen] = useState(false);
   const [selectedMenuForBahan, setSelectedMenuForBahan] = useState<MenuGizi | null>(null);
   const [menusWithBahan, setMenusWithBahan] = useState<Set<string>>(new Set());

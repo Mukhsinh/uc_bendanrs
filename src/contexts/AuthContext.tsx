@@ -16,7 +16,7 @@ interface AuthContextValue {
   initializing: boolean;
   loading: boolean;
   error: string | null;
-  signInWithPassword: (credentials: SignInWithPasswordCredentials) => Promise<AuthError | null>;
+  signInWithPassword: (credentials: SignInWithPasswordCredentials & { selectedTenantId?: string }) => Promise<AuthError | null>;
   signOut: () => Promise<AuthError | null>;
   refreshSession: () => Promise<void>;
 }
@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [handleAuthStateChange]);
 
   const signInWithPassword = useCallback(
-    async (credentials: SignInWithPasswordCredentials) => {
+    async (credentials: SignInWithPasswordCredentials & { selectedTenantId?: string }) => {
       setLoading(true);
       setError(null);
       const { data, error: authError } = await authService.signInWithPassword(credentials);
@@ -93,12 +93,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setError(authError.message ?? 'Gagal masuk');
       }
 
-      handleAuthStateChange(data.session);
+      if (data?.session) {
+        handleAuthStateChange(data.session);
+      }
       setLoading(false);
       return authError;
     },
     [handleAuthStateChange]
   );
+
 
   const signOut = useCallback(async () => {
     setLoading(true);

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useYear } from "@/contexts/YearContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -50,9 +51,10 @@ const formatCurrency = (value: number | null | undefined): string => {
 };
 
 const KalkulasiBiayaCathlab: React.FC = () => {
+  const { selectedYear: contextYear } = useYear();
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = useState<number>(contextYear);
   const [userId, setUserId] = useState<string | null>(null);
   const [importing, setImporting] = useState<boolean>(false);
   const [autoCalculating, setAutoCalculating] = useState<boolean>(false);

@@ -84,6 +84,7 @@ const SupabaseDebug = lazy(() => import("./pages/SupabaseDebug"));
 import RoleProtectedRoute from "@/components/RoleProtectedRoute";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
+import { YearProvider } from "@/contexts/YearContext";
 
 const queryClient = new QueryClient();
 
@@ -526,19 +527,21 @@ const AppContent = () => {
 
 const App = () => (
   <AuthProvider>
-    <TenantProvider>
-      <GeneralSettingsProvider>
-        <ReportDownloadProvider>
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <AppContent />
-            </TooltipProvider>
-          </QueryClientProvider>
-        </ReportDownloadProvider>
-      </GeneralSettingsProvider>
-    </TenantProvider>
+    <YearProvider>
+      <TenantProvider>
+        <GeneralSettingsProvider>
+          <ReportDownloadProvider>
+            <QueryClientProvider client={queryClient}>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <AppContent />
+              </TooltipProvider>
+            </QueryClientProvider>
+          </ReportDownloadProvider>
+        </GeneralSettingsProvider>
+      </TenantProvider>
+    </YearProvider>
   </AuthProvider>
 );
 

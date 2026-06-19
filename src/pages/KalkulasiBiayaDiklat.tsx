@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useYear } from "@/contexts/YearContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -37,9 +38,10 @@ interface KalkulasiDiklat {
 }
 
 const KalkulasiBiayaDiklat: React.FC = () => {
+  const { selectedYear: contextYear } = useYear();
   const [data, setData] = useState<KalkulasiDiklat[]>([]);
   const [loading, setLoading] = useState(false);
-  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [year, setYear] = useState<number>(contextYear);
   const [showFilters, setShowFilters] = useState(true);
   const [downloadingReport, setDownloadingReport] = useState(false);
   const { downloadReport } = useReportDownload();
