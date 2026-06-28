@@ -11,6 +11,8 @@ import { useFormOperations } from "@/hooks/use-form-operations";
 import { showError } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
+import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -53,6 +55,7 @@ interface BarangGizi {
   nama_barang: string;
   satuan: string;
   harga: number;
+  tahun: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -70,6 +73,7 @@ const BarangGiziFormTable: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
+  const { selectedYear } = useYear();
   const { downloadReport } = useReportDownload();
   
   // Use upload progress hook
@@ -99,26 +103,21 @@ const BarangGiziFormTable: React.FC = () => {
     const fetchUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        console.log('Current session:', session);
         if (session?.user) {
-          console.log('User authenticated:', session.user.id);
           setUserId(session.user.id);
           fetchBarangGizi(session.user.id);
         } else {
-          console.log('No user session found, fetching all data for debugging');
           setUserId(null);
           fetchBarangGizi(null);
         }
       } catch (error) {
         console.error('Error fetching user session:', error);
-        // Fallback: try to fetch data anyway
         setUserId(null);
         fetchBarangGizi(null);
       }
     };
-    
     fetchUser();
-  }, []);
+  }, [selectedYear]);
 
   useEffect(() => {
     if (editingBarangGizi) {
@@ -141,34 +140,20 @@ const BarangGiziFormTable: React.FC = () => {
   const fetchBarangGizi = async (currentUserId: string | null) => {
     await loadData(async () => {
       try {
-        console.log('=== FETCHING BARANG GIZI DATA ===');
-        console.log('Current user ID:', currentUserId);
-        
-        // Fetch all data with explicit limit to ensure we get all records
-        // Use tenantSupabase for automatic tenant isolation
         const { data, error } = await tenantSupabase
           .from('data_barang_gizi')
           .select('*')
+          .eq('tahun', selectedYear)
           .order('created_at', { ascending: false })
-          .limit(2000); // Set higher limit to get all data
+          .limit(2000);
 
-        if (error) {
-          console.error('Error fetching barang gizi data:', error);
-          throw error;
-        }
+        if (error) throw error;
 
-        console.log('Raw data from Supabase:', data?.length, 'items');
-        
-        // Convert harga from string to number if needed
         const processedData = (data || []).map(item => ({
           ...item,
           harga: typeof item.harga === 'string' ? parseFloat(item.harga) || 0 : item.harga
         }));
-        
-        console.log('Processed data length:', processedData.length);
         setBarangGiziList(processedData);
-        
-        console.log('=== FETCHING COMPLETE ===');
       } catch (error) {
         console.error('Error in fetchBarangGizi:', error);
         // Set empty array on error to prevent undefined state
@@ -179,11 +164,11 @@ const BarangGiziFormTable: React.FC = () => {
   };
 
   const checkKodeExists = async (kode: string, currentUserId: string, excludeId?: string) => {
-    // Use tenantSupabase for automatic tenant isolation
     let query = tenantSupabase
       .from('data_barang_gizi')
       .select('id')
-      .eq('kode_barang', kode);
+      .eq('kode_barang', kode)
+      .eq('tahun', selectedYear);
       
     if (excludeId) {
       query = query.neq('id', excludeId);
@@ -214,23 +199,23 @@ const BarangGiziFormTable: React.FC = () => {
       }
 
       if (editingBarangGizi) {
-        // Use tenantSupabase for automatic tenant isolation
         const { error } = await tenantSupabase
           .from('data_barang_gizi')
           .update({ 
             ...values, 
-            user_id: userId
+            user_id: userId,
+            tahun: selectedYear,
           })
           .eq('id', editingBarangGizi.id);
 
         if (error) throw error;
       } else {
-        // Use tenantSupabase for automatic tenant isolation
         const { error } = await tenantSupabase
           .from('data_barang_gizi')
           .insert([{
             ...values,
-            user_id: userId
+            user_id: userId,
+            tahun: selectedYear,
           }]);
 
         if (error) throw error;
@@ -308,13 +293,12 @@ const BarangGiziFormTable: React.FC = () => {
               let errorCount = 0;
               let duplicateInFileCount = 0;
               
-              // First, get all existing kode barang from database to avoid duplicates
-              console.log("Fetching existing data");
+              // First, get all existing kode barang for this year to avoid duplicates
               const { data: existingData, error: fetchError } = await supabase
                 .from('data_barang_gizi')
-                .select('kode_barang');
+                .select('kode_barang')
+                .eq('tahun', selectedYear);
               
-              console.log("Existing data fetch result:", { existingData, fetchError });
               if (fetchError) throw fetchError;
               
               const existingKodes = new Set(existingData?.map(item => item.kode_barang) || []);
@@ -364,6 +348,7 @@ const BarangGiziFormTable: React.FC = () => {
                   satuan: satuan,
                   harga: hargaValue,
                   user_id: userId,
+                  tahun: selectedYear,
                 };
                 
                 validRowsCount++;
@@ -484,17 +469,17 @@ const BarangGiziFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Kode Barang", "Nama Barang", "Satuan", "Harga"];
+    const headers = ["Kode Barang", "Nama Barang", "Satuan", "Harga", "Tahun"];
     const sampleData = [
-      ["GZI001", "Nasi Putih", "porsi", "5000"],
-      ["GZI002", "Sayur Bayam", "porsi", "3000"],
-      ["GZI003", "Daging Ayam", "porsi", "8000"]
+      ["GZI001", "Nasi Putih", "porsi", "5000", String(selectedYear)],
+      ["GZI002", "Sayur Bayam", "porsi", "3000", String(selectedYear)],
+      ["GZI003", "Daging Ayam", "porsi", "8000", String(selectedYear)],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Barang Gizi");
-    XLSX.writeFile(wb, "template_barang_gizi.xlsx");
-    toast.info("Template impor data berhasil diunduh. Catatan: Jika ada kode barang duplikat, hanya data dengan harga tertinggi yang akan disimpan.");
+    XLSX.writeFile(wb, `template_barang_gizi_${selectedYear}.xlsx`);
+    toast.info("Template impor data berhasil diunduh.");
   };
 
   // Filter data based on search term
@@ -532,13 +517,11 @@ const BarangGiziFormTable: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Manajemen Barang Gizi</h2>
-        {process.env.NODE_ENV === "development" && (
-          <div className="text-xs text-gray-500 mt-1">
-            Debug: Total data: {barangGiziList.length}
-          </div>
-        )}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-2xl font-bold">Manajemen Barang Gizi</h2>
+        </div>
+        <YearFilter />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">

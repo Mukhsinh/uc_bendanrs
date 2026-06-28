@@ -431,15 +431,15 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       to={item.href || "#"}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2 text-white transition-all hover:text-teal-200 hover:bg-teal-700",
-          isActive && "bg-teal-700 text-white",
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 text-sm transition-all duration-150 hover:text-blue-700 hover:bg-blue-50",
+          isActive && "bg-blue-600 text-white font-medium shadow-sm hover:bg-blue-600 hover:text-white",
           isMobile && "text-base",
         )
       }
       onClick={isMobile ? onLinkClick : undefined}
       onMouseEnter={() => prefetchRoute(item.href)}
     >
-      {item.icon && <item.icon className="h-4 w-4 flex-shrink-0" />}
+      {item.icon && <item.icon className="h-4 w-4 flex-shrink-0 opacity-70" />}
       <span className="text-left flex-1">{item.title}</span>
     </NavLink>
   );
@@ -494,7 +494,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
   }, [filteredNavItems, displayItems]);
 
   return (
-    <div className={cn("flex flex-col gap-2 bg-teal-800 text-white", className)} {...props}>
+    <div className={cn("flex flex-col gap-0.5", className)} {...props}>
       <Accordion
         type="single"
         collapsible
@@ -507,14 +507,17 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
         {displayItems.length > 0 ? displayItems.map((item) => (
           item.subItems ? (
             <AccordionItem value={item.title} className="border-none" key={item.title}>
-              <AccordionTrigger 
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-white hover:text-teal-200 transition-all [&[data-state=open]>svg]:rotate-180 [&[data-state=open]]:bg-teal-900"
+              <AccordionTrigger
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 text-sm font-medium transition-all duration-150 hover:text-blue-700 hover:bg-blue-50 hover:no-underline [&[data-state=open]]:text-blue-700 [&[data-state=open]]:bg-blue-50",
+                  "[&[data-state=open]>svg]:rotate-180"
+                )}
               >
-                {item.icon && <item.icon className="h-4 w-4 flex-shrink-0" />}
+                {item.icon && <item.icon className="h-4 w-4 flex-shrink-0 text-slate-400 group-hover:text-blue-600" />}
                 <span className="text-left flex-1">{item.title}</span>
               </AccordionTrigger>
-              <AccordionContent className="pl-6 pt-2 pb-0 bg-black">
-                <div className="flex flex-col gap-1">
+              <AccordionContent className="pb-1 pt-0">
+                <div className="ml-3 mt-0.5 flex flex-col gap-0.5 border-l-2 border-blue-100 pl-3">
                   {item.subItems.map((subItem) => renderLink(subItem))}
                 </div>
               </AccordionContent>
@@ -523,7 +526,6 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
             <div key={item.title}>{renderLink(item)}</div>
           )
         )) : (
-          // Fallback: Always show at least Dashboard if something goes wrong
           <div key="dashboard-fallback">{renderLink(navItems[0])}</div>
         )}
       </Accordion>

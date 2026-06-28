@@ -8,6 +8,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
+import { useYear } from "@/contexts/YearContext";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -18,12 +19,14 @@ import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-re
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
 import { useReportDownload } from "@/components/report";
+import YearFilter from "@/components/ui/YearFilter";
 
 interface MenuGizi {
   id: string;
   kode: string;
   jenis_makanan: string;
   kelas: string;
+  tahun: number;
 }
 
 const formSchema = z.object({
@@ -36,53 +39,50 @@ type FormValues = z.infer<typeof formSchema>;
 
 const MenuGiziFormTable: React.FC = () => {
   const { downloadReport } = useReportDownload();
+  const { selectedYear } = useYear();
   const [list, setList] = useState<MenuGizi[]>([]);
   const [editing, setEditing] = useState<MenuGizi | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError, hideProgress } = useUploadProgress();
-  const [isImporting, setIsImporting] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: { kode: "", jenis_makanan: "", kelas: "" },
   });
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); }, [selectedYear]);
 
   useEffect(() => {
-    if (editing) {
-      form.reset({ kode: editing.kode, jenis_makanan: editing.jenis_makanan, kelas: editing.kelas });
-    } else {
-      form.reset({ kode: "", jenis_makanan: "", kelas: "" });
-    }
+    if (editing) { form.reset({ kode: editing.kode, jenis_makanan: editing.jenis_makanan, kelas: editing.kelas }); }
+    else { form.reset({ kode: "", jenis_makanan: "", kelas: "" }); }
   }, [editing, form]);
 
   const fetchAll = async () => {
     setLoading(true);
     const { data, error } = await tenantSupabase
       .from("menu_gizi")
-      .select("id, kode, jenis_makanan, kelas")
+      .select("id, kode, jenis_makanan, kelas, tahun")
+      .eq("tahun", selectedYear)
       .order("kode", { ascending: true });
     if (error) { toast.error("Gagal memuat data."); console.error(error); setList([]); }
-    else setList((data as MenuGizi[]) || []);
+    else setList((data || []).map((row: any) => ({ ...row, tahun: row.tahun ?? selectedYear })));
     setLoading(false);
   };
 
   const onSubmit = async (values: FormValues) => {
     try {
       if (editing) {
-        const { error } = await tenantSupabase
-          .from("menu_gizi")
+        const { error } = await tenantSupabase.from("menu_gizi")
           .update({ kode: values.kode, jenis_makanan: values.jenis_makanan, kelas: values.kelas })
           .eq("id", editing.id);
         if (error) throw error;
         toast.success("Data diperbarui.");
       } else {
-        const { error } = await tenantSupabase
-          .from("menu_gizi")
-          .insert([{ kode: values.kode, jenis_makanan: values.jenis_makanan, kelas: values.kelas }]);
+        const { error } = await tenantSupabase.from("menu_gizi")
+          .insert([{ kode: values.kode, jenis_makanan: values.jenis_makanan, kelas: values.kelas, tahun: selectedYear }]);
         if (error) throw error;
         toast.success("Data ditambahkan.");
       }
@@ -91,7 +91,6 @@ const MenuGiziFormTable: React.FC = () => {
       setIsDialogOpen(false);
       form.reset();
     } catch (err: any) {
-      console.error(err);
       toast.error(`Gagal menyimpan: ${err.message}`);
     }
   };
@@ -103,17 +102,16 @@ const MenuGiziFormTable: React.FC = () => {
       await fetchAll();
       toast.success("Data dihapus.");
     } catch (err: any) {
-      console.error(err);
       toast.error(`Gagal menghapus: ${err.message}`);
     }
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Kode", "Jenis Makanan", "Kelas"];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const headers = ["Kode", "Jenis Makanan", "Kelas", "Tahun"];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ["MG001", "Nasi Putih", "VIP", selectedYear]]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Menu Gizi");
-    XLSX.writeFile(wb, "template_menu_gizi.xlsx");
+    XLSX.writeFile(wb, `template_menu_gizi_${selectedYear}.xlsx`);
     toast.info("Template impor diunduh.");
   };
 
@@ -129,142 +127,69 @@ const MenuGiziFormTable: React.FC = () => {
         const s = value.toString().trim();
         if (s !== "") return s;
       }
-      // Fallback case-insensitive
       const rowKeys = Object.keys(row || {});
       for (const key of keys) {
         const found = rowKeys.find(k => k.trim().toLowerCase() === key.toLowerCase());
-        if (found) {
-          const value = row[found];
-          const s = (value ?? "").toString().trim();
-          if (s !== "") return s;
-        }
+        if (found) { const s = (row[found] ?? "").toString().trim(); if (s !== "") return s; }
       }
       return "";
     };
 
-    // Mengikuti pola KlinikFormTable yang terbukti bekerja
     const parseXlsxToObjects = async (xlsxFile: File): Promise<any[]> => {
       const buffer = await xlsxFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
       if (!rows || rows.length < 2) return [];
       const headers = (rows[0] || []).map((h) => (h ?? "").toString().trim());
-      console.log("[MenuGizi Import] Header Excel:", headers);
-      return rows
-        .slice(1)
-        .filter((r) => (r || []).some((cell) => (cell ?? "").toString().trim() !== ""))
-        .map((r) => {
-          const obj: any = {};
-          headers.forEach((h, idx) => { if (h) obj[h] = r?.[idx]; });
-          return obj;
-        });
+      return rows.slice(1).filter((r) => (r || []).some((c) => (c ?? "").toString().trim() !== ""))
+        .map((r) => { const obj: any = {}; headers.forEach((h, i) => { if (h) obj[h] = r?.[i]; }); return obj; });
     };
 
     const processRows = async (rawRows: any[]) => {
       if (isImporting) return;
       setIsImporting(true);
       try {
-        const totalRows = rawRows.length;
-        if (totalRows === 0) { setIsImporting(false); showUploadError("File kosong atau tidak ada data valid."); return; }
+        if (rawRows.length === 0) { setIsImporting(false); showUploadError("File kosong."); return; }
+        startUpload(rawRows.length, "Sedang mengimpor data menu gizi...");
 
-        startUpload(totalRows, "Sedang mengimpor data menu gizi...");
-
-        if (rawRows[0]) {
-          console.log("[MenuGizi Import] Kolom tersedia:", Object.keys(rawRows[0]));
-          console.log("[MenuGizi Import] Baris pertama:", rawRows[0]);
-        }
-
-        // Kumpulkan semua baris valid dulu
-        const validRows: Array<{ kode: string; jenis_makanan: string; kelas: string }> = [];
+        const validRows: Array<{ kode: string; jenis_makanan: string; kelas: string; tahun: number }> = [];
         let missingCount = 0;
-
         for (const row of rawRows) {
-          // Coba semua variasi header yang mungkin dipakai user
-          const jenisMakanan = pickFirst(row, [
-            "Jenis Makanan", "jenis_makanan", "Jenis_Makanan",
-            "Nama Makanan", "nama_makanan", "Nama_Makanan",
-            "Nama", "nama",
-          ]);
-
-          const kode = pickFirst(row, [
-            "Kode", "kode", "KODE",
-            "Kode Makanan", "kode_makanan",
-          ]);
-
-          const kelas = pickFirst(row, [
-            "Kelas", "kelas", "KELAS",
-          ]);
-
-          if (!jenisMakanan) {
-            missingCount++;
-            continue;
-          }
-
-          validRows.push({
-            kode: kode || jenisMakanan.slice(0, 20),
-            jenis_makanan: jenisMakanan,
-            kelas: kelas || "",
-          });
+          const jenisMakanan = pickFirst(row, ["Jenis Makanan", "jenis_makanan", "Nama Makanan", "nama_makanan", "Nama", "nama"]);
+          if (!jenisMakanan) { missingCount++; continue; }
+          const kode = pickFirst(row, ["Kode", "kode"]) || jenisMakanan.slice(0, 20);
+          const kelas = pickFirst(row, ["Kelas", "kelas"]) || "";
+          const tahunRaw = pickFirst(row, ["Tahun", "tahun"]);
+          const tahunVal = tahunRaw ? parseInt(tahunRaw) : selectedYear;
+          validRows.push({ kode, jenis_makanan: jenisMakanan, kelas, tahun: isNaN(tahunVal) ? selectedYear : tahunVal });
         }
 
-        if (validRows.length === 0) {
-          setIsImporting(false);
-          showUploadError("Tidak ada data valid untuk diimpor. Pastikan file memiliki kolom 'Jenis Makanan' atau 'Nama Makanan'.");
-          return;
-        }
+        if (validRows.length === 0) { setIsImporting(false); showUploadError("Tidak ada data valid. Pastikan kolom 'Jenis Makanan' tersedia."); return; }
 
-        updateProgress(totalRows, 0, 0, `Menyimpan ${validRows.length} data menu gizi...`);
-
-        // Batch insert sekaligus
+        updateProgress(rawRows.length, 0, 0, `Menyimpan ${validRows.length} data menu gizi...`);
         const { error } = await tenantSupabase.from("menu_gizi").insert(validRows);
-
-        let successCount = 0;
-        let errorCount = 0;
-
+        let successCount = 0, errorCount = 0;
         if (error) {
-          console.error("[MenuGizi Import] Batch insert error:", error);
-          // Fallback: insert satu per satu
           for (let i = 0; i < validRows.length; i++) {
             const { error: rowError } = await tenantSupabase.from("menu_gizi").insert([validRows[i]]);
-            if (rowError) {
-              errorCount++;
-              console.error(`[MenuGizi Import] Error baris ${i + 1}:`, rowError.message);
-            } else {
-              successCount++;
-            }
-            updateProgress(totalRows, successCount, errorCount, `Mengimpor data ${i + 1} dari ${validRows.length}...`);
+            if (rowError) errorCount++; else successCount++;
+            updateProgress(rawRows.length, successCount, errorCount, `Mengimpor ${i + 1} dari ${validRows.length}...`);
           }
-        } else {
-          successCount = validRows.length;
-          updateProgress(totalRows, successCount, 0);
-        }
-
+        } else { successCount = validRows.length; updateProgress(rawRows.length, successCount, 0); }
         completeUpload(successCount, errorCount, missingCount);
         await fetchAll();
       } catch (err: any) {
-        console.error(err);
-        showUploadError(`Gagal mengimpor data: ${err.message}`);
-      } finally {
-        setIsImporting(false);
-      }
+        showUploadError(`Gagal mengimpor: ${err.message}`);
+      } finally { setIsImporting(false); }
     };
 
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (ext === "xlsx" || ext === "xls") {
-      parseXlsxToObjects(file)
-        .then(processRows)
-        .catch((err: any) => showUploadError(`Gagal membaca file Excel: ${err.message}`));
-      return;
-    }
-
+    if (ext === "xlsx" || ext === "xls") { parseXlsxToObjects(file).then(processRows).catch((e: any) => showUploadError(e.message)); return; }
     file.text().then((text) => {
-      (Papa as any).parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results: Papa.ParseResult<any>) => { await processRows(results.data || []); },
-        error: (error: Papa.ParseError) => { showUploadError(`Gagal membaca file CSV: ${error.message}`); },
+      (Papa as any).parse(text, { header: true, skipEmptyLines: true,
+        complete: async (r: Papa.ParseResult<any>) => { await processRows(r.data || []); },
+        error: (e: Papa.ParseError) => { showUploadError(`Gagal membaca CSV: ${e.message}`); },
       });
     });
   };
@@ -272,23 +197,22 @@ const MenuGiziFormTable: React.FC = () => {
   const handleDownloadReport = async () => {
     if (list.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
     try {
-      const records = list.map((item, index) => ({
-        No: index + 1,
-        "Kode": item.kode,
-        "Jenis Makanan": item.jenis_makanan,
-        "Kelas": item.kelas,
-      }));
-      await downloadReport({ title: "Laporan Menu Gizi", filename: "laporan_menu_gizi", records });
-    } catch (error) {
-      console.error("Gagal mengunduh laporan menu gizi:", error);
-      toast.error("Gagal mengunduh laporan.");
-    }
+      await downloadReport({
+        title: `Laporan Menu Gizi Tahun ${selectedYear}`,
+        filename: `laporan_menu_gizi_${selectedYear}`,
+        records: list.map((item, index) => ({ No: index + 1, "Kode": item.kode, "Jenis Makanan": item.jenis_makanan, "Kelas": item.kelas, "Tahun": item.tahun })),
+      });
+    } catch (error) { toast.error("Gagal mengunduh laporan."); }
   };
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-6">
+      <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manajemen Menu Gizi</h2>
+        <div className="flex items-center gap-2">
+          <YearFilter />
+          <Button onClick={() => fetchAll()} variant="outline" size="icon"><RefreshCw className="h-4 w-4" /></Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-4 items-center">
@@ -303,37 +227,23 @@ const MenuGiziFormTable: React.FC = () => {
         </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditing(null)} className="shadow-sm">
-              Tambah Menu Gizi
-            </Button>
+            <Button onClick={() => setEditing(null)} className="shadow-sm">Tambah Menu Gizi</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit Menu Gizi" : "Tambah Menu Gizi"}</DialogTitle>
+              <DialogTitle>{editing ? "Edit Menu Gizi" : `Tambah Menu Gizi (${selectedYear})`}</DialogTitle>
               <DialogDescription>{editing ? "Perbarui detail menu gizi." : "Tambahkan menu gizi baru."}</DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
                 <FormField control={form.control} name="kode" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kode</FormLabel>
-                    <FormControl><Input placeholder="Contoh: MG001" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormItem><FormLabel>Kode</FormLabel><FormControl><Input placeholder="Contoh: MG001" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="jenis_makanan" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Jenis Makanan</FormLabel>
-                    <FormControl><Input placeholder="Contoh: Nasi Putih" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormItem><FormLabel>Jenis Makanan</FormLabel><FormControl><Input placeholder="Contoh: Nasi Putih" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <FormField control={form.control} name="kelas" render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kelas</FormLabel>
-                    <FormControl><Input placeholder="Contoh: VIP" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
+                  <FormItem><FormLabel>Kelas</FormLabel><FormControl><Input placeholder="Contoh: VIP" {...field} /></FormControl><FormMessage /></FormItem>
                 )} />
                 <DialogFooter>
                   <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
@@ -345,9 +255,6 @@ const MenuGiziFormTable: React.FC = () => {
         <Button onClick={() => { void handleDownloadReport(); }} variant="report" className="shadow-sm">
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
-        <Button onClick={() => fetchAll()} variant="outline" size="icon">
-          <RefreshCw className="h-4 w-4" />
-        </Button>
       </div>
 
       <div className="rounded-md border">
@@ -357,28 +264,26 @@ const MenuGiziFormTable: React.FC = () => {
               <TableHead className="font-bold text-white">Kode</TableHead>
               <TableHead className="font-bold text-white">Jenis Makanan</TableHead>
               <TableHead className="font-bold text-white">Kelas</TableHead>
+              <TableHead className="font-bold text-white">Tahun</TableHead>
               <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4} className="h-24 text-center">Memuat data...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-24 text-center">Memuat data...</TableCell></TableRow>
             ) : list.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Belum ada data.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data untuk tahun {selectedYear}.</TableCell></TableRow>
             ) : (
               list.map(item => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.kode}</TableCell>
                   <TableCell>{item.jenis_makanan}</TableCell>
                   <TableCell>{item.kelas}</TableCell>
+                  <TableCell>{item.tahun}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button variant="edit" size="icon" onClick={() => { setEditing(item); setIsDialogOpen(true); }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <Button variant="edit" size="icon" onClick={() => { setEditing(item); setIsDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -387,7 +292,6 @@ const MenuGiziFormTable: React.FC = () => {
           </TableBody>
         </Table>
       </div>
-
       <ImportProgressModal progress={uploadProgress} onClose={hideProgress} />
     </div>
   );

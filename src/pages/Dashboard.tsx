@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useYear } from "@/contexts/YearContext";
 import { useTenant } from "@/contexts/TenantContext";
+import YearFilter from "@/components/ui/YearFilter";
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -242,9 +243,12 @@ const Dashboard = () => {
             Ringkasan data keuangan dan operasional tahun <span className="font-semibold text-teal-700">{selectedYear}</span>
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-gray-400">
-          <Activity className="h-4 w-4 text-teal-500" />
-          <span>Data real-time dari database</span>
+        <div className="flex items-center gap-3">
+          <YearFilter />
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Activity className="h-4 w-4 text-teal-500" />
+            <span className="hidden sm:inline">Data real-time dari database</span>
+          </div>
         </div>
       </div>
 

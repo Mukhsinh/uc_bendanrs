@@ -1119,80 +1119,80 @@ const BiayaFormTable: React.FC = () => {
         <CardContent>
           {/* KPI badges */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
-            <div className="p-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="p-4 rounded-xl border border-slate-400 bg-slate-600 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600 font-medium">Total Unit Kerja</span>
-                <Building2 className="h-8 w-8 text-slate-500" />
+                <span className="text-sm text-slate-200 font-medium">Total Unit Kerja</span>
+                <Building2 className="h-8 w-8 text-slate-300" />
               </div>
-              <div className="text-xl font-bold text-slate-900 mt-3">{new Set(filteredBiayaList.map(b => b.unit_kerja?.nama)).size}</div>
+              <div className="text-xl font-bold text-white mt-3">{new Set(filteredBiayaList.map(b => b.unit_kerja?.nama)).size}</div>
             </div>
-            <div className="p-4 rounded-lg border border-sky-200 bg-sky-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-sky-400 bg-sky-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-sky-700 font-medium">Total Biaya Bahan</span>
-                <Package className="h-8 w-8 text-sky-500" />
+                <span className="text-sm text-sky-100 font-medium">Total Biaya Bahan</span>
+                <Package className="h-8 w-8 text-sky-200" />
               </div>
-              <div className="text-xl font-bold text-sky-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_bahan || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-sky-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_bahan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-sky-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_bahan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-blue-400 bg-blue-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-blue-700 font-medium">Total Biaya Pegawai</span>
-                <Users2 className="h-8 w-8 text-blue-500" />
+                <span className="text-sm text-blue-100 font-medium">Total Biaya Pegawai</span>
+                <Users2 className="h-8 w-8 text-blue-200" />
               </div>
-              <div className="text-xl font-bold text-blue-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_gaji_tunjangan || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-blue-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_gaji_tunjangan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-blue-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_gaji_tunjangan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-lg border border-indigo-200 bg-indigo-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-indigo-400 bg-indigo-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-indigo-700 font-medium">Jasa Pelayanan</span>
-                <Stethoscope className="h-8 w-8 text-indigo-500" />
+                <span className="text-sm text-indigo-100 font-medium">Jasa Pelayanan</span>
+                <Stethoscope className="h-8 w-8 text-indigo-200" />
               </div>
-              <div className="text-xl font-bold text-indigo-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_jasa_pelayanan || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-indigo-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_jasa_pelayanan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-indigo-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_jasa_pelayanan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-lg border border-emerald-200 bg-emerald-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-emerald-400 bg-emerald-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-emerald-700 font-medium">Total Biaya Daya</span>
-                <Zap className="h-8 w-8 text-emerald-500" />
+                <span className="text-sm text-emerald-100 font-medium">Total Biaya Daya</span>
+                <Zap className="h-8 w-8 text-emerald-200" />
               </div>
-              <div className="text-xl font-bold text-emerald-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_daya || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-emerald-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_daya || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-emerald-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_daya || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-lg border border-teal-200 bg-teal-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-teal-400 bg-teal-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-teal-700 font-medium">Total Biaya Pemeliharaan</span>
-                <Wrench className="h-8 w-8 text-teal-500" />
+                <span className="text-sm text-teal-100 font-medium">Total Biaya Pemeliharaan</span>
+                <Wrench className="h-8 w-8 text-teal-200" />
               </div>
-              <div className="text-xl font-bold text-teal-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_pemeliharaan || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-teal-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_pemeliharaan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-teal-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_pemeliharaan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-lg border border-rose-200 bg-rose-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-rose-400 bg-rose-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-rose-700 font-medium">Total Biaya Penyusutan</span>
-                <Factory className="h-8 w-8 text-rose-500" />
+                <span className="text-sm text-rose-100 font-medium">Total Biaya Penyusutan</span>
+                <Factory className="h-8 w-8 text-rose-200" />
               </div>
-              <div className="text-xl font-bold text-rose-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_penyusutan || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-rose-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_penyusutan || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-rose-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_penyusutan || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>
-            <div className="p-4 rounded-lg border border-purple-200 bg-purple-50 shadow-sm">
+            <div className="p-4 rounded-xl border border-purple-400 bg-purple-500 shadow-md">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-purple-700 font-medium">Biaya Operasional Lainnya</span>
-                <ClipboardList className="h-8 w-8 text-purple-500" />
+                <span className="text-sm text-purple-100 font-medium">Biaya Operasional Lainnya</span>
+                <ClipboardList className="h-8 w-8 text-purple-200" />
               </div>
-              <div className="text-xl font-bold text-purple-900 mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_operasional_lainnya || 0), 0).toLocaleString()}</div>
-              <div className="text-sm text-purple-600 font-medium mt-1">
+              <div className="text-xl font-bold text-white mt-3">{filteredBiayaList.reduce((s, b) => s + (b.biaya_operasional_lainnya || 0), 0).toLocaleString()}</div>
+              <div className="text-sm text-purple-200 font-medium mt-1">
                 {((filteredBiayaList.reduce((s, b) => s + (b.biaya_operasional_lainnya || 0), 0) / Math.max(filteredBiayaList.reduce((s, b) => s + (b.total_biaya || 0), 0), 1)) * 100).toFixed(1)}% dari Total Biaya
               </div>
             </div>

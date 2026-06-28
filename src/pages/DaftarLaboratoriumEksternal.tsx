@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,13 +55,13 @@ const DaftarLaboratoriumEksternal = () => {
   const { toast } = useToast();
   const { downloadReport } = useReportDownload();
   const [data, setData] = useState<LaboratoriumEksternal[]>([]);
+  const { selectedYear: tahun } = useYear();
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [tahun, setTahun] = useState(new Date().getFullYear());
   const [searchQuery, setSearchQuery] = useState("");
   const [formData, setFormData] = useState<Partial<LaboratoriumEksternal>>({
-    tahun: new Date().getFullYear(),
+    tahun: tahun,
     kode_pemeriksaan: "",
     nama_pemeriksaan: "",
     jasa_sarana: 0,
@@ -330,16 +332,7 @@ const DaftarLaboratoriumEksternal = () => {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Select value={String(tahun)} onValueChange={(value) => setTahun(Number(value))}>
-                <SelectTrigger className="w-[120px]">
-                  <SelectValue placeholder="Tahun" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2026">2026</SelectItem>
-                </SelectContent>
-              </Select>
+              <YearFilter />
             </div>
           </div>
         </CardHeader>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -110,9 +111,9 @@ const jenisColorMap = jenisKonfigurasi.reduce((acc, item) => {
 }, {} as Record<"Rawat Inap" | "Rawat Jalan" | "Penunjang", string>);
 
 const StrukturBiaya: React.FC = () => {
+  const { selectedYear, setSelectedYear } = useYear();
   const [strukturBiayaList, setStrukturBiayaList] = useState<StrukturBiayaRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedUnitIds, setSelectedUnitIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedJenisKegiatan, setSelectedJenisKegiatan] = useState<string>("all");
@@ -272,7 +273,7 @@ const StrukturBiaya: React.FC = () => {
 
     if (normalized.length > 0) {
       const latestYear = normalized.reduce((max, row) => Math.max(max, row.tahun), normalized[0].tahun);
-      setSelectedYear((prev) => (normalized.some((row) => row.tahun === prev) ? prev : latestYear));
+      setSelectedYear(normalized.some((row) => row.tahun === selectedYear) ? selectedYear : latestYear);
     }
   };
 
@@ -778,17 +779,7 @@ const StrukturBiaya: React.FC = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium">Tahun:</label>
-              <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {yearOptions.map(year => (
-                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <YearFilter />
             </div>
 
                 <div className="flex items-center gap-2">

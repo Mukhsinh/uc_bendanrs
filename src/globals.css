@@ -34,15 +34,15 @@
 
     --radius: 0.5rem;
 
-    /* Sidebar specific colors (teal theme) */
-    --sidebar-background: 180 100% 28%; /* Teal sidebar background (darker) */
+    /* Sidebar specific colors (blue-green gradient theme) */
+    --sidebar-background: 221 70% 20%; /* Deep blue sidebar background */
     --sidebar-foreground: 0 0% 100%; /* White text for sidebar */
-    --sidebar-primary: 180 100% 28%; /* Teal for active/hover items */
-    --sidebar-primary-foreground: 0 0% 100%; /* White text on active teal */
-    --sidebar-accent: 180 100% 20%; /* Darker teal for hover background */
+    --sidebar-primary: 162 72% 45%; /* Green for active/hover items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on active */
+    --sidebar-accent: 221 70% 14%; /* Darker blue for hover background */
     --sidebar-accent-foreground: 0 0% 100%; /* White text on hover */
-    --sidebar-border: 180 100% 20%; /* Teal border */
-    --sidebar-ring: 180 100% 28%; /* Teal ring */
+    --sidebar-border: 221 70% 28%; /* Blue border */
+    --sidebar-ring: 162 72% 45%; /* Green ring */
   }
 
   .dark {
@@ -77,12 +77,12 @@
     /* Sidebar specific colors (teal theme for dark mode) */
     --sidebar-background: 180 100% 28%; /* Teal sidebar background (darker) */
     --sidebar-foreground: 0 0% 100%; /* White text for sidebar */
-    --sidebar-primary: 180 100% 28%; /* Teal for active/hover items */
-    --sidebar-primary-foreground: 0 0% 100%; /* White text on active teal */
-    --sidebar-accent: 180 100% 20%; /* Darker teal for hover background */
+    --sidebar-primary: 162 72% 45%; /* Green for active/hover items */
+    --sidebar-primary-foreground: 0 0% 100%; /* White text on active */
+    --sidebar-accent: 221 70% 14%; /* Darker blue for hover background */
     --sidebar-accent-foreground: 0 0% 100%; /* White text on hover */
-    --sidebar-border: 180 100% 20%; /* Teal border */
-    --sidebar-ring: 180 100% 28%; /* Teal ring */
+    --sidebar-border: 221 70% 28%; /* Blue border */
+    --sidebar-ring: 162 72% 45%; /* Green ring */
   }
 }
 
@@ -97,7 +97,7 @@
 
   /* Persist background to avoid white flash during route transitions */
   body {
-    @apply min-h-screen bg-gradient-to-br from-teal-100 to-cyan-100 text-foreground;
+    @apply min-h-screen bg-gradient-to-br from-blue-50 to-emerald-50 text-foreground;
     background-attachment: fixed;
   }
 

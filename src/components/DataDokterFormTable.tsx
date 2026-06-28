@@ -13,6 +13,8 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +60,7 @@ interface DataDokter {
   nama_dokter: string;
   spesialistik: string;
   jenis_spesialistik: string;
+  tahun: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -70,6 +73,7 @@ const formSchema = z.object({
 
 const DataDokterFormTable: React.FC = () => {
   const { downloadReport } = useReportDownload();
+  const { selectedYear } = useYear();
   const [dataDokterList, setDataDokterList] = useState<DataDokter[]>([]);
   const [editingDataDokter, setEditingDataDokter] = useState<DataDokter | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -95,10 +99,11 @@ const DataDokterFormTable: React.FC = () => {
       const { data, error } = await supabase
         .from("data_dokter")
         .select("*")
+        .eq("tahun", selectedYear)
         .order("kode_dokter", { ascending: true });
 
       if (error) throw error;
-      setDataDokterList(data || []);
+      setDataDokterList((data || []).map((row: any) => ({ ...row, tahun: row.tahun ?? selectedYear })));
     } catch (error) {
       console.error("Error fetching data dokter:", error);
       showError("Gagal mengambil data dokter");
@@ -109,7 +114,7 @@ const DataDokterFormTable: React.FC = () => {
 
   useEffect(() => {
     fetchDataDokter();
-  }, []);
+  }, [selectedYear]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -140,6 +145,7 @@ const DataDokterFormTable: React.FC = () => {
             spesialistik: values.spesialistik,
             jenis_spesialistik: values.jenis_spesialistik,
             user_id: user?.id,
+            tahun: selectedYear,
           }]);
 
         if (error) throw error;
@@ -199,41 +205,11 @@ const DataDokterFormTable: React.FC = () => {
       
       // Create template data with correct jenis spesialistik
       const templateData = [
-        {
-          "Nama Dokter": "Dr. John Doe",
-          "Spesialistik": "Kardiologi",
-          "Jenis Spesialistik": "Non Bedah"
-        },
-        {
-          "Nama Dokter": "Dr. Jane Smith",
-          "Spesialistik": "Bedah Umum", 
-          "Jenis Spesialistik": "Bedah"
-        },
-        {
-          "Nama Dokter": "Dr. Ahmad Wijaya",
-          "Spesialistik": "Anestesi",
-          "Jenis Spesialistik": "Anestesi"
-        },
-        {
-          "Nama Dokter": "Dr. Sarah Johnson",
-          "Spesialistik": "Radiologi",
-          "Jenis Spesialistik": "Penunjang"
-        },
-        {
-          "Nama Dokter": "Dr. Michael Brown",
-          "Spesialistik": "Dokter Umum",
-          "Jenis Spesialistik": "Non Spesialistik"
-        },
-        {
-          "Nama Dokter": "Dr. Lisa Wang",
-          "Spesialistik": "Dermatologi",
-          "Jenis Spesialistik": "Non Bedah"
-        },
-        {
-          "Nama Dokter": "Dr. Robert Kim",
-          "Spesialistik": "Orthopedi",
-          "Jenis Spesialistik": "Bedah"
-        }
+        { "Nama Dokter": "Dr. John Doe", "Spesialistik": "Kardiologi", "Jenis Spesialistik": "Non Bedah", "Tahun": selectedYear },
+        { "Nama Dokter": "Dr. Jane Smith", "Spesialistik": "Bedah Umum", "Jenis Spesialistik": "Bedah", "Tahun": selectedYear },
+        { "Nama Dokter": "Dr. Ahmad Wijaya", "Spesialistik": "Anestesi", "Jenis Spesialistik": "Anestesi", "Tahun": selectedYear },
+        { "Nama Dokter": "Dr. Sarah Johnson", "Spesialistik": "Radiologi", "Jenis Spesialistik": "Penunjang", "Tahun": selectedYear },
+        { "Nama Dokter": "Dr. Michael Brown", "Spesialistik": "Dokter Umum", "Jenis Spesialistik": "Non Spesialistik", "Tahun": selectedYear },
       ];
 
       // Convert to Excel
@@ -244,7 +220,7 @@ const DataDokterFormTable: React.FC = () => {
       // Save file
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      saveAs(data, "Template_Data_Dokter.xlsx");
+      saveAs(data, `Template_Data_Dokter_${selectedYear}.xlsx`);
       
       showSuccess("Template berhasil diunduh");
     } catch (error) {
@@ -269,15 +245,16 @@ const DataDokterFormTable: React.FC = () => {
         "Nama Dokter": item.nama_dokter,
         "Spesialistik": item.spesialistik,
         "Jenis Spesialistik": item.jenis_spesialistik,
+        "Tahun": item.tahun,
         "Tanggal Dibuat": item.created_at
           ? new Date(item.created_at).toLocaleDateString("id-ID")
           : "-",
       }));
 
       await downloadReport({
-        title: "Laporan Data Dokter",
+        title: `Laporan Data Dokter Tahun ${selectedYear}`,
         subtitle: "Daftar dokter terdaftar",
-        filename: `laporan_data_dokter_${new Date().toISOString().split("T")[0]}`,
+        filename: `laporan_data_dokter_${selectedYear}`,
         records: reportData,
       });
     } catch (error) {
@@ -423,6 +400,7 @@ const DataDokterFormTable: React.FC = () => {
           spesialistik: spesialistik,
           jenis_spesialistik: jenisSpesialistik,
           user_id: user?.id,
+          tahun: selectedYear,
         };
       });
 
@@ -567,58 +545,106 @@ const DataDokterFormTable: React.FC = () => {
       </div>
 
       {/* Detailed Breakdown Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Spesialistik Detailed Breakdown */}
-        <div className="bg-white border rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Breakdown Spesialistik</h3>
-            <div className="bg-green-100 rounded-full p-2">
-              <Stethoscope className="h-5 w-5 text-green-600" />
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-emerald-100 rounded-lg p-1.5">
+                <Stethoscope className="h-4 w-4 text-emerald-600" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-700">Breakdown Spesialistik</h3>
             </div>
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {Object.keys(spesialistikCount).length} jenis
+            </span>
           </div>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
+          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
             {Object.entries(spesialistikCount)
               .sort(([,a], [,b]) => b - a)
-              .map(([spesialistik, count]) => (
-                <div key={spesialistik} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="font-medium text-gray-900 truncate max-w-[200px]" title={spesialistik}>
-                      {spesialistik}
-                    </span>
+              .map(([spesialistik, count], idx) => {
+                const pct = totalDokter > 0 ? Math.round((count / totalDokter) * 100) : 0;
+                return (
+                  <div key={spesialistik} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group">
+                    <span className="text-xs text-slate-400 w-4 shrink-0">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="text-xs font-medium text-slate-700 truncate" title={spesialistik}>
+                          {spesialistik}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-sm font-bold text-emerald-600">{count}</span>
+                          <span className="text-xs text-slate-400 w-8 text-right">{pct}%</span>
+                        </div>
+                      </div>
+                      <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-2xl font-bold text-green-600">{count}</span>
-                    <span className="text-sm text-gray-500">dokter</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
 
         {/* Jenis Spesialistik Detailed Breakdown */}
-        <div className="bg-white border rounded-lg p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Breakdown Jenis Spesialistik</h3>
-            <div className="bg-purple-100 rounded-full p-2">
-              <BarChart3 className="h-5 w-5 text-purple-600" />
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-violet-100 rounded-lg p-1.5">
+                <BarChart3 className="h-4 w-4 text-violet-600" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-700">Breakdown Jenis Spesialistik</h3>
             </div>
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {Object.keys(jenisSpesialistikCount).length} jenis
+            </span>
           </div>
-          <div className="space-y-3 max-h-64 overflow-y-auto">
+          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
             {Object.entries(jenisSpesialistikCount)
               .sort(([,a], [,b]) => b - a)
-              .map(([jenis, count]) => (
-                <div key={jenis} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                    <span className="font-medium text-gray-900">{jenis}</span>
+              .map(([jenis, count], idx) => {
+                const pct = totalDokter > 0 ? Math.round((count / totalDokter) * 100) : 0;
+                const colorMap: Record<string, string> = {
+                  "Non Bedah": "bg-blue-500",
+                  "Bedah": "bg-rose-500",
+                  "Anestesi": "bg-amber-500",
+                  "Penunjang": "bg-cyan-500",
+                  "Non Spesialistik": "bg-slate-400",
+                };
+                const barColor = colorMap[jenis] ?? "bg-violet-500";
+                const textColorMap: Record<string, string> = {
+                  "Non Bedah": "text-blue-600",
+                  "Bedah": "text-rose-600",
+                  "Anestesi": "text-amber-600",
+                  "Penunjang": "text-cyan-600",
+                  "Non Spesialistik": "text-slate-500",
+                };
+                const textColor = textColorMap[jenis] ?? "text-violet-600";
+                return (
+                  <div key={jenis} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
+                    <span className="text-xs text-slate-400 w-4 shrink-0">{idx + 1}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                        <span className="text-xs font-medium text-slate-700">{jenis}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-sm font-bold ${textColor}`}>{count}</span>
+                          <span className="text-xs text-slate-400 w-8 text-right">{pct}%</span>
+                        </div>
+                      </div>
+                      <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${barColor} rounded-full transition-all duration-300`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-2xl font-bold text-purple-600">{count}</span>
-                    <span className="text-sm text-gray-500">dokter</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       </div>
@@ -631,7 +657,11 @@ const DataDokterFormTable: React.FC = () => {
             Kelola data dokter dengan kode otomatis DK.xxx
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <YearFilter />
+          <Button variant="outline" size="icon" onClick={() => fetchDataDokter()}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           <Button
             variant="template"
             className="shadow-sm"
@@ -691,11 +721,19 @@ const DataDokterFormTable: React.FC = () => {
               <TableHead className="font-bold text-white">Nama Dokter</TableHead>
               <TableHead className="font-bold text-white">Spesialistik</TableHead>
               <TableHead className="font-bold text-white">Jenis Spesialistik</TableHead>
+              <TableHead className="font-bold text-white">Tahun</TableHead>
               <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {dataDokterList.map((dataDokter) => (
+            {dataDokterList.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                  Tidak ada data dokter untuk tahun {selectedYear}.
+                </TableCell>
+              </TableRow>
+            ) : (
+              dataDokterList.map((dataDokter) => (
               <TableRow key={dataDokter.id}>
                 <TableCell className="font-medium">
                   {dataDokter.kode_dokter}
@@ -703,6 +741,7 @@ const DataDokterFormTable: React.FC = () => {
                 <TableCell>{dataDokter.nama_dokter}</TableCell>
                 <TableCell>{dataDokter.spesialistik}</TableCell>
                 <TableCell>{dataDokter.jenis_spesialistik}</TableCell>
+                <TableCell>{dataDokter.tahun}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
                     <Button variant="edit" size="sm" onClick={() => handleEdit(dataDokter)}>
@@ -714,7 +753,7 @@ const DataDokterFormTable: React.FC = () => {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            )))}
           </TableBody>
         </Table>
       </div>

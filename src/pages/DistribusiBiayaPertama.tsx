@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useYear } from '@/contexts/YearContext';
+import YearFilter from '@/components/ui/YearFilter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -126,6 +128,7 @@ const getColumnName = (i: number): string => {
 
 const DistribusiBiayaPertama: React.FC = () => {
   const { downloadReport } = useReportDownload();
+  const { selectedYear } = useYear();
   const [data, setData] = useState<DistribusiBiayaData[]>([]);
   const [filteredData, setFilteredData] = useState<DistribusiBiayaData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,7 +136,6 @@ const DistribusiBiayaPertama: React.FC = () => {
   
   // Filter states
   const [selectedUnitKerja, setSelectedUnitKerja] = useState<string>('all');
-  const [selectedTahun, setSelectedTahun] = useState<string>('2025');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(true);
   
@@ -185,7 +187,7 @@ const DistribusiBiayaPertama: React.FC = () => {
       setLoading(true);
       // Gunakan fungsi RPC untuk membaca dari tabel distribusi_biaya_pertama
       const { data, error } = await supabase.rpc('api_distribusi_biaya_pertama', { 
-        p_tahun: parseInt(selectedTahun) 
+        p_tahun: selectedYear
       });
       if (error) {
         console.error('Supabase RPC error:', error);
@@ -230,7 +232,7 @@ const DistribusiBiayaPertama: React.FC = () => {
       
       // Panggil fungsi RPC untuk update (HANYA update tabel distribusi_biaya_pertama)
       const { data, error } = await supabase.rpc('recalculate_and_fill_distribusi_biaya_pertama', {
-        p_tahun: parseInt(selectedTahun),
+        p_tahun: selectedYear,
         p_user_id: userId
       });
       
@@ -259,16 +261,15 @@ const DistribusiBiayaPertama: React.FC = () => {
         const errorMsg = data.message || 'Gagal memperbarui data';
         console.error('Update failed:', errorMsg);
         
-        // Tampilkan pesan error yang lebih informatif
         if (errorMsg.includes('tidak memiliki data biaya')) {
           toast.error(
             `⚠️ ${errorMsg}\n\n` +
-            `💡 Tips: Pastikan Anda sudah menginput data biaya untuk unit kerja pusat biaya pada tahun ${selectedTahun}.`
+            `💡 Tips: Pastikan Anda sudah menginput data biaya untuk unit kerja pusat biaya pada tahun ${selectedYear}.`
           );
         } else if (errorMsg.includes('denominator alokasi = 0')) {
           toast.error(
             `⚠️ ${errorMsg}\n\n` +
-            `💡 Tips: Pastikan data kegiatan (SDM/Kunjungan/Luas Ruangan) sudah diinput untuk tahun ${selectedTahun}.`
+            `💡 Tips: Pastikan data kegiatan (SDM/Kunjungan/Luas Ruangan) sudah diinput untuk tahun ${selectedYear}.`
           );
         } else {
           toast.error(errorMsg);
@@ -285,16 +286,14 @@ const DistribusiBiayaPertama: React.FC = () => {
         toast.success(
           `✅ Data berhasil diperbarui!\n` +
           `📊 ${insertedRows} baris diperbarui di tabel distribusi_biaya_pertama\n` +
-          `📅 Menggunakan data biaya terbaru untuk tahun ${selectedTahun}`
+          `📅 Menggunakan data biaya terbaru untuk tahun ${selectedYear}`
         );
       } else {
         toast.warning('Tidak ada data yang diperbarui. Periksa apakah ada data untuk tahun yang dipilih.');
       }
     } catch (error: any) {
       console.error('Error calculating:', error);
-      // Handle specific error types
       if (error.message?.includes('message channel closed')) {
-        // Browser extension error - ignore but log
         console.warn('Browser extension error (safe to ignore):', error.message);
       }
       toast.error(`Terjadi kesalahan: ${error.message || 'Unknown error'}`);
@@ -313,9 +312,8 @@ const DistribusiBiayaPertama: React.FC = () => {
       );
     }
 
-    if (selectedTahun !== 'all') {
-      filtered = filtered.filter(item => item.tahun === parseInt(selectedTahun));
-    }
+    // filter by tahun dari context
+    filtered = filtered.filter(item => item.tahun === selectedYear);
 
     if (searchTerm) {
       filtered = filtered.filter(item =>
@@ -435,8 +433,8 @@ const DistribusiBiayaPertama: React.FC = () => {
 
       await downloadReport({
         title: "Laporan Distribusi Biaya Pertama",
-        subtitle: `Tahun ${selectedTahun}`,
-        filename: `distribusi_biaya_pertama_${selectedTahun}`,
+        subtitle: `Tahun ${selectedYear}`,
+        filename: `distribusi_biaya_pertama_${selectedYear}`,
         records,
         orientation: "landscape",
       });
@@ -453,11 +451,11 @@ const DistribusiBiayaPertama: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedYear]);
 
   useEffect(() => {
     applyFilters();
-  }, [selectedUnitKerja, selectedTahun, searchTerm, data]);
+  }, [selectedUnitKerja, searchTerm, data]);
 
   if (loading) {
     return (
@@ -532,17 +530,8 @@ const DistribusiBiayaPertama: React.FC = () => {
               </div>
 
               <div className="space-y-2 max-w-[180px]">
-                <Label htmlFor="tahun">Tahun</Label>
-                <Select value={selectedTahun} onValueChange={setSelectedTahun}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih Tahun" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2024">2024</SelectItem>
-                    <SelectItem value="2023">2023</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Tahun</Label>
+                <YearFilter />
               </div>
 
               <div className="space-y-2 min-w-[220px]">

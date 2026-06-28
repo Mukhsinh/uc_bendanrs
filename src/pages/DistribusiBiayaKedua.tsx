@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,10 +54,10 @@ const getColumnName = (i: number): string => {
 };
 
 export default function DistribusiBiayaKedua() {
+  const { selectedYear: tahun } = useYear();
   const { downloadReport } = useReportDownload();
   const [rows, setRows] = useState<DistribusiKeduaRow[]>([]);
   const [filteredRows, setFilteredRows] = useState<DistribusiKeduaRow[]>([]);
-  const [tahun, setTahun] = useState<number>(2025);
   const [selectedUnitKerja, setSelectedUnitKerja] = useState<string>("");
   const [unitKerjaOptions, setUnitKerjaOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -820,16 +822,9 @@ export default function DistribusiBiayaKedua() {
         <Card>
           <CardContent>
             <div className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-col gap-2 w-[120px]">
-                <Label htmlFor="tahun">Tahun</Label>
-                <Input
-                  id="tahun"
-                  type="number"
-                  value={tahun}
-                  min={2020}
-                  max={2035}
-                  onChange={(e) => setTahun(parseInt(e.target.value) || tahun)}
-                />
+              <div className="flex flex-col gap-2">
+                <Label>Tahun</Label>
+                <YearFilter />
               </div>
               <div className="flex flex-col gap-2 min-w-[220px]">
                 <Label htmlFor="unit-kerja">Unit Kerja Pusat Biaya</Label>

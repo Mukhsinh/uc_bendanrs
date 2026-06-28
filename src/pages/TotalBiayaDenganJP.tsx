@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,8 +48,7 @@ const toNumber = (value: any): number => {
 };
 
 const TotalBiayaDenganJP: React.FC = () => {
-  const currentYear = new Date().getFullYear();
-  const [tahun, setTahun] = useState<number>(currentYear);
+  const { selectedYear: tahun } = useYear();
   const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
   const [unitFilter, setUnitFilter] = useState<string>("all");
   const [rows, setRows] = useState<AggregatedRow[]>([]);
@@ -267,21 +267,7 @@ const TotalBiayaDenganJP: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Tahun</label>
-              <Select value={tahun.toString()} onValueChange={(value) => setTahun(parseInt(value, 10))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih tahun" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 7 }, (_, index) => {
-                    const year = currentYear - index;
-                    return (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <YearFilter />
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium mb-2 block">Unit Kerja</label>

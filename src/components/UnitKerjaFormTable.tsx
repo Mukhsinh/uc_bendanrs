@@ -12,6 +12,8 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
+import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -258,12 +260,12 @@ const UnitKerjaFormTable: React.FC = () => {
   };
 
   const iconMap: Record<string, React.ReactNode> = {
-    "Pusat Pendapatan": <Building2 className="h-5 w-5" />,
-    "Pusat Biaya": <Landmark className="h-5 w-5" />,
-    "Rawat Inap": <BedDouble className="h-5 w-5" />,
-    "Rawat Jalan": <Stethoscope className="h-5 w-5" />,
-    "Non Layanan": <Briefcase className="h-5 w-5" />,
-    Operatif: <Workflow className="h-5 w-5" />,
+    "Pusat Pendapatan": <Building2 className="h-5 w-5 text-white" />,
+    "Pusat Biaya": <Landmark className="h-5 w-5 text-white" />,
+    "Rawat Inap": <BedDouble className="h-5 w-5 text-white" />,
+    "Rawat Jalan": <Stethoscope className="h-5 w-5 text-white" />,
+    "Non Layanan": <Briefcase className="h-5 w-5 text-white" />,
+    Operatif: <Workflow className="h-5 w-5 text-white" />,
   };
 
   const iconBackgrounds: Record<string, string> = {
@@ -658,31 +660,26 @@ const UnitKerjaFormTable: React.FC = () => {
             <Card
               key={metric.label}
               className={cn(
-                "border-none shadow-sm hover:shadow-md transition-shadow relative overflow-hidden",
-                metric.label === "Pusat Pendapatan" && "bg-indigo-50",
-                metric.label === "Pusat Biaya" && "bg-emerald-50",
-                metric.label === "Rawat Inap" && "bg-orange-50",
-                metric.label === "Rawat Jalan" && "bg-blue-50",
-                metric.label === "Operatif" && "bg-rose-50",
-                metric.label === "Non Layanan" && "bg-slate-50",
+                "border-none shadow-md hover:shadow-lg transition-shadow relative overflow-hidden",
+                metric.label === "Pusat Pendapatan" && "bg-indigo-600",
+                metric.label === "Pusat Biaya" && "bg-emerald-600",
+                metric.label === "Rawat Inap" && "bg-orange-500",
+                metric.label === "Rawat Jalan" && "bg-blue-500",
+                metric.label === "Operatif" && "bg-rose-500",
+                metric.label === "Non Layanan" && "bg-slate-500",
               )}
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-                <CardTitle className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                <CardTitle className="text-xs font-semibold text-white/80 tracking-wide uppercase">
                   {metric.label}
                 </CardTitle>
-                <div
-                  className={cn(
-                    "rounded-full p-1.5 shadow-inner",
-                    iconBackgrounds[metric.label] ?? "bg-slate-100 text-slate-500",
-                  )}
-                >
-                  {iconMap[metric.label] ?? <Briefcase className="h-5 w-5" />}
+                <div className="rounded-full p-1.5 bg-white/20">
+                  {iconMap[metric.label] ?? <Briefcase className="h-5 w-5 text-white" />}
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-xl font-semibold text-slate-900">{metric.value}</div>
-                <p className="text-sm font-semibold text-slate-500">
+                <div className="text-2xl font-bold text-white">{metric.value}</div>
+                <p className="text-xs font-medium text-white/70 mt-0.5">
                   {metric.value === 0
                     ? "Belum ada data"
                     : `${formatPercentage(metric.value)} dari total`}

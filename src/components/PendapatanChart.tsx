@@ -353,48 +353,48 @@ const PendapatanChart: React.FC = () => {
         
         {data.length > 0 && (
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-lg border border-blue-100 bg-blue-50/70 p-4">
+            <div className="rounded-xl border border-blue-300 bg-blue-500 p-4 shadow-md">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="font-medium text-blue-900">Total BPJS Kesehatan</h4>
-                  <p className="text-2xl font-bold text-blue-700 mt-2">
+                  <h4 className="font-medium text-blue-100">Total BPJS Kesehatan</h4>
+                  <p className="text-2xl font-bold text-white mt-2">
                     {formatCurrency(pieData.find(p => p.name === "BPJS Kesehatan")?.value || 0)}
                   </p>
                 </div>
-                <ShieldCheck className="h-10 w-10 text-blue-500" />
+                <ShieldCheck className="h-10 w-10 text-blue-200" />
               </div>
             </div>
-            <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-4">
+            <div className="rounded-xl border border-emerald-300 bg-emerald-500 p-4 shadow-md">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="font-medium text-emerald-900">Total Umum/Asuransi</h4>
-                  <p className="text-2xl font-bold text-emerald-700 mt-2">
+                  <h4 className="font-medium text-emerald-100">Total Umum/Asuransi</h4>
+                  <p className="text-2xl font-bold text-white mt-2">
                     {formatCurrency(pieData.find(p => p.name === "Umum/Asuransi")?.value || 0)}
                   </p>
                 </div>
-                <Users className="h-10 w-10 text-emerald-500" />
+                <Users className="h-10 w-10 text-emerald-200" />
               </div>
             </div>
-            <div className="rounded-lg border border-amber-100 bg-amber-50/70 p-4">
+            <div className="rounded-xl border border-amber-300 bg-amber-500 p-4 shadow-md">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="font-medium text-amber-900">Total Pendapatan APBD</h4>
-                  <p className="text-2xl font-bold text-amber-700 mt-2">
+                  <h4 className="font-medium text-amber-100">Total Pendapatan APBD</h4>
+                  <p className="text-2xl font-bold text-white mt-2">
                     {formatCurrency(pieData.find(p => p.name === "Pendapatan APBD")?.value || 0)}
                   </p>
                 </div>
-                <Landmark className="h-10 w-10 text-amber-500" />
+                <Landmark className="h-10 w-10 text-amber-200" />
               </div>
             </div>
-            <div className="rounded-lg border border-violet-100 bg-violet-50/70 p-4">
+            <div className="rounded-xl border border-violet-300 bg-violet-500 p-4 shadow-md">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="font-medium text-violet-900">Total Pendapatan</h4>
-                  <p className="text-2xl font-bold text-violet-700 mt-2">
+                  <h4 className="font-medium text-violet-100">Total Pendapatan</h4>
+                  <p className="text-2xl font-bold text-white mt-2">
                     {formatCurrency(pieData.reduce((sum, item) => sum + item.value, 0))}
                   </p>
                 </div>
-                <BarChart3 className="h-10 w-10 text-violet-500" />
+                <BarChart3 className="h-10 w-10 text-violet-200" />
               </div>
             </div>
           </div>

@@ -62,6 +62,8 @@ interface StatsCard {
   value: number;
   icon: React.ElementType;
   color: string;
+  bg: string;
+  border: string;
 }
 
 interface DataGroup {
@@ -170,31 +172,41 @@ export default function DataKegiatanRS() {
       title: "Total SDM",
       value: data.reduce((sum, item) => sum + (item.Jumlah_SDM || 0), 0),
       icon: Users,
-      color: "text-blue-600",
+      color: "text-white",
+      bg: "bg-blue-500",
+      border: "border-blue-600",
     },
     {
       title: "Total Kunjungan",
       value: data.reduce((sum, item) => sum + (item.Total_Kunjungan_Pasien || 0), 0),
       icon: Activity,
-      color: "text-green-600",
+      color: "text-white",
+      bg: "bg-emerald-500",
+      border: "border-emerald-600",
     },
     {
       title: "Total Diklat",
       value: data.reduce((sum, item) => sum + (item.Total_Diklat || 0), 0),
       icon: GraduationCap,
-      color: "text-purple-600",
+      color: "text-white",
+      bg: "bg-purple-500",
+      border: "border-purple-600",
     },
     {
       title: "Total Hari Rawat",
       value: data.reduce((sum, item) => sum + (item.Jumlah_Hari_Rawat || 0), 0),
       icon: Bed,
-      color: "text-orange-600",
+      color: "text-white",
+      bg: "bg-orange-500",
+      border: "border-orange-600",
     },
     {
       title: "Total Tindakan",
       value: data.reduce((sum, item) => sum + (item.Jumlah_Tindakan || 0), 0),
       icon: Activity,
-      color: "text-red-600",
+      color: "text-white",
+      bg: "bg-rose-500",
+      border: "border-rose-600",
     },
   ];
 
@@ -892,20 +904,18 @@ export default function DataKegiatanRS() {
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-lg transition-shadow">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">{stat.title}</p>
-                  <p className="text-2xl font-bold mt-1">{stat.value.toLocaleString("id-ID")}</p>
-                  <Badge variant="outline" className="mt-2">
-                    Computed
-                  </Badge>
-                </div>
-                <stat.icon className={`h-12 w-12 ${stat.color}`} />
+          <div key={index} className={`rounded-xl border ${stat.border} ${stat.bg} p-4 shadow-md hover:shadow-lg transition-shadow`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-white/80 font-medium">{stat.title}</p>
+                <p className="text-2xl font-bold text-white mt-1">{stat.value.toLocaleString("id-ID")}</p>
+                <Badge variant="outline" className="mt-2 border-white/40 text-white/90 bg-white/10">
+                  Computed
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
+              <stat.icon className={`h-12 w-12 ${stat.color} opacity-80`} />
+            </div>
+          </div>
         ))}
       </div>
 

@@ -6,6 +6,7 @@ interface BrandingSettings {
   app_title: string;
   logo_url?: string;
   logo_alt_text: string;
+  subtitle?: string;
 }
 
 const useBrandingSettings = () => {
