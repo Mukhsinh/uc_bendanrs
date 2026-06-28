@@ -87,7 +87,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     async (credentials: SignInWithPasswordCredentials & { selectedTenantId?: string }) => {
       setLoading(true);
       setError(null);
-      const { data, error: authError } = await authService.signInWithPassword(credentials);
+
+      let data: any = null;
+      let authError: import('@supabase/supabase-js').AuthError | null = null;
+
+      try {
+        const result = await authService.signInWithPassword(credentials);
+        data = result.data;
+        authError = result.error;
+      } catch (e: any) {
+        // Re-throw agar komponen Login bisa menangkap dan menampilkan pesan yang tepat
+        setLoading(false);
+        throw e;
+      }
 
       if (authError) {
         setError(authError.message ?? 'Gagal masuk');

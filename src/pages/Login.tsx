@@ -50,13 +50,34 @@ const Login = () => {
     setErrorMessage('');
     const trimmedEmail = email.trim();
 
-    const error = await signInWithPassword({
-      email: trimmedEmail,
-      password,
-    });
+    let error: import('@supabase/supabase-js').AuthError | null;
+    try {
+      error = await signInWithPassword({
+        email: trimmedEmail,
+        password,
+      });
+    } catch (e: any) {
+      // Tangani fetch error (env vars tidak ada, CORS, jaringan, dll.)
+      const msg: string = e?.message ?? String(e);
+      if (msg.includes('fetch') || msg.includes('network') || msg.includes('VITE_SUPABASE')) {
+        setErrorMessage(
+          'Tidak dapat terhubung ke server. Pastikan konfigurasi aplikasi sudah benar.'
+        );
+      } else {
+        setErrorMessage(msg || 'Terjadi kesalahan tidak diketahui.');
+      }
+      return;
+    }
 
     if (error) {
-      setErrorMessage(error.message || 'Email atau kata sandi tidak sesuai.');
+      const msg = error.message ?? '';
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
+        setErrorMessage('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.');
+      } else if (msg.toLowerCase().includes('invalid login credentials')) {
+        setErrorMessage('Email atau kata sandi tidak sesuai.');
+      } else {
+        setErrorMessage(msg || 'Email atau kata sandi tidak sesuai.');
+      }
       return;
     }
 
