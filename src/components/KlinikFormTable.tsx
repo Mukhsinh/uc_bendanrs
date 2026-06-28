@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -9,6 +9,7 @@ import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { useYear } from "@/contexts/YearContext";
+
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,7 @@ const KlinikFormTable: React.FC = () => {
   const [editing, setEditing] = useState<Klinik | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -85,14 +87,16 @@ const KlinikFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        const { error } = await tenantSupabase.from("klinik")
+        const { error } = await tenantSupabase
+          .from("klinik")
           .update({ nama_klinik: values.nama_klinik, Layanan_BPJS_Kes: values.Layanan_BPJS_Kes, Layanan_Umum_Asuransi: values.Layanan_Umum_Asuransi })
           .eq("id", editing.id);
         if (error) throw error;
         toast.success("Data klinik diperbarui.");
       } else {
         const nextKode = await generateNextKodeKlinik();
-        const { error } = await tenantSupabase.from("klinik")
+        const { error } = await tenantSupabase
+          .from("klinik")
           .insert([{ kode_klinik: nextKode, nama_klinik: values.nama_klinik, Layanan_BPJS_Kes: values.Layanan_BPJS_Kes, Layanan_Umum_Asuransi: values.Layanan_Umum_Asuransi, tahun: selectedYear }]);
         if (error) throw error;
         toast.success(`Data klinik ditambahkan dengan kode ${nextKode}.`);
@@ -130,6 +134,7 @@ const KlinikFormTable: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
     event.target.value = "";
+
     const pickFirst = (row: any, keys: string[]) => {
       for (const key of keys) {
         const value = row?.[key];
@@ -152,13 +157,14 @@ const KlinikFormTable: React.FC = () => {
       return rows.slice(1).filter((r) => (r || []).some((c) => (c ?? "").toString().trim() !== ""))
         .map((r) => { const obj: any = {}; headers.forEach((h, i) => { if (h) obj[h] = r?.[i]; }); return obj; });
     };
+
     const processRows = async (rawRows: any[]) => {
       try {
         startUpload(rawRows.length, "Sedang mengimpor data klinik...");
         const validRows: any[] = [];
         let missingCount = 0;
         for (const row of rawRows) {
-          const nama = (pickFirst(row, ["Nama Klinik", "nama_klinik"]) ?? "").toString().trim();
+          const nama = (pickFirst(row, ["Nama Klinik", "nama_klinik", "Nama_Klinik"]) ?? "").toString().trim();
           if (!nama) { missingCount++; continue; }
           const tahunRaw = pickFirst(row, ["Tahun", "tahun"]);
           const tahunVal = tahunRaw ? parseInt(tahunRaw.toString()) : selectedYear;
@@ -170,12 +176,16 @@ const KlinikFormTable: React.FC = () => {
           });
         }
         if (validRows.length === 0) { showUploadError("Tidak ada data valid."); return; }
+
         const { data: lastData } = await tenantSupabase.from("klinik").select("kode_klinik")
           .eq("tahun", selectedYear).order("kode_klinik", { ascending: false }).limit(1);
-        const lastNumber = lastData?.[0]?.kode_klinik ? parseInt((lastData[0].kode_klinik as string).split(".")[1] || "0") : 0;
+        const lastNumber = lastData?.[0]?.kode_klinik
+          ? parseInt((lastData[0].kode_klinik as string).split(".")[1] || "0") : 0;
         const insertData = validRows.map((row, idx) => ({
-          ...row, kode_klinik: `RJ.${((isNaN(lastNumber) ? 0 : lastNumber) + idx + 1).toString().padStart(2, "0")}`,
+          ...row,
+          kode_klinik: `RJ.${((isNaN(lastNumber) ? 0 : lastNumber) + idx + 1).toString().padStart(2, "0")}`,
         }));
+
         updateProgress(rawRows.length, 0, 0, `Menyimpan ${insertData.length} data klinik...`);
         const { error } = await tenantSupabase.from("klinik").insert(insertData);
         let successCount = 0, errorCount = 0;
@@ -190,6 +200,7 @@ const KlinikFormTable: React.FC = () => {
         await fetchKlinik();
       } catch (err: any) { showUploadError(`Gagal mengimpor: ${err.message}`); }
     };
+
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "xlsx" || ext === "xls") {
       parseXlsxToObjects(file).then(processRows).catch((e: any) => showUploadError(e.message));
@@ -206,7 +217,8 @@ const KlinikFormTable: React.FC = () => {
   const handleDownloadReport = async () => {
     if (klinikList.length === 0) { toast.warning("Tidak ada data untuk laporan."); return; }
     await downloadReport({
-      title: `Laporan Klinik Tahun ${selectedYear}`, subtitle: "Daftar layanan klinik",
+      title: `Laporan Klinik Tahun ${selectedYear}`,
+      subtitle: "Daftar layanan klinik",
       filename: `laporan_klinik_${selectedYear}`,
       records: klinikList.map((k) => ({
         "Kode Klinik": k.kode_klinik, "Nama Klinik": k.nama_klinik, "Tahun": k.tahun,
@@ -225,6 +237,7 @@ const KlinikFormTable: React.FC = () => {
           <Button onClick={() => fetchKlinik()} variant="outline" size="icon"><RefreshCw className="h-4 w-4" /></Button>
         </div>
       </div>
+
       <div className="flex flex-wrap gap-4 mb-6 items-center">
         <Button onClick={handleDownloadTemplate} variant="template" className="shadow-sm">
           <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
@@ -281,6 +294,7 @@ const KlinikFormTable: React.FC = () => {
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
       </div>
+
       <div className="rounded-md border shadow-sm">
         <Table>
           <TableHeader className="bg-[#0f766e]">
@@ -304,12 +318,12 @@ const KlinikFormTable: React.FC = () => {
                   <TableCell>{row.tahun}</TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${row.Layanan_BPJS_Kes ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                      {row.Layanan_BPJS_Kes ? "Ya" : "Tidak"}
+                      {row.Layanan_BPJS_Kes ? "✓" : "✗"}
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${row.Layanan_Umum_Asuransi ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
-                      {row.Layanan_Umum_Asuransi ? "Ya" : "Tidak"}
+                      {row.Layanan_Umum_Asuransi ? "✓" : "✗"}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
