@@ -64,13 +64,14 @@ export const authService = {
 
       if (!tenantId) {
         // Fallback to user profile which contains primary tenant_id
+        // The primary key on user_profiles is 'id' which references auth.users.id
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('tenant_id')
-          .eq('user_id', userId)
-          .single();
+          .eq('id', userId)
+          .maybeSingle();
 
-        if (profileError || !profile?.tenant_id) {
+        if (!profile?.tenant_id) {
           return { data: null, error: new Error('User profile or tenant not found') };
         }
         tenantId = profile.tenant_id;
@@ -99,90 +100,105 @@ export const authService = {
   },
 
   /**
-   * Sign in with password and validate tenant
-   * Enhanced to include tenant detection and validation
+   * Sign in with password
+   * Tenant detection is optional and non-blocking.
+   * If multi-tenant tables don't exist, login proceeds without tenant context.
    */
   async signInWithPassword(credentials: SignInWithPasswordCredentials & { selectedTenantId?: string }) {
     const { selectedTenantId, ...authCredentials } = credentials;
 
-    // Perform authentication
+    // 1. Perform core authentication
     const { data, error } = await supabase.auth.signInWithPassword(authCredentials);
 
     if (error || !data.user) {
       return { data, error };
     }
 
-    // Get user profile to check role and assigned tenant
-    const { data: profile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('tenant_id, roles(name)')
-      .eq('user_id', data.user.id)
-      .single();
+    // 2. Attempt tenant context setup (fully optional)
+    let tenantInfo: TenantInfo | null = null;
 
-    if (profileError || !profile) {
-      await supabase.auth.signOut();
-      return { data: null, error: new Error('User profile not found') };
-    }
+    try {
+      // 2a. Try to get user profile for tenant_id
+      let profileTenantId: string | null = null;
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('tenant_id')
+        .eq('id', data.user.id)
+        .maybeSingle();
 
-    const userRole = (profile.roles as any)?.name;
-    const isSuperAdmin = userRole === 'admin';
-
-    // Validate tenant access
-    let finalTenantId = selectedTenantId || profile.tenant_id;
-
-    if (!isSuperAdmin) {
-      // Normal user must belong to the selected tenant
-      if (selectedTenantId && profile.tenant_id !== selectedTenantId) {
-        await supabase.auth.signOut();
-        return {
-          data: null,
-          error: new Error('Anda tidak memiliki akses ke organisasi ini.')
-        };
+      if (!profileError && profile?.tenant_id) {
+        profileTenantId = profile.tenant_id;
       }
 
-      // If no tenant selected, use assigned tenant
-      if (!finalTenantId) {
-        await supabase.auth.signOut();
-        return { data: null, error: new Error('Organisasi belum diatur untuk user ini.') };
+      // 2b. Try to determine user role
+      let userRole = 'user';
+      const { data: userRoleLink, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role_id, role_akses_aplikasi(role_name)')
+        .eq('user_id', data.user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!roleError && userRoleLink) {
+        userRole = (userRoleLink.role_akses_aplikasi as any)?.role_name || 'user';
       }
-    } else {
-      // Superadmin can access any tenant, default to selected or profile's if none
-      if (!finalTenantId) {
-        // Fallback for superadmin if no tenant selected and no primary tenant
+
+      // Fallback: check user metadata for role
+      if (userRole === 'user') {
+        const metaRole =
+          (data.user.app_metadata as any)?.role ||
+          (data.user.user_metadata as any)?.role;
+        if (metaRole) userRole = String(metaRole);
+      }
+
+      const isSuperAdmin =
+        userRole === 'admin' ||
+        userRole === 'Super Admin' ||
+        userRole === 'superadmin';
+
+      // 2c. Determine final tenant ID
+      const userAppMetadata = (data.user.app_metadata || {}) as Record<string, unknown>;
+      const userMetadata = (data.user.user_metadata || {}) as Record<string, unknown>;
+      let finalTenantId: string | null =
+        selectedTenantId ||
+        profileTenantId ||
+        (typeof userAppMetadata.tenant_id === 'string' ? userAppMetadata.tenant_id : null) ||
+        (typeof userMetadata.tenant_id === 'string' ? userMetadata.tenant_id : null) ||
+        null;
+
+      // Superadmin fallback: pick first available tenant
+      if (!finalTenantId && isSuperAdmin) {
         const { data: tenants } = await this.getTenants();
         if (tenants && tenants.length > 0) {
           finalTenantId = tenants[0].id;
-        } else {
-          await supabase.auth.signOut();
-          return { data: null, error: new Error('Tidak ada organisasi yang tersedia.') };
         }
       }
+
+      // 2d. Fetch tenant details if we have an ID
+      if (finalTenantId) {
+        const { data: tenant, error: tenantError } = await supabase
+          .from('tenants')
+          .select('id, name, slug, logo_url, is_active')
+          .eq('id', finalTenantId)
+          .single();
+
+        if (!tenantError && tenant?.is_active) {
+          tenantInfo = tenant as TenantInfo;
+        }
+      }
+    } catch (err) {
+      // Tenant system not available — this is fine, continue without tenant context
+      console.warn('Tenant context setup skipped (tables may not exist):', err);
     }
 
-    // Get tenant info for the final tenant ID
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id, name, slug, logo_url, is_active')
-      .eq('id', finalTenantId)
-      .single();
-
-    if (tenantError || !tenant) {
-      await supabase.auth.signOut();
-      return { data: null, error: new Error('Informasi organisasi tidak ditemukan.') };
+    // 3. Persist tenant context if available
+    if (tenantInfo && typeof window !== 'undefined') {
+      sessionStorage.setItem('tenant_id', tenantInfo.id);
+      sessionStorage.setItem('tenant_name', tenantInfo.name);
     }
 
-    if (!tenant.is_active) {
-      await supabase.auth.signOut();
-      return { data: null, error: new Error('Organisasi sedang tidak aktif.') };
-    }
-
-    // Set tenant context in session storage for persistence
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('tenant_id', tenant.id);
-      sessionStorage.setItem('tenant_name', tenant.name);
-    }
-
-    return { data: { ...data, tenant: tenant as TenantInfo }, error: null };
+    // 4. Return success (with or without tenant)
+    return { data: { ...data, tenant: tenantInfo }, error: null };
   },
 
   /**

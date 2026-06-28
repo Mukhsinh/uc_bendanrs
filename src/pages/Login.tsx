@@ -1,9 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, CalendarDays, ChevronDown, Building2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, CalendarDays, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useYear } from '@/contexts/YearContext';
-import { authService, TenantInfo } from '@/lib/authService';
 
 const COPYRIGHT_TEXT = 'Copyright © 2024 Mukhsin Hadi. Hak Cipta Dilindungi Undang-Undang';
 const HERO_TITLE_TEXT = 'Saatnya Rumah Sakit Anda Naik Kelas!';
@@ -15,15 +14,12 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [heroTitle, setHeroTitle] = useState('');
-  const [tenants, setTenants] = useState<TenantInfo[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState('');
-  const [fetchingTenants, setFetchingTenants] = useState(true);
   const { session, initializing, signInWithPassword, loading: authLoading } = useAuth();
   const { selectedYear, setSelectedYear, availableYears } = useYear();
 
   useEffect(() => {
     if (!initializing && session) {
-      navigate('/');
+      navigate('/dashboard');
     }
   }, [navigate, session, initializing]);
 
@@ -42,27 +38,7 @@ const Login = () => {
     return () => window.clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const fetchTenants = async () => {
-      try {
-        setFetchingTenants(true);
-        const { data, error } = await authService.getTenants();
-        if (data) {
-          setTenants(data);
-          // Auto-select first tenant if available
-          if (data.length > 0) {
-            setSelectedTenantId(data[0].id);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch tenants:', err);
-      } finally {
-        setFetchingTenants(false);
-      }
-    };
 
-    fetchTenants();
-  }, []);
 
   const heroTitleWithoutExclamation = heroTitle.endsWith('!')
     ? heroTitle.slice(0, heroTitle.length - 1)
@@ -77,7 +53,6 @@ const Login = () => {
     const error = await signInWithPassword({
       email: trimmedEmail,
       password,
-      selectedTenantId,
     });
 
     if (error) {
@@ -85,7 +60,7 @@ const Login = () => {
       return;
     }
 
-    navigate('/');
+    navigate('/dashboard');
   };
 
   return (
@@ -146,42 +121,6 @@ const Login = () => {
               </p>
             </div>
             <form className="space-y-6" onSubmit={handleSubmit}>
-              {/* Pilihan Organisasi */}
-              <div className="space-y-2">
-                <label
-                  htmlFor="tenant"
-                  className="block text-sm font-medium text-[#4c5f8b]"
-                >
-                  Pilih Organisasi
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#7f8eb4]">
-                    <Building2 size={18} />
-                  </span>
-                  <select
-                    id="tenant"
-                    value={selectedTenantId}
-                    onChange={(e) => setSelectedTenantId(e.target.value)}
-                    disabled={authLoading || fetchingTenants}
-                    className="w-full appearance-none rounded-xl border border-[#d2dcf3] bg-[#f7faff] pl-10 pr-10 py-3 text-[#2f4373] focus:outline-none focus:ring-2 focus:ring-[#5aa9ff] focus:border-transparent transition disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {fetchingTenants ? (
-                      <option>Memuat organisasi...</option>
-                    ) : tenants.length > 0 ? (
-                      tenants.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">Tidak ada organisasi tersedia</option>
-                    )}
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[#7f8eb4]">
-                    <ChevronDown size={18} />
-                  </span>
-                </div>
-              </div>
 
               <div className="space-y-2">
                 <label

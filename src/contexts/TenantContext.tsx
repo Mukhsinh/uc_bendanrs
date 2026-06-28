@@ -81,31 +81,34 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
         return;
       }
 
-      // Get tenant settings for colors
-      const { data: settings } = await supabase
-        .from('tenant_settings')
-        .select('primary_color, secondary_color')
-        .eq('tenant_id', tenantInfo.id)
-        .single();
+      // Get tenant settings for colors (tenant_settings menyimpan data sebagai key-value)
+      let primaryColor: string | undefined;
+      let secondaryColor: string | undefined;
+      try {
+        const { data: colorSettings } = await supabase
+          .from('tenant_settings')
+          .select('setting_key, setting_value')
+          .eq('tenant_id', tenantInfo.id)
+          .in('setting_key', ['primary_color', 'secondary_color']);
+
+        if (colorSettings) {
+          colorSettings.forEach((s) => {
+            if (s.setting_key === 'primary_color') primaryColor = s.setting_value as string;
+            if (s.setting_key === 'secondary_color') secondaryColor = s.setting_value as string;
+          });
+        }
+      } catch {
+        // tenant_settings mungkin tidak memiliki data warna, abaikan
+      }
 
       // Combine tenant info with settings
       const fullTenantInfo: TenantInfo = {
         ...tenantInfo,
-        primary_color: settings?.primary_color,
-        secondary_color: settings?.secondary_color,
+        primary_color: primaryColor,
+        secondary_color: secondaryColor,
       };
 
-      // Set tenant_id in Supabase session for RLS policies
-      try {
-        await supabase.rpc('set_config', {
-          setting: 'app.current_tenant_id',
-          value: tenantInfo.id
-        });
-      } catch (err) {
-        console.warn('Failed to set tenant context in database:', err);
-      }
-
-      // Also store in sessionStorage for tenantAwareClient
+      // Simpan tenant_id di sessionStorage untuk tenantAwareClient
       sessionStorage.setItem('tenant_id', tenantInfo.id);
 
       setTenant(fullTenantInfo);

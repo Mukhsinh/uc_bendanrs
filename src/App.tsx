@@ -7,6 +7,7 @@ import { lazy, useEffect, useState } from "react";
 import { GeneralSettingsProvider } from "@/contexts/GeneralSettingsContext";
 import { ReportDownloadProvider } from "@/components/report";
 const Index = lazy(() => import("./pages/Index"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Layout = lazy(() => import("./components/Layout"));
 const DataUnitKerja = lazy(() => import("./pages/DataUnitKerja"));
@@ -180,7 +181,12 @@ const AppContent = () => {
         <Route path="/modul-teknis-simple" element={<ModulTeknisSimple />} />
         <Route path="/test-supabase" element={<TestSupabase />} />
         <Route path="/" element={session ? <Layout /> : <Navigate to="/login" replace />}>
-          <Route index element={<Index />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={
+            <SessionGuard>
+              <Dashboard />
+            </SessionGuard>
+          } />
           <Route path="/data-master/unit-kerja" element={
             <SessionGuard>
               <DataUnitKerja />
