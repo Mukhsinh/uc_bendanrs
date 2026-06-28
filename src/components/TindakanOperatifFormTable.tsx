@@ -11,8 +11,8 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
-import { safeCRUDOperation, handleDatabaseError } from "@/utils/database-operations";
+import { handleDatabaseError } from "@/utils/database-operations";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -138,7 +138,7 @@ const TindakanOperatifFormTable: React.FC = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_operatif")
       .select("id, kode_jenis, kode_operator_spesialistik, nama_operator_spesialistik, kode_tindakan_operatif, nama_tindakan_operatif, created_at, updated_at")
       .order("created_at", { ascending: false });
@@ -155,24 +155,29 @@ const TindakanOperatifFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        // Use new signature: (operation, table, recordId, data)
-        await safeCRUDOperation('UPDATE', 'tindakan_operatif', editing.id, {
-          kode_jenis: values.kode_jenis,
-          kode_operator_spesialistik: values.kode_operator_spesialistik,
-          nama_operator_spesialistik: values.nama_operator_spesialistik,
-          kode_tindakan_operatif: values.kode_tindakan_operatif,
-          nama_tindakan_operatif: values.nama_tindakan_operatif,
-        });
+        const { error } = await tenantSupabase
+          .from("tindakan_operatif")
+          .update({
+            kode_jenis: values.kode_jenis,
+            kode_operator_spesialistik: values.kode_operator_spesialistik,
+            nama_operator_spesialistik: values.nama_operator_spesialistik,
+            kode_tindakan_operatif: values.kode_tindakan_operatif,
+            nama_tindakan_operatif: values.nama_tindakan_operatif,
+          })
+          .eq("id", editing.id);
+        if (error) throw error;
         toast.success("Data diperbarui.");
       } else {
-        // Use new signature: (operation, table, undefined, data)
-        await safeCRUDOperation('INSERT', 'tindakan_operatif', undefined, {
-          kode_jenis: values.kode_jenis,
-          kode_operator_spesialistik: values.kode_operator_spesialistik,
-          nama_operator_spesialistik: values.nama_operator_spesialistik,
-          kode_tindakan_operatif: values.kode_tindakan_operatif,
-          nama_tindakan_operatif: values.nama_tindakan_operatif,
-        });
+        const { error } = await tenantSupabase
+          .from("tindakan_operatif")
+          .insert([{
+            kode_jenis: values.kode_jenis,
+            kode_operator_spesialistik: values.kode_operator_spesialistik,
+            nama_operator_spesialistik: values.nama_operator_spesialistik,
+            kode_tindakan_operatif: values.kode_tindakan_operatif,
+            nama_tindakan_operatif: values.nama_tindakan_operatif,
+          }]);
+        if (error) throw error;
         toast.success("Data ditambahkan.");
       }
       await fetchAll();
@@ -187,8 +192,11 @@ const TindakanOperatifFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      // Use new signature: (operation, table, recordId)
-      await safeCRUDOperation('DELETE', 'tindakan_operatif', id);
+      const { error } = await tenantSupabase
+        .from("tindakan_operatif")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
     } catch (err: any) {
@@ -284,7 +292,7 @@ const TindakanOperatifFormTable: React.FC = () => {
             for (let i = 0; i < newRows.length; i++) {
               const row = newRows[i];
               try {
-                const { error } = await supabase
+                const { error } = await tenantSupabase
                   .from("tindakan_operatif")
                   .insert([{
                     kode_jenis: row.kode_jenis,

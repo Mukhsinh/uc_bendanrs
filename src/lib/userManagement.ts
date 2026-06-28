@@ -150,7 +150,7 @@ export async function getAllUsers(): Promise<UserWithRole[]> {
     let query = supabase
       .from('user_profiles')
       .select(`
-        user_id,
+        id,
         tenant_id,
         full_name,
         created_at,
@@ -177,7 +177,7 @@ export async function getAllUsers(): Promise<UserWithRole[]> {
     }
 
     // Get user roles for these users
-    const userIds = profiles.map(p => p.user_id);
+    const userIds = profiles.map(p => p.id);
     const { data: userRoles, error: rolesError } = await supabase
       .from('user_roles')
       .select(`
@@ -228,16 +228,16 @@ export async function getAllUsers(): Promise<UserWithRole[]> {
 
     // Combine all data
     const result: UserWithRole[] = profiles.map(profile => {
-      const userRole = userRoles?.find(ur => ur.user_id === profile.user_id);
+      const userRole = userRoles?.find(ur => ur.user_id === profile.id);
       const role = userRole ? roleMap.get(userRole.role_id) : null;
       const assignedByEmail = userRole?.assigned_by ? emailMap.get(userRole.assigned_by) || '' : '';
       const tenantInfo = profile.tenants as any;
 
       return {
-        id: profile.user_id,
-        email: emailMap.get(profile.user_id) || 'unknown@email.com',
+        id: profile.id,
+        email: emailMap.get(profile.id) || 'unknown@email.com',
         created_at: profile.created_at,
-        last_sign_in_at: lastSignInMap.get(profile.user_id) || '',
+        last_sign_in_at: lastSignInMap.get(profile.id) || '',
         role_name: role?.role_name || 'user',
         role_description: role?.description || '',
         role_is_active: userRole?.is_active || false,
@@ -385,7 +385,7 @@ async function validateSameTenant(userId: string): Promise<boolean> {
     const { data: profile, error } = await supabase
       .from('user_profiles')
       .select('tenant_id')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .single();
 
     if (error || !profile) return false;
@@ -556,7 +556,7 @@ export async function activateUser(userId: string): Promise<ApiResponse> {
     const { error } = await supabase
       .from('user_profiles')
       .update({ is_active: true })
-      .eq('user_id', userId);
+      .eq('id', userId);
 
     if (error) throw error;
 
@@ -671,4 +671,3 @@ export default {
   getRoleBadgeVariant,
   getRoleColorClass,
 };
-

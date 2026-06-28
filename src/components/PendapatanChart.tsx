@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ShieldCheck, Users, Landmark, BarChart3 } from "lucide-react";
+import YearFilter from "@/components/ui/YearFilter";
+import { useYear } from "@/contexts/YearContext";
 
 interface UnitKerja {
   id: string;
@@ -45,11 +47,11 @@ interface PieData {
 }
 
 const PendapatanChart: React.FC = () => {
+  const { selectedYear: selectedTahun } = useYear();
   const [data, setData] = useState<ChartData[]>([]);
   const [pieData, setPieData] = useState<PieData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJenis, setSelectedJenis] = useState<string>("all");
-  const [selectedTahun, setSelectedTahun] = useState<number>(new Date().getFullYear());
   const [chartFilter, setChartFilter] = useState<string>("all");
 
   const jenisOptions = [
@@ -332,21 +334,8 @@ const PendapatanChart: React.FC = () => {
             </SelectContent>
           </Select>
 
-          <Select value={selectedTahun.toString()} onValueChange={(value) => setSelectedTahun(parseInt(value))}>
-            <SelectTrigger className="w-full sm:w-40" aria-label="Filter tahun">
-              <SelectValue placeholder="Pilih tahun" />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 5 }, (_, i) => {
-                const year = new Date().getFullYear() - i;
-                return (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+          {/* Filter tahun menggunakan YearContext global agar sinkron dengan tabel */}
+          <YearFilter />
 
           <Select value={chartFilter} onValueChange={setChartFilter}>
             <SelectTrigger className="w-full sm:w-56" aria-label="Filter data grafik">

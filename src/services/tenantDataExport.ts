@@ -6,10 +6,6 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 interface ExportOptions {
   tenantId: string;
@@ -104,12 +100,9 @@ const exportAsJSON = async (
     data: {},
   };
 
-  // Use service role untuk bypass RLS
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || '');
-
   for (const table of tables) {
     try {
-      const { data, error } = await adminClient
+      const { data, error } = await supabase
         .from(table)
         .select('*')
         .eq('tenant_id', tenantId);
@@ -124,7 +117,7 @@ const exportAsJSON = async (
 
   // Include tenant settings if requested
   if (includeSettings) {
-    const { data: tenant } = await adminClient
+    const { data: tenant } = await supabase
       .from('tenants')
       .select('*, tenant_settings(*)')
       .eq('id', tenantId)
@@ -150,11 +143,9 @@ const exportAsSQL = async (
   sqlDump += `-- Export Date: ${new Date().toISOString()}\n`;
   sqlDump += `-- Tenant ID: ${tenantId}\n\n`;
 
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || '');
-
   // Export tenant info
   if (includeSettings) {
-    const { data: tenant } = await adminClient
+    const { data: tenant } = await supabase
       .from('tenants')
       .select('*')
       .eq('id', tenantId)
@@ -166,7 +157,7 @@ const exportAsSQL = async (
       sqlDump += `\n`;
     }
 
-    const { data: settings } = await adminClient
+    const { data: settings } = await supabase
       .from('tenant_settings')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -182,7 +173,7 @@ const exportAsSQL = async (
   // Export table data
   for (const table of tables) {
     try {
-      const { data, error } = await adminClient
+      const { data, error } = await supabase
         .from(table)
         .select('*')
         .eq('tenant_id', tenantId);

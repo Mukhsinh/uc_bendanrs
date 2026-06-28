@@ -41,8 +41,13 @@ export const useUploadProgress = () => {
   }, []);
 
   const completeUpload = useCallback((successCount: number, errorCount: number, missingCount: number = 0) => {
-    const status = errorCount === 0 ? 'success' : 'error';
-    const message = errorCount === 0 ? 'Impor berhasil!' : 'Impor selesai dengan beberapa error';
+    // Status error jika tidak ada yang berhasil sama sekali
+    const status = successCount === 0 ? 'error' : errorCount === 0 ? 'success' : 'error';
+    const message = successCount === 0
+      ? 'Impor gagal, tidak ada data yang berhasil diimpor'
+      : errorCount === 0
+        ? 'Impor berhasil!'
+        : 'Impor selesai dengan beberapa error';
     
     setUploadProgress(prev => ({
       ...prev,
@@ -53,10 +58,10 @@ export const useUploadProgress = () => {
       missingCount
     }));
 
-    // Auto-hide after 5 seconds (lebih lama agar user bisa melihat hasil)
+    // Auto-hide setelah 7 detik agar user bisa baca hasil
     setTimeout(() => {
       setUploadProgress(prev => ({ ...prev, isVisible: false }));
-    }, 5000);
+    }, 7000);
   }, []);
 
   const showError = useCallback((message: string = 'Gagal memproses file') => {

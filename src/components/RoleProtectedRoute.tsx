@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getCurrentTenantId } from '@/lib/tenantAwareClient';
+import { isSuperAdmin, normalizeRoleName } from '@/utils/role-check';
 
 interface RoleProtectedRouteProps {
   children: JSX.Element;
@@ -43,55 +43,54 @@ export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
       // Get current tenant_id
       const currentTenantId = getCurrentTenantId();
 
-      // Cek jika superadmin (superadmin bisa akses semua tanpa isolasi tenant)
-      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: userId });
-      
-      if (isSuperadmin) {
-        setUserRole("Super Admin");
-        setHasAccess(allowedRoles.includes("Super Admin"));
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const roleFromMetadata = normalizeRoleName((authUser?.app_metadata as any)?.role);
+      const tenantFromMetadata = typeof (authUser?.app_metadata as any)?.tenant_id === 'string'
+        ? (authUser?.app_metadata as any)?.tenant_id
+        : null;
+
+      const isResolvedSuperAdmin = roleFromMetadata === 'Super Admin' || await isSuperAdmin(userId);
+      if (isResolvedSuperAdmin) {
+        setUserRole('Super Admin');
+        // Super Admin yang sudah terverifikasi selalu mendapat akses
+        // tanpa bergantung pada daftar allowedRoles
+        setHasAccess(true);
         setIsLoading(false);
         return;
       }
 
-      // Jika bukan superadmin, pastikan tenant_id tersedia
-      if (!currentTenantId) {
-        console.warn("Tenant ID tidak tersedia. Akses ditolak.");
+      if (currentTenantId && tenantFromMetadata && currentTenantId !== tenantFromMetadata) {
         setHasAccess(false);
         setIsLoading(false);
         return;
       }
 
-      // Verifikasi user memiliki tenant_id yang sesuai dengan current tenant
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('tenant_id')
-        .eq('user_id', userId)
-        .single();
+      let resolvedRole: string | null = roleFromMetadata;
+      if (!resolvedRole) {
+        const { data: userRoleLink, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role_id, role_akses_aplikasi(role_name)')
+          .eq('user_id', userId)
+          .limit(1)
+          .maybeSingle();
 
-      if (!userProfile || userProfile.tenant_id !== currentTenantId) {
-        console.warn("User tidak memiliki akses ke tenant ini");
+        if (roleError && roleError.code !== 'PGRST116') {
+          console.warn('Gagal mengambil role user:', roleError);
+        }
+
+        if (userRoleLink) {
+          resolvedRole = normalizeRoleName((userRoleLink.role_akses_aplikasi as any)?.role_name);
+        }
+      }
+
+      if (!resolvedRole) {
         setHasAccess(false);
         setIsLoading(false);
         return;
       }
 
-      // Ambil role dari user_roles table dengan join ke role_akses_aplikasi
-      const { data: userRoles } = await supabase
-        .from('user_roles')
-        .select(`
-          role_akses_aplikasi!inner(role_name)
-        `)
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .single();
-
-      if (userRoles && userRoles.role_akses_aplikasi) {
-        const roleName = (userRoles.role_akses_aplikasi as any).role_name;
-        setUserRole(roleName);
-        setHasAccess(allowedRoles.includes(roleName));
-      } else {
-        setHasAccess(false);
-      }
+      setUserRole(resolvedRole);
+      setHasAccess(allowedRoles.includes(resolvedRole));
     } catch (error) {
       console.error("Error checking user role:", error);
       setHasAccess(false);
@@ -112,7 +111,24 @@ export const RoleProtectedRoute: React.FC<RoleProtectedRouteProps> = ({
   }
 
   if (!hasAccess) {
-    return <Navigate to="/" replace />;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-teal-50 to-cyan-50">
+        <div className="w-full max-w-lg">
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertDescription>{fallbackMessage}</AlertDescription>
+          </Alert>
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => window.history.back()}
+              className="text-teal-700 hover:text-teal-800 text-sm font-medium"
+            >
+              ← Kembali
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return children;

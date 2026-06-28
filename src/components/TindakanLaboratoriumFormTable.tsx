@@ -11,11 +11,11 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { 
   safeCRUDOperation,
   handleDatabaseError 
 } from "@/utils/database-operations";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -75,7 +75,7 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
 
   // Function to generate next available code
   const generateNextCode = async (jenis: JenisLab): Promise<string> => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_laboratorium")
       .select("kode")
       .eq("jenis", jenis)
@@ -115,7 +115,7 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_laboratorium")
       .select("id, jenis, kode, nama, created_at")
       .order("created_at", { ascending: false });
@@ -133,7 +133,7 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
     try {
       if (editing) {
         // Direct database call like operatif - avoid trigger issues
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("tindakan_laboratorium")
           .update({
             jenis: values.jenis as JenisLab,
@@ -146,7 +146,7 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
       } else {
         // For new records, generate automatic code and use direct insert
         const newCode = await generateNextCode(values.jenis as JenisLab);
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("tindakan_laboratorium")
           .insert([{
             jenis: values.jenis as JenisLab,
@@ -170,7 +170,7 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
   const handleDelete = async (id: string) => {
     try {
       // Direct database call like operatif - avoid trigger issues
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("tindakan_laboratorium")
         .delete()
         .eq("id", id);
@@ -247,7 +247,7 @@ const TindakanLaboratoriumFormTable: React.FC = () => {
               const row = rows[i];
               try {
                 const newCode = await generateNextCode(row.jenis);
-                const { error } = await supabase
+                const { error } = await tenantSupabase
                   .from("tindakan_laboratorium")
                   .insert([{ jenis: row.jenis, kode: newCode, nama: row.nama }]);
                 

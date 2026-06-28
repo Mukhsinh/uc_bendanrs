@@ -11,7 +11,6 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
@@ -26,12 +25,12 @@ import { useUploadProgress } from "@/hooks/use-upload-progress";
 import { useReportDownload } from "@/components/report";
 
 interface DataKamar {
-  id: number;
-  Kode_Kamar: string;
-  Nama_Kamar: string;
+  id: string;           // uuid di database
+  kode_kamar: string;   // lowercase di database
+  nama_kamar: string;   // lowercase di database
   Kelas_SVIP: boolean;
   Kelas_VIP: boolean;
-  Kelas_I: boolean;
+  Kelas_I: boolean;     // text di DB, dikonversi ke boolean saat baca
   Kelas_II: boolean;
   Kelas_III: boolean;
   Kelas_Khusus: boolean;
@@ -75,7 +74,7 @@ const DataKamarFormTable: React.FC = () => {
   useEffect(() => {
     if (editing) {
       form.reset({ 
-        Nama_Kamar: editing.Nama_Kamar, 
+        Nama_Kamar: editing.nama_kamar, 
         Kelas_SVIP: editing.Kelas_SVIP,
         Kelas_VIP: editing.Kelas_VIP,
         Kelas_I: editing.Kelas_I,
@@ -100,19 +99,26 @@ const DataKamarFormTable: React.FC = () => {
     setLoading(true);
     const { data, error } = await tenantSupabase
       .from("Data_Kamar")
-      .select("id, Kode_Kamar, Nama_Kamar, Kelas_SVIP, Kelas_VIP, Kelas_I, Kelas_II, Kelas_III, Kelas_Khusus")
-      .order("id", { ascending: true });
+      .select("id, kode_kamar, nama_kamar, Kelas_SVIP, Kelas_VIP, Kelas_I, Kelas_II, Kelas_III, Kelas_Khusus")
+      .order("kode_kamar", { ascending: true });
     if (error) { toast.error("Gagal memuat data."); console.error(error); setList([]); }
-    else setList(data || []);
+    else {
+      // Normalisasi Kelas_I dari text ke boolean
+      const normalized = (data || []).map((row: any) => ({
+        ...row,
+        Kelas_I: row.Kelas_I === true || row.Kelas_I === "true" || row.Kelas_I === "1",
+      }));
+      setList(normalized);
+    }
     setLoading(false);
   };
 
-  // Function to generate next kode kamar
+  // Generate kode kamar berikutnya
   const generateNextKodeKamar = async (): Promise<string> => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("Data_Kamar")
-      .select("Kode_Kamar")
-      .order("Kode_Kamar", { ascending: false })
+      .select("kode_kamar")
+      .order("kode_kamar", { ascending: false })
       .limit(1);
     
     if (error) throw error;
@@ -121,22 +127,23 @@ const DataKamarFormTable: React.FC = () => {
       return "RI.01";
     }
     
-    const lastKode = data[0].Kode_Kamar;
-    const lastNumber = parseInt(lastKode.split('.')[1]);
-    const nextNumber = lastNumber + 1;
+    const lastKode = data[0].kode_kamar as string;
+    const parts = lastKode?.split('.');
+    const lastNumber = parts && parts[1] ? parseInt(parts[1]) : 0;
+    const nextNumber = isNaN(lastNumber) ? 1 : lastNumber + 1;
     return `RI.${nextNumber.toString().padStart(2, '0')}`;
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("Data_Kamar")
           .update({ 
-            Nama_Kamar: values.Nama_Kamar, 
+            nama_kamar: values.Nama_Kamar, 
             Kelas_SVIP: values.Kelas_SVIP,
             Kelas_VIP: values.Kelas_VIP,
-            Kelas_I: values.Kelas_I,
+            Kelas_I: values.Kelas_I ? "true" : "false", // text di DB
             Kelas_II: values.Kelas_II,
             Kelas_III: values.Kelas_III,
             Kelas_Khusus: values.Kelas_Khusus
@@ -146,14 +153,14 @@ const DataKamarFormTable: React.FC = () => {
         toast.success("Data diperbarui.");
       } else {
         const nextKode = await generateNextKodeKamar();
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("Data_Kamar")
           .insert([{ 
-            Kode_Kamar: nextKode, 
-            Nama_Kamar: values.Nama_Kamar, 
+            kode_kamar: nextKode, 
+            nama_kamar: values.Nama_Kamar, 
             Kelas_SVIP: values.Kelas_SVIP,
             Kelas_VIP: values.Kelas_VIP,
-            Kelas_I: values.Kelas_I,
+            Kelas_I: values.Kelas_I ? "true" : "false", // text di DB
             Kelas_II: values.Kelas_II,
             Kelas_III: values.Kelas_III,
             Kelas_Khusus: values.Kelas_Khusus
@@ -171,7 +178,7 @@ const DataKamarFormTable: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       const { error } = await tenantSupabase.from("Data_Kamar").delete().eq("id", id);
       if (error) throw error;
@@ -199,98 +206,157 @@ const DataKamarFormTable: React.FC = () => {
     // Reset file input
     event.target.value = '';
     
+    const pickFirst = (row: any, keys: string[]) => {
+      for (const key of keys) {
+        const value = row?.[key];
+        if (value === undefined || value === null) continue;
+        const asString = value.toString().trim();
+        if (asString !== "") return value;
+      }
+      return undefined;
+    };
+
+    const parseBool = (value: any): boolean => {
+      if (value === true) return true;
+      if (value === false) return false;
+      const v = (value ?? "").toString().trim().toLowerCase();
+      if (["true", "1", "ya", "y", "yes"].includes(v)) return true;
+      if (["false", "0", "tidak", "t", "no"].includes(v)) return false;
+      return false;
+    };
+
+    const parseXlsxToObjects = async (xlsxFile: File): Promise<any[]> => {
+      const buffer = await xlsxFile.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      if (!rows || rows.length < 2) return [];
+      const headers = (rows[0] || []).map((h) => (h ?? "").toString().trim());
+      return rows
+        .slice(1)
+        .filter((r) => (r || []).some((cell) => (cell ?? "").toString().trim() !== ""))
+        .map((r) => {
+          const obj: any = {};
+          headers.forEach((h, idx) => {
+            if (!h) return;
+            obj[h] = r?.[idx];
+          });
+          return obj;
+        });
+    };
+
+    const processRows = async (rawRows: any[]) => {
+      try {
+        const totalRows = rawRows.length;
+        startUpload(totalRows, "Sedang mengimpor data kamar...");
+
+        const validRows: Omit<DataKamar, "id" | "kode_kamar">[] = [];
+        let missingCount = 0;
+
+        for (const row of rawRows) {
+          const namaRaw = pickFirst(row, ["Nama Kamar", "Nama_Kamar", "Nama_Kamar "]);
+          const nama = (namaRaw ?? "").toString().trim();
+
+          const kelasSVIP = parseBool(pickFirst(row, ["Kelas SVIP (true/false)", "Kelas_SVIP", "Kelas SVIP"]));
+          const kelasVIP = parseBool(pickFirst(row, ["Kelas VIP (true/false)", "Kelas_VIP", "Kelas VIP"]));
+          const kelasI = parseBool(pickFirst(row, ["Kelas I (true/false)", "Kelas_I", "Kelas I"]));
+          const kelasII = parseBool(pickFirst(row, ["Kelas II (true/false)", "Kelas_II", "Kelas II"]));
+          const kelasIII = parseBool(pickFirst(row, ["Kelas III (true/false)", "Kelas_III", "Kelas III"]));
+          const kelasKhusus = parseBool(pickFirst(row, ["Kelas Khusus (true/false)", "Kelas_Khusus", "Kelas Khusus"]));
+
+          if (!nama) {
+            missingCount++;
+            continue;
+          }
+
+          validRows.push({
+            nama_kamar: nama,
+            Kelas_SVIP: kelasSVIP,
+            Kelas_VIP: kelasVIP,
+            Kelas_I: kelasI,
+            Kelas_II: kelasII,
+            Kelas_III: kelasIII,
+            Kelas_Khusus: kelasKhusus,
+          });
+        }
+
+        if (validRows.length === 0) {
+          showUploadError("Tidak ada data valid untuk diimpor.");
+          return;
+        }
+
+        // Ambil kode terakhir sekali, lalu generate semua kode secara sequential
+        const { data: lastData } = await tenantSupabase
+          .from("Data_Kamar")
+          .select("kode_kamar")
+          .order("kode_kamar", { ascending: false })
+          .limit(1);
+
+        const lastKode = lastData?.[0]?.kode_kamar as string | undefined;
+        const lastNumber = lastKode
+          ? parseInt(lastKode.split('.')[1] || "0")
+          : 0;
+
+        const insertData = validRows.map((row, idx) => {
+          const num = (isNaN(lastNumber) ? 0 : lastNumber) + idx + 1;
+          return {
+            kode_kamar: `RI.${num.toString().padStart(2, '0')}`,
+            nama_kamar: row.nama_kamar,
+            Kelas_SVIP: row.Kelas_SVIP,
+            Kelas_VIP: row.Kelas_VIP,
+            Kelas_I: row.Kelas_I ? "true" : "false",
+            Kelas_II: row.Kelas_II,
+            Kelas_III: row.Kelas_III,
+            Kelas_Khusus: row.Kelas_Khusus,
+          };
+        });
+
+        updateProgress(totalRows, 0, 0, `Menyimpan ${insertData.length} data kamar...`);
+
+        const { error } = await tenantSupabase.from("Data_Kamar").insert(insertData);
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        if (error) {
+          console.error("Batch insert error:", error);
+          // Fallback: insert satu per satu
+          for (let i = 0; i < insertData.length; i++) {
+            const { error: rowError } = await tenantSupabase.from("Data_Kamar").insert([insertData[i]]);
+            if (rowError) {
+              errorCount++;
+              console.error(`Error pada baris ${i + 1}:`, rowError);
+            } else {
+              successCount++;
+            }
+            updateProgress(totalRows, successCount, errorCount, `Mengimpor data ${i + 1} dari ${insertData.length}...`);
+          }
+        } else {
+          successCount = insertData.length;
+          updateProgress(totalRows, successCount, errorCount);
+        }
+
+        completeUpload(successCount, errorCount, missingCount);
+        await fetchAll();
+      } catch (err: any) {
+        console.error(err);
+        showUploadError(`Gagal mengimpor data: ${err.message}`);
+      }
+    };
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xlsx" || ext === "xls") {
+      parseXlsxToObjects(file).then(processRows).catch((err: any) => showUploadError(`Gagal membaca file Excel: ${err.message}`));
+      return;
+    }
+
     file.text().then((text) => {
       (Papa as any).parse(text, {
         header: true,
         skipEmptyLines: true,
         complete: async (results: Papa.ParseResult<any>) => {
-          try {
-            const allRows = results.data;
-            const totalRows = allRows.length;
-            
-            // Start upload progress
-            startUpload(totalRows, "Sedang mengimpor data kamar...");
-            
-            const rows: Omit<DataKamar, "id">[] = [];
-            let processedCount = 0;
-            let successCount = 0;
-            let errorCount = 0;
-            let missingCount = 0;
-            
-            for (const row of results.data) {
-              processedCount++;
-              updateProgress(processedCount, successCount, errorCount);
-              
-              const nama = (row["Nama Kamar"] || "").toString().trim();
-              const kelasSVIP = (row["Kelas SVIP (true/false)"] || "false").toString().toLowerCase() === "true";
-              const kelasVIP = (row["Kelas VIP (true/false)"] || "false").toString().toLowerCase() === "true";
-              const kelasI = (row["Kelas I (true/false)"] || "false").toString().toLowerCase() === "true";
-              const kelasII = (row["Kelas II (true/false)"] || "false").toString().toLowerCase() === "true";
-              const kelasIII = (row["Kelas III (true/false)"] || "false").toString().toLowerCase() === "true";
-              const kelasKhusus = (row["Kelas Khusus (true/false)"] || "false").toString().toLowerCase() === "true";
-              
-              if (!nama) {
-                missingCount++;
-                continue;
-              }
-              
-              rows.push({ 
-                Kode_Kamar: "", // Will be generated automatically
-                Nama_Kamar: nama, 
-                Kelas_SVIP: kelasSVIP,
-                Kelas_VIP: kelasVIP,
-                Kelas_I: kelasI,
-                Kelas_II: kelasII,
-                Kelas_III: kelasIII,
-                Kelas_Khusus: kelasKhusus
-              });
-            }
-            
-            if (rows.length === 0) { 
-              showUploadError("Tidak ada data valid untuk diimpor."); 
-              return; 
-            }
-            
-            // Insert data one by one to generate kode kamar
-            for (let i = 0; i < rows.length; i++) {
-              const row = rows[i];
-              try {
-                const nextKode = await generateNextKodeKamar();
-                const { error } = await tenantSupabase.from("Data_Kamar").insert([{ 
-                  Kode_Kamar: nextKode, 
-                  Nama_Kamar: row.Nama_Kamar, 
-                  Kelas_SVIP: row.Kelas_SVIP,
-                  Kelas_VIP: row.Kelas_VIP,
-                  Kelas_I: row.Kelas_I,
-                  Kelas_II: row.Kelas_II,
-                  Kelas_III: row.Kelas_III,
-                  Kelas_Khusus: row.Kelas_Khusus
-                }]);
-                
-                if (error) {
-                  errorCount++;
-                } else {
-                  successCount++;
-                }
-                
-                // Update progress
-                updateProgress(totalRows, successCount, errorCount, `Mengimpor data ${i + 1} dari ${rows.length}...`);
-                
-              } catch (err: any) {
-                errorCount++;
-                console.error(err);
-              }
-            }
-            
-            // Complete upload with final counts
-            completeUpload(successCount, errorCount, missingCount);
-            
-            // Refresh data
-            await fetchAll();
-          } catch (err: any) {
-            console.error(err);
-            showUploadError(`Gagal mengimpor data: ${err.message}`);
-          }
+          await processRows(results.data || []);
         },
         error: (error: Papa.ParseError) => {
           showUploadError(`Gagal membaca file CSV: ${error.message}`);
@@ -307,8 +373,8 @@ const DataKamarFormTable: React.FC = () => {
 
     try {
       const records = list.map((item) => ({
-        "Kode Kamar": item.Kode_Kamar,
-        "Nama Kamar": item.Nama_Kamar,
+        "Kode Kamar": item.kode_kamar,
+        "Nama Kamar": item.nama_kamar,
         "Kelas SVIP": item.Kelas_SVIP ? "Ya" : "Tidak",
         "Kelas VIP": item.Kelas_VIP ? "Ya" : "Tidak",
         "Kelas I": item.Kelas_I ? "Ya" : "Tidak",
@@ -347,7 +413,7 @@ const DataKamarFormTable: React.FC = () => {
         <Button variant="import" className="shadow-sm" asChild>
           <label className="flex cursor-pointer items-center gap-2">
             <Upload className="h-4 w-4" /> Impor Data
-            <Input type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+            <Input type="file" accept=".csv,.xlsx,.xls" onChange={handleImportData} className="sr-only" />
           </label>
         </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -546,8 +612,8 @@ const DataKamarFormTable: React.FC = () => {
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">
                     <div>
-                      <div className="font-semibold">{item.Kode_Kamar}</div>
-                      <div className="text-sm text-muted-foreground">{item.Nama_Kamar}</div>
+                      <div className="font-semibold">{item.kode_kamar}</div>
+                      <div className="text-sm text-muted-foreground">{item.nama_kamar}</div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -628,5 +694,3 @@ const DataKamarFormTable: React.FC = () => {
 };
 
 export default DataKamarFormTable;
-
-

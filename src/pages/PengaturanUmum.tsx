@@ -13,7 +13,28 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Building2,
+  Calendar,
+  CheckCircle2,
+  Copy,
   Image as ImageIcon,
   Loader2,
   MapPin,
@@ -26,16 +47,25 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { GeneralSettings, defaultGeneralSettings } from "@/hooks/useGeneralSettings";
 import { useGeneralSettingsContext } from "@/contexts/GeneralSettingsContext";
+import { useYear } from "@/contexts/YearContext";
+import { useTenant } from "@/contexts/TenantContext";
 import { supabase } from "@/integrations/supabase/client";
 
 const PengaturanUmum: React.FC = () => {
   const { toast } = useToast();
   const { settings, loading, saving, error, save } = useGeneralSettingsContext();
+  const { selectedYear, availableYears } = useYear();
+  const { tenant } = useTenant();
   const [formData, setFormData] = useState<GeneralSettings>(settings);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(
     settings.logo_url ?? null
   );
+  // Copy Data state
+  const [copySourceYear, setCopySourceYear] = useState<string>(selectedYear.toString());
+  const [copyTargetYear, setCopyTargetYear] = useState<string>("");
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [copyResult, setCopyResult] = useState<Record<string, number> | null>(null);
 
   useEffect(() => {
     setFormData(settings);
@@ -448,15 +478,162 @@ const PengaturanUmum: React.FC = () => {
         </div>
       </form>
 
-      <Alert>
-        <UserRound className="h-4 w-4" />
-        <AlertTitle>Tips</AlertTitle>
-        <AlertDescription>
-          Pastikan informasi jabatan dan pejabat selalu diperbarui untuk
-          memastikan dokumen resmi menampilkan tanda tangan yang valid.
-        </AlertDescription>
-      </Alert>
-    </div>
+      {/* ===== Salin Data Tahunan Card ===== */}
+      <Separator className="my-2" />
+      <Card className="border-none shadow-lg bg-gradient-to-br from-white to-teal-50/30">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 shadow-md">
+              <Copy className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-lg">Salin Data Tahunan</CardTitle>
+              <CardDescription>
+                Salin seluruh data operasional dari satu tahun ke tahun lainnya.
+                Data yang disalin mencakup biaya, pendapatan, kegiatan, alokasi, skenario tarif, dan lainnya.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Source Year */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-teal-600" />
+                Tahun Sumber
+              </Label>
+              <Select value={copySourceYear} onValueChange={setCopySourceYear}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Pilih tahun sumber" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.map((y) => (
+                    <SelectItem key={y} value={y.toString()} className="font-semibold">
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Data akan diambil dari tahun ini</p>
+            </div>
+            {/* Target Year */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-indigo-600" />
+                Tahun Tujuan
+              </Label>
+              <Select value={copyTargetYear} onValueChange={(v) => { setCopyTargetYear(v); setCopyResult(null); }}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Pilih tahun tujuan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableYears.filter((y) => y.toString() !== copySourceYear).map((y) => (
+                    <SelectItem key={y} value={y.toString()} className="font-semibold">
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Data akan disalin ke tahun ini</p>
+            </div>
+          </div>
+
+          {/* Copy Result */}
+          {copyResult && (
+            <Alert className="border-green-200 bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800">Berhasil Disalin!</AlertTitle>
+              <AlertDescription className="text-green-700">
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+                  {Object.entries(copyResult).map(([table, count]) => (
+                    <div key={table} className="flex justify-between">
+                      <span className="font-medium">{table}:</span>
+                      <span className="text-green-900 font-bold">{count} baris</span>
+                    </div>
+                  ))}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Copy Action */}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                disabled={!copySourceYear || !copyTargetYear || copySourceYear === copyTargetYear || copyLoading}
+                className="w-full sm:w-auto gap-2 bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 shadow-md"
+              >
+                {copyLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Menyalin Data...
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4" />
+                    Salin Data dari {copySourceYear || '...'} ke {copyTargetYear || '...'}
+                  </>
+                )}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Salin Data</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Anda akan menyalin <strong>seluruh data operasional</strong> dari tahun{" "}
+                  <strong>{copySourceYear}</strong> ke tahun <strong>{copyTargetYear}</strong>.
+                  <br /><br />
+                  <span className="text-orange-600 font-semibold">
+                    ⚠️ Data yang sudah ada pada tahun {copyTargetYear} akan diganti (overwrite).
+                  </span>
+                  <br /><br />
+                  Apakah Anda yakin ingin melanjutkan?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    if (!tenant?.id) {
+                      toast({ title: "Error", description: "Tenant tidak ditemukan.", variant: "destructive" });
+                      return;
+                    }
+                    setCopyLoading(true);
+                    setCopyResult(null);
+                    try {
+                      const { data, error: rpcError } = await supabase.rpc('copy_year_data', {
+                        p_src_year: parseInt(copySourceYear, 10),
+                        p_tgt_year: parseInt(copyTargetYear, 10),
+                        p_tenant_id: tenant.id,
+                      });
+                      if (rpcError) throw rpcError;
+                      setCopyResult(data as Record<string, number>);
+                      toast({
+                        title: "✅ Berhasil",
+                        description: `Data dari tahun ${copySourceYear} berhasil disalin ke tahun ${copyTargetYear}.`,
+                      });
+                    } catch (err: any) {
+                      console.error('Copy year data error:', err);
+                      toast({
+                        title: "❌ Gagal Menyalin Data",
+                        description: err?.message || "Terjadi kesalahan saat menyalin data.",
+                        variant: "destructive",
+                      });
+                    } finally {
+                      setCopyLoading(false);
+                    }
+                  }}
+                  className="bg-teal-600 hover:bg-teal-700"
+                >
+                  Ya, Salin Data
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
+    </div >
   );
 };
 

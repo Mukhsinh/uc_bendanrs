@@ -11,7 +11,6 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
@@ -114,7 +113,7 @@ const KlinikFormTable: React.FC = () => {
 
   // Function to generate next kode klinik
   const generateNextKodeKlinik = async (): Promise<string> => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("klinik")
       .select("kode_klinik")
       .order("kode_klinik", { ascending: false })
@@ -135,7 +134,7 @@ const KlinikFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("klinik")
           .update({ 
             nama_klinik: values.nama_klinik,
@@ -147,7 +146,7 @@ const KlinikFormTable: React.FC = () => {
         toast.success("Data klinik diperbarui.");
       } else {
         const nextKode = await generateNextKodeKlinik();
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("klinik")
           .insert([{ 
             kode_klinik: nextKode, 
@@ -196,85 +195,145 @@ const KlinikFormTable: React.FC = () => {
     // Reset file input
     event.target.value = '';
     
+    const pickFirst = (row: any, keys: string[]) => {
+      for (const key of keys) {
+        const value = row?.[key];
+        if (value === undefined || value === null) continue;
+        const asString = value.toString().trim();
+        if (asString !== "") return value;
+      }
+      return undefined;
+    };
+
+    const parseBool = (value: any): boolean => {
+      if (value === true) return true;
+      if (value === false) return false;
+      const v = (value ?? "").toString().trim().toLowerCase();
+      if (["true", "1", "ya", "y", "yes"].includes(v)) return true;
+      if (["false", "0", "tidak", "t", "no"].includes(v)) return false;
+      return false;
+    };
+
+    const parseXlsxToObjects = async (xlsxFile: File): Promise<any[]> => {
+      const buffer = await xlsxFile.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+      if (!rows || rows.length < 2) return [];
+      const headers = (rows[0] || []).map((h) => (h ?? "").toString().trim());
+      return rows
+        .slice(1)
+        .filter((r) => (r || []).some((cell) => (cell ?? "").toString().trim() !== ""))
+        .map((r) => {
+          const obj: any = {};
+          headers.forEach((h, idx) => {
+            if (!h) return;
+            obj[h] = r?.[idx];
+          });
+          return obj;
+        });
+    };
+
+    const processRows = async (rawRows: any[]) => {
+      try {
+        const totalRows = rawRows.length;
+        startUpload(totalRows, "Sedang mengimpor data klinik...");
+
+        const validRows: Omit<Klinik, "kode_klinik">[] = [];
+        let missingCount = 0;
+
+        for (const row of rawRows) {
+          const namaRaw = pickFirst(row, ["Nama Klinik", "nama_klinik", "Nama_Klinik"]);
+          const nama = (namaRaw ?? "").toString().trim();
+          const layananBPJS = parseBool(pickFirst(row, ["Layanan BPJS Kes (true/false)", "Layanan_BPJS_Kes", "Layanan BPJS Kes"]));
+          const layananUmum = parseBool(pickFirst(row, ["Layanan Umum/Asuransi (true/false)", "Layanan_Umum_Asuransi", "Layanan Umum/Asuransi"]));
+
+          if (!nama) {
+            missingCount++;
+            continue;
+          }
+
+          validRows.push({
+            nama_klinik: nama,
+            Layanan_BPJS_Kes: layananBPJS,
+            Layanan_Umum_Asuransi: layananUmum,
+          });
+        }
+
+        if (validRows.length === 0) {
+          showUploadError("Tidak ada data valid untuk diimpor.");
+          return;
+        }
+
+        // Ambil kode terakhir sekali, lalu generate semua kode secara sequential
+        const { data: lastData } = await tenantSupabase
+          .from("klinik")
+          .select("kode_klinik")
+          .order("kode_klinik", { ascending: false })
+          .limit(1);
+
+        const lastNumber = lastData?.[0]?.kode_klinik
+          ? parseInt((lastData[0].kode_klinik as string).split('.')[1] || "0")
+          : 0;
+
+        // Bangun array insert dengan kode yang unik
+        const insertData = validRows.map((row, idx) => {
+          const num = (isNaN(lastNumber) ? 0 : lastNumber) + idx + 1;
+          return {
+            kode_klinik: `RJ.${num.toString().padStart(2, '0')}`,
+            nama_klinik: row.nama_klinik,
+            Layanan_BPJS_Kes: row.Layanan_BPJS_Kes,
+            Layanan_Umum_Asuransi: row.Layanan_Umum_Asuransi,
+          };
+        });
+
+        updateProgress(totalRows, 0, 0, `Menyimpan ${insertData.length} data klinik...`);
+
+        // Batch insert sekaligus
+        const { error } = await tenantSupabase.from("klinik").insert(insertData);
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        if (error) {
+          console.error("Batch insert error:", error);
+          // Fallback: insert satu per satu untuk mendapatkan detail error
+          for (let i = 0; i < insertData.length; i++) {
+            const { error: rowError } = await tenantSupabase.from("klinik").insert([insertData[i]]);
+            if (rowError) {
+              errorCount++;
+              console.error(`Error pada baris ${i + 1}:`, rowError);
+            } else {
+              successCount++;
+            }
+            updateProgress(totalRows, successCount, errorCount, `Mengimpor data ${i + 1} dari ${insertData.length}...`);
+          }
+        } else {
+          successCount = insertData.length;
+          updateProgress(totalRows, successCount, errorCount);
+        }
+
+        completeUpload(successCount, errorCount, missingCount);
+        await fetchKlinik();
+      } catch (err: any) {
+        console.error(err);
+        showUploadError(`Gagal mengimpor data: ${err.message}`);
+      }
+    };
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xlsx" || ext === "xls") {
+      parseXlsxToObjects(file).then(processRows).catch((err: any) => showUploadError(`Gagal membaca file Excel: ${err.message}`));
+      return;
+    }
+
     file.text().then((text) => {
       (Papa as any).parse(text, {
         header: true,
         skipEmptyLines: true,
         complete: async (results: Papa.ParseResult<any>) => {
-          try {
-            const allRows = results.data;
-            const totalRows = allRows.length;
-            
-            // Start upload progress
-            startUpload(totalRows, "Sedang mengimpor data klinik...");
-            
-            const rows: Omit<Klinik, "kode_klinik">[] = [];
-            let processedCount = 0;
-            let successCount = 0;
-            let errorCount = 0;
-            let missingCount = 0;
-            
-            for (const row of results.data) {
-              processedCount++;
-              updateProgress(processedCount, successCount, errorCount);
-              
-              const nama = (row["Nama Klinik"] || "").toString().trim();
-              const layananBPJS = (row["Layanan BPJS Kes (true/false)"] || "false").toString().toLowerCase() === "true";
-              const layananUmum = (row["Layanan Umum/Asuransi (true/false)"] || "false").toString().toLowerCase() === "true";
-              
-              if (!nama) {
-                missingCount++;
-                continue;
-              }
-              
-              rows.push({ 
-                nama_klinik: nama, 
-                Layanan_BPJS_Kes: layananBPJS,
-                Layanan_Umum_Asuransi: layananUmum
-              });
-            }
-            
-            if (rows.length === 0) {
-              showUploadError("Tidak ada data valid untuk diimpor.");
-              return;
-            }
-            
-            // Insert data one by one to generate kode klinik
-            for (let i = 0; i < rows.length; i++) {
-              const row = rows[i];
-              try {
-                const nextKode = await generateNextKodeKlinik();
-                const { error } = await tenantSupabase.from("klinik").insert([{ 
-                  kode_klinik: nextKode, 
-                  nama_klinik: row.nama_klinik,
-                  Layanan_BPJS_Kes: row.Layanan_BPJS_Kes,
-                  Layanan_Umum_Asuransi: row.Layanan_Umum_Asuransi
-                }]);
-                
-                if (error) {
-                  errorCount++;
-                } else {
-                  successCount++;
-                }
-                
-                // Update progress
-                updateProgress(totalRows, successCount, errorCount, `Mengimpor data ${i + 1} dari ${rows.length}...`);
-                
-              } catch (err: any) {
-                errorCount++;
-                console.error(err);
-              }
-            }
-            
-            // Complete upload with final counts
-            completeUpload(successCount, errorCount, missingCount);
-            
-            // Refresh data
-            await fetchKlinik();
-          } catch (err: any) {
-            console.error(err);
-            showUploadError(`Gagal mengimpor data: ${err.message}`);
-          }
+          await processRows(results.data || []);
         },
         error: (error: Papa.ParseError) => {
           showUploadError(`Gagal membaca file CSV: ${error.message}`);
@@ -315,7 +374,7 @@ const KlinikFormTable: React.FC = () => {
         <Button variant="import" className="shadow-sm" asChild>
           <label className="flex cursor-pointer items-center gap-2">
             <Upload className="h-4 w-4" /> Impor Data
-            <Input id="import-file-klinik" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+            <Input id="import-file-klinik" type="file" accept=".csv,.xlsx,.xls" onChange={handleImportData} className="sr-only" />
           </label>
         </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -475,5 +534,3 @@ const KlinikFormTable: React.FC = () => {
 };
 
 export default KlinikFormTable;
-
-

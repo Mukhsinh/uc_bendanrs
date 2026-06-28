@@ -11,6 +11,9 @@ import { useFormOperations } from "@/hooks/use-form-operations";
 import { showError, showInfo } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { safeCRUDOperation, handleDatabaseError } from "@/utils/database-operations";
+import { useTenant } from "@/contexts/TenantContext";
+import { useYear } from "@/contexts/YearContext";
+import YearFilter from "@/components/ui/YearFilter";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { useReportDownload } from "@/components/report";
@@ -85,6 +88,8 @@ const BarangFormTable: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
   const { downloadReport } = useReportDownload();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const { selectedYear } = useYear();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -144,58 +149,33 @@ const BarangFormTable: React.FC = () => {
   const fetchBarang = useCallback(async () => {
     await loadData(async () => {
       try {
-        console.log("=== FETCHING BARANG DATA (global scope) ===");
+        console.log("=== FETCHING BARANG DATA via RPC ===", { selectedYear });
 
-        const batchSize = 1000;
-        let page = 0;
-        let fetchedAll = false;
-        const allRows: any[] = [];
+        // Gunakan RPC SECURITY DEFINER — bypass masalah JWT app_metadata
+        // RPC otomatis resolve tenant_id dari user_profiles jika JWT tidak punya
+        const { data, error } = await (supabase as any).rpc('get_barang_farmasi', {
+          p_tahun: selectedYear,
+        });
 
-        while (!fetchedAll) {
-          const from = page * batchSize;
-          const to = from + batchSize - 1;
-
-          const { data, error } = await supabase
-            .from("data_barang_farmasi")
-            .select("*")
-            .order("updated_at", { ascending: false, nullsFirst: false })
-            .range(from, to);
-
-          if (error) {
-            console.error("Error fetching barang data:", error);
-            throw error;
-          }
-
-          if (data && data.length > 0) {
-            allRows.push(...data);
-            if (data.length < batchSize) {
-              fetchedAll = true;
-            } else {
-              page += 1;
-            }
-          } else {
-            fetchedAll = true;
-          }
+        if (error) {
+          console.error("Error fetching barang via RPC:", error);
+          throw error;
         }
 
+        const allRows: any[] = data ?? [];
         console.log("Total raw rows fetched:", allRows.length);
 
+        // Deduplikasi: jika ada kode_barang+gudang duplikat, ambil record terbaru
         const latestByKodeGudang = new Map<string, { record: Barang; timestamp: number }>();
         allRows.forEach((row) => {
           const normalized = normalizeBarangRecord(row);
-          if (!normalized.kode_barang) {
-            return;
-          }
+          if (!normalized.kode_barang) return;
 
           const timestamp = getRecordTimestamp(row);
           const dedupeKey = `${normalized.kode_barang}__${normalized.gudang}`;
           const existing = latestByKodeGudang.get(dedupeKey);
-
           if (!existing || timestamp >= existing.timestamp) {
-            latestByKodeGudang.set(dedupeKey, {
-              record: normalized,
-              timestamp,
-            });
+            latestByKodeGudang.set(dedupeKey, { record: normalized, timestamp });
           }
         });
 
@@ -215,29 +195,31 @@ const BarangFormTable: React.FC = () => {
         throw error;
       }
     }, { showLoadingToast: false, showSuccessToast: false });
-  }, [loadData]);
+  }, [loadData, selectedYear]);
 
+  // Inisialisasi user session sekali saat mount
   useEffect(() => {
-    const init = async () => {
+    const initUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          console.log("User authenticated:", session.user.id);
           setUserId(session.user.id);
         } else {
-          console.log("No user session found, continuing with global data scope");
           setUserId(null);
         }
       } catch (error) {
         console.error("Error fetching user session:", error);
         setUserId(null);
-      } finally {
-        await fetchBarang();
       }
     };
+    initUser();
+  }, []);
 
-    init();
-  }, [fetchBarang]);
+  // Fetch ulang setiap kali tahun berubah atau tenant selesai loading
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchBarang();
+  }, [selectedYear, tenantLoading, fetchBarang]);
 
   useEffect(() => {
     if (editingBarang) {
@@ -325,7 +307,8 @@ const BarangFormTable: React.FC = () => {
       } else {
         await safeCRUDOperation('INSERT', 'data_barang_farmasi', undefined, {
           ...normalizedValues,
-          user_id: userId || null
+          user_id: userId || null,
+          tahun: selectedYear,
         });
       }
       
@@ -471,6 +454,7 @@ const BarangFormTable: React.FC = () => {
                   harga: hargaValue,
                   gudang: gudangValue,
                   user_id: userId,
+                  tahun: selectedYear,
                 };
                 
                 validRowsCount++;
@@ -663,13 +647,16 @@ const BarangFormTable: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Manajemen Barang Farmasi</h2>
-        {process.env.NODE_ENV === "development" && (
-          <div className="text-xs text-gray-500 mt-1">
-            Debug: Total data: {barangList.length} | BHP: {barangList.filter(item => item.gudang === "bhp").length}
-          </div>
-        )}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-2xl font-bold">Manajemen Barang Farmasi</h2>
+          {process.env.NODE_ENV === "development" && (
+            <div className="text-xs text-gray-500 mt-1">
+              Debug: Total data: {barangList.length} | BHP: {barangList.filter(item => item.gudang === "bhp").length} | Tahun: {selectedYear}
+            </div>
+          )}
+        </div>
+        <YearFilter />
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">

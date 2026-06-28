@@ -30,15 +30,14 @@ interface YearContextValue {
 
 const YearContext = createContext<YearContextValue | undefined>(undefined);
 
-/** Rentang tahun yang tersedia: Mulai dari 2025 hingga 1 tahun ke depan */
+/** Rentang tahun yang tersedia: mulai dari 2025 hingga 1 tahun ke depan dari tahun saat ini */
 const buildAvailableYears = (): number[] => {
   const current = getCurrentYear();
   const startYear = 2025;
+  const endYear = current + 1;
   const years: number[] = [];
 
-  // Ambil tahun tertinggi (current + 1 atau target yang ingin dituju)
-  // Untuk saat ini kita batasi sampai current + 1
-  for (let y = Math.max(current + 1, startYear); y >= startYear; y--) {
+  for (let y = endYear; y >= startYear; y--) {
     years.push(y);
   }
 

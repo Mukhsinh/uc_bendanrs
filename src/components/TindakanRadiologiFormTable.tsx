@@ -11,14 +11,8 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
-import { 
-  optimizedDelete, 
-  optimizedUpdate, 
-  optimizedInsert, 
-  handleDatabaseError,
-  safeCRUDOperation 
-} from "@/utils/database-operations";
+import { handleDatabaseError } from "@/utils/database-operations";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -73,7 +67,7 @@ const TindakanRadiologiFormTable: React.FC = () => {
 
   // Function to generate next available Rad.xxx code
   const generateNextCode = async (): Promise<string> => {
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_radiologi")
       .select("kode_tindakan")
       .order("kode_tindakan", { ascending: false })
@@ -112,7 +106,7 @@ const TindakanRadiologiFormTable: React.FC = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await tenantSupabase
       .from("tindakan_radiologi")
       .select("id, kode_tindakan, nama_tindakan, created_at, updated_at")
       .order("created_at", { ascending: false });
@@ -129,18 +123,18 @@ const TindakanRadiologiFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        // For editing, use SAFE update operation
-        await safeCRUDOperation('UPDATE', 'tindakan_radiologi', editing.id, {
-          nama_tindakan: values.nama_tindakan
-        });
+        const { error } = await tenantSupabase
+          .from("tindakan_radiologi")
+          .update({ nama_tindakan: values.nama_tindakan })
+          .eq("id", editing.id);
+        if (error) throw error;
         toast.success("Data diperbarui.");
       } else {
-        // For new records, generate automatic code and use SAFE insert
         const newCode = await generateNextCode();
-        await safeCRUDOperation('INSERT', 'tindakan_radiologi', undefined, {
-          kode_tindakan: newCode,
-          nama_tindakan: values.nama_tindakan
-        });
+        const { error } = await tenantSupabase
+          .from("tindakan_radiologi")
+          .insert([{ kode_tindakan: newCode, nama_tindakan: values.nama_tindakan }]);
+        if (error) throw error;
         toast.success(`Data ditambahkan dengan kode ${newCode}.`);
       }
       await fetchAll();
@@ -155,8 +149,11 @@ const TindakanRadiologiFormTable: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      // Use SAFE delete operation
-      await safeCRUDOperation('DELETE', 'tindakan_radiologi', id);
+      const { error } = await tenantSupabase
+        .from("tindakan_radiologi")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
     } catch (err: any) {
@@ -216,7 +213,7 @@ const TindakanRadiologiFormTable: React.FC = () => {
               const row = rows[i];
               try {
                 const newCode = await generateNextCode();
-                const { error } = await supabase
+                const { error } = await tenantSupabase
                   .from("tindakan_radiologi")
                   .insert([{ kode_tindakan: newCode, nama_tindakan: row.nama_tindakan }]);
                 

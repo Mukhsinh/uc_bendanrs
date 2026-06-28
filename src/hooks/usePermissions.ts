@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCurrentTenantId } from '@/lib/tenantAwareClient';
+import { isSuperAdmin, normalizeRoleName } from '@/utils/role-check';
 
 interface Permission {
   id: string;
@@ -30,10 +31,30 @@ export const usePermissions = () => {
       // Get current tenant_id
       const currentTenantId = getCurrentTenantId();
 
-      // Cek jika superadmin (superadmin bisa akses semua tanpa isolasi tenant)
-      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: userId });
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const roleFromMetadata = normalizeRoleName((authUser?.app_metadata as any)?.role);
+      const tenantFromMetadata = typeof (authUser?.app_metadata as any)?.tenant_id === 'string'
+        ? (authUser?.app_metadata as any)?.tenant_id
+        : null;
+
+      if (roleFromMetadata) {
+        if (roleFromMetadata !== 'Super Admin' && currentTenantId && tenantFromMetadata && currentTenantId !== tenantFromMetadata) {
+          setUserRole(null);
+          setError('User tidak memiliki akses ke tenant ini');
+          return;
+        }
+
+        setUserRole({
+          role_id: '',
+          role_name: roleFromMetadata,
+          permissions: []
+        });
+        return;
+      }
+
+      const superAdmin = await isSuperAdmin(userId);
       
-      if (isSuperadmin) {
+      if (superAdmin) {
         // Super Admin - bisa akses semua
         // Untuk super admin, kita masih perlu mengambil role, tapi tanpa filter tenant
         const { data: userRoleData, error: roleError } = await supabase
@@ -51,7 +72,7 @@ export const usePermissions = () => {
           `)
           .eq('user_id', userId)
           .eq('is_active', true)
-          .single();
+          .maybeSingle();
 
         if (!roleError && userRoleData) {
           const roleData = userRoleData.role_akses_aplikasi as any;
@@ -79,20 +100,6 @@ export const usePermissions = () => {
         return;
       }
 
-      // Verifikasi user memiliki tenant_id yang sesuai dengan current tenant
-      const { data: userProfile } = await supabase
-        .from('user_profiles')
-        .select('tenant_id')
-        .eq('user_id', userId)
-        .single();
-
-      if (!userProfile || userProfile.tenant_id !== currentTenantId) {
-        console.warn("User tidak memiliki akses ke tenant ini");
-        setUserRole(null);
-        setError('User tidak memiliki akses ke tenant ini');
-        return;
-      }
-
       // Ambil role dari user_roles table dengan join ke role_akses_aplikasi
       const { data: userRoleData, error: roleError } = await supabase
         .from('user_roles')
@@ -109,9 +116,9 @@ export const usePermissions = () => {
         `)
         .eq('user_id', userId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (roleError) throw roleError;
+      if (roleError && roleError.code !== 'PGRST116') throw roleError;
 
       if (userRoleData) {
         const roleData = userRoleData.role_akses_aplikasi as any;
@@ -121,7 +128,11 @@ export const usePermissions = () => {
           permissions: roleData.role_permissions || []
         });
       } else {
-        setUserRole(null);
+        setUserRole({
+          role_id: '',
+          role_name: 'User',
+          permissions: []
+        });
       }
     } catch (err) {
       console.error('Error fetching user role:', err);
@@ -225,8 +236,3 @@ export const usePermissions = () => {
 };
 
 export default usePermissions;
-
-
-
-
-

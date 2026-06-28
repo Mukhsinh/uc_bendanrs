@@ -11,7 +11,6 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
@@ -91,7 +90,7 @@ const TindakanCathlabFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("tindakan_cathlab")
           .update({ nama_tindakan: values.nama_tindakan })
           .eq("id", editing.id);
@@ -99,7 +98,7 @@ const TindakanCathlabFormTable: React.FC = () => {
         toast.success("Data diperbarui.");
       } else {
         // For new records, let the database auto-generate the code
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("tindakan_cathlab")
           .insert([{ nama_tindakan: values.nama_tindakan }]);
         if (error) throw error;
@@ -128,8 +127,9 @@ const TindakanCathlabFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Nama Tindakan"];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const headers = ["Kode Tindakan", "Nama Tindakan"];
+    const example = [["(otomatis)", "Contoh: PCI 1 stent"]];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...example]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Tindakan Cathlab");
     XLSX.writeFile(wb, "template_tindakan_cathlab.xlsx");
@@ -249,24 +249,32 @@ const TindakanCathlabFormTable: React.FC = () => {
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Tindakan" : "Tambah Tindakan"}</DialogTitle>
               <DialogDescription>
-                {editing ? "Perbarui detail tindakan cathlab." : "Tambahkan tindakan cathlab baru."}
+                {editing
+                  ? `Edit tindakan Cathlab (Kode: ${editing.kode_tindakan}).`
+                  : "Tambahkan tindakan Cathlab baru. Kode akan digenerate otomatis."}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="nama_tindakan"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nama Tindakan</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: PCI" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                {editing && (
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-muted-foreground">Kode Tindakan</span>
+                    <span className="font-semibold">{editing.kode_tindakan}</span>
+                  </div>
+                )}
+                <FormField
+                  control={form.control}
+                  name="nama_tindakan"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nama Tindakan</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Contoh: PCI 1 stent" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <DialogFooter>
                   <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
                 </DialogFooter>
@@ -292,7 +300,7 @@ const TindakanCathlabFormTable: React.FC = () => {
         <Table>
           <TableHeader className="bg-[#0f766e]">
             <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
-              <TableHead className="font-bold text-white">Kode Tindakan</TableHead>
+              <TableHead className="font-bold text-white w-36">Kode Tindakan</TableHead>
               <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
               <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
@@ -300,6 +308,8 @@ const TindakanCathlabFormTable: React.FC = () => {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={3} className="h-24 text-center">Memuat data...</TableCell></TableRow>
+            ) : list.length === 0 ? (
+              <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">Belum ada data tindakan Cathlab.</TableCell></TableRow>
             ) : (
               list.map(item => (
                 <TableRow key={item.id}>
@@ -336,5 +346,4 @@ const TindakanCathlabFormTable: React.FC = () => {
 };
 
 export default TindakanCathlabFormTable;
-
 

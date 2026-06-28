@@ -11,7 +11,6 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +31,7 @@ import { useUploadProgress } from "@/hooks/use-upload-progress";
 import { useReportDownload } from "@/components/report";
 
 interface TindakanBDRS {
+  id: string;
   kode: string;
   nama: string;
   created_at?: string;
@@ -47,10 +47,8 @@ const TindakanBDRSFormTable: React.FC = () => {
   const [editing, setEditing] = useState<TindakanBDRS | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
-  // Use upload progress hook
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
   
-  // Use form operations hook
   const { loading, saving, deleting, importing, loadData, saveData, deleteData, importData } = useFormOperations({
     entityName: "Tindakan BDRS",
     onSuccess: () => {
@@ -75,7 +73,7 @@ const TindakanBDRSFormTable: React.FC = () => {
   const fetchAll = async () => {
     const { data, error } = await tenantSupabase
       .from("tindakan_bdrs")
-      .select("kode, nama")
+      .select("id, kode, nama, created_at")
       .order("kode", { ascending: true });
     if (error) {
       toast.error("Gagal memuat data.");
@@ -89,15 +87,15 @@ const TindakanBDRSFormTable: React.FC = () => {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (editing) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("tindakan_bdrs")
           .update({ nama: values.nama })
-          .eq("kode", editing.kode);
+          .eq("id", editing.id);
         if (error) throw error;
         toast.success("Data diperbarui.");
       } else {
-        // For new records, let the database auto-generate the code
-        const { error } = await supabase
+        // kode di-generate otomatis oleh trigger database
+        const { error } = await tenantSupabase
           .from("tindakan_bdrs")
           .insert([{ nama: values.nama }]);
         if (error) throw error;
@@ -113,9 +111,9 @@ const TindakanBDRSFormTable: React.FC = () => {
     }
   };
 
-  const handleDelete = async (kode: string) => {
+  const handleDelete = async (id: string) => {
     try {
-      const { error } = await tenantSupabase.from("tindakan_bdrs").delete().eq("kode", kode);
+      const { error } = await tenantSupabase.from("tindakan_bdrs").delete().eq("id", id);
       if (error) throw error;
       await fetchAll();
       toast.success("Data dihapus.");
@@ -126,8 +124,9 @@ const TindakanBDRSFormTable: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const headers = ["Nama Tindakan"];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const headers = ["Kode Tindakan", "Nama Tindakan"];
+    const example = [["(otomatis)", "Contoh: Crossmatch Prc 1"]];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...example]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template Tindakan BDRS");
     XLSX.writeFile(wb, "template_tindakan_bdrs.xlsx");
@@ -137,8 +136,6 @@ const TindakanBDRSFormTable: React.FC = () => {
   const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
-    // Reset file input
     event.target.value = '';
     
     file.text().then((text) => {
@@ -148,10 +145,7 @@ const TindakanBDRSFormTable: React.FC = () => {
         complete: async (results: Papa.ParseResult<any>) => {
           try {
             const allRows = results.data;
-            const totalRows = allRows.length;
-            
-            // Start upload progress
-            startUpload(totalRows, "Sedang mengimpor data tindakan BDRS...");
+            startUpload(allRows.length, "Sedang mengimpor data tindakan BDRS...");
             
             const rows: { nama: string }[] = [];
             let processedCount = 0;
@@ -164,27 +158,21 @@ const TindakanBDRSFormTable: React.FC = () => {
               updateProgress(processedCount, successCount, errorCount);
               
               const nama = (row["Nama Tindakan"] || "").toString().trim();
-              if (!nama) {
-                missingCount++;
-                continue;
-              }
+              if (!nama) { missingCount++; continue; }
               rows.push({ nama });
               successCount++;
             }
             
-            if (rows.length === 0) { 
-              showUploadError("Tidak ada data valid untuk diimpor."); 
-              return; 
+            if (rows.length === 0) {
+              showUploadError("Tidak ada data valid untuk diimpor.");
+              return;
             }
             
-            // Insert data to database
+            // kode di-generate otomatis oleh trigger saat insert
             const { error } = await tenantSupabase.from("tindakan_bdrs").insert(rows);
             if (error) throw error;
             
-            // Complete upload with final counts
             completeUpload(successCount, errorCount, missingCount);
-            
-            // Refresh data
             await fetchAll();
           } catch (err: any) {
             console.error(err);
@@ -203,13 +191,11 @@ const TindakanBDRSFormTable: React.FC = () => {
       toast.warning("Tidak ada data untuk laporan.");
       return;
     }
-
     try {
       const records = list.map((item) => ({
         "Kode Tindakan": item.kode,
         "Nama Tindakan": item.nama,
       }));
-
       await downloadReport({
         title: "Laporan Tindakan BDRS",
         filename: "laporan_tindakan_bdrs",
@@ -247,24 +233,32 @@ const TindakanBDRSFormTable: React.FC = () => {
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Tindakan" : "Tambah Tindakan"}</DialogTitle>
               <DialogDescription>
-                {editing ? "Perbarui detail tindakan BDRS." : "Tambahkan tindakan BDRS baru."}
+                {editing
+                  ? `Edit tindakan BDRS (Kode: ${editing.kode}).`
+                  : "Tambahkan tindakan BDRS baru. Kode akan digenerate otomatis."}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                  <FormField
-                    control={form.control}
-                    name="nama"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nama Tindakan</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Contoh: Nama Tindakan" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                {editing && (
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-muted-foreground">Kode Tindakan</span>
+                    <span className="font-semibold">{editing.kode}</span>
+                  </div>
+                )}
+                <FormField
+                  control={form.control}
+                  name="nama"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nama Tindakan</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Contoh: Crossmatch Prc 1" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <DialogFooter>
                   <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
                 </DialogFooter>
@@ -272,13 +266,7 @@ const TindakanBDRSFormTable: React.FC = () => {
             </Form>
           </DialogContent>
         </Dialog>
-        <Button
-          onClick={() => {
-            void handleDownloadReport();
-          }}
-          variant="report"
-          className="shadow-sm"
-        >
+        <Button onClick={() => { void handleDownloadReport(); }} variant="report" className="shadow-sm">
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
         <Button onClick={() => fetchAll()} variant="outline" size="icon">
@@ -290,7 +278,7 @@ const TindakanBDRSFormTable: React.FC = () => {
         <Table>
           <TableHeader className="bg-[#0f766e]">
             <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
-              <TableHead className="font-bold text-white">Kode Tindakan</TableHead>
+              <TableHead className="font-bold text-white w-36">Kode Tindakan</TableHead>
               <TableHead className="font-bold text-white">Nama Tindakan</TableHead>
               <TableHead className="text-right font-bold text-white">Aksi</TableHead>
             </TableRow>
@@ -298,9 +286,11 @@ const TindakanBDRSFormTable: React.FC = () => {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={3} className="h-24 text-center">Memuat data...</TableCell></TableRow>
+            ) : list.length === 0 ? (
+              <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">Belum ada data tindakan BDRS.</TableCell></TableRow>
             ) : (
               list.map(item => (
-                <TableRow key={item.kode}>
+                <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.kode}</TableCell>
                   <TableCell>{item.nama}</TableCell>
                   <TableCell className="text-right">
@@ -308,14 +298,11 @@ const TindakanBDRSFormTable: React.FC = () => {
                       <Button
                         variant="edit"
                         size="icon"
-                        onClick={() => {
-                          setEditing(item);
-                          setIsDialogOpen(true);
-                        }}
+                        onClick={() => { setEditing(item); setIsDialogOpen(true); }}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.kode)}>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -327,12 +314,9 @@ const TindakanBDRSFormTable: React.FC = () => {
         </Table>
       </div>
       
-      {/* Import Progress Modal */}
       <ImportProgressModal progress={uploadProgress} />
     </div>
   );
 };
 
 export default TindakanBDRSFormTable;
-
-

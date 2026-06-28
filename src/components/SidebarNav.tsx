@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/accordion";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
+import { isSuperAdmin, normalizeRoleName } from "@/utils/role-check";
 
 interface NavItem {
   title: string;
@@ -59,7 +60,7 @@ const navItems: NavItem[] = [
   {
     title: "Dashboard",
     icon: Home,
-    href: "/",
+    href: "/dashboard",
   },
   {
     title: "Data Master",
@@ -262,19 +263,31 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        // If no user, show only public menus (Dashboard and menus without allowedRoles)
-        // But don't block sidebar rendering - always show something
-        // Keep showing all navItems if no public menus found (better than empty)
-        if (!roleFetchedSuccessfullyRef.current) {
-          const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-          setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+        if (!roleFetchedSuccessfullyRef.current) setFilteredNavItems(navItems);
+        setIsLoadingRole(false);
+        return;
+      }
+
+      const roleFromMetadata = normalizeRoleName((user.app_metadata as any)?.role);
+      if (roleFromMetadata) {
+        setUserRole(roleFromMetadata);
+        if (roleFromMetadata === 'Super Admin') {
+          setFilteredNavItems(navItems);
+        } else {
+          const filtered = navItems.filter(item => {
+            if (!item.allowedRoles || item.allowedRoles.length === 0) return true;
+            return item.allowedRoles.includes(roleFromMetadata);
+          });
+          setFilteredNavItems(filtered.length > 0 ? filtered : navItems);
         }
+        hasEverFetchedRoleRef.current = true;
+        roleFetchedSuccessfullyRef.current = true;
         setIsLoadingRole(false);
         return;
       }
 
       // Cek jika superadmin (superadmin bisa akses semua tanpa isolasi tenant)
-      const { data: isSuperadmin } = await supabase.rpc('is_superadmin', { check_user_id: user.id });
+      const isSuperadmin = await isSuperAdmin(user.id);
       
       if (isSuperadmin) {
         setUserRole("Super Admin");
@@ -297,12 +310,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
 
       if (roleError) {
         console.error("Error fetching user role:", roleError);
-        // On error, show public menus (Dashboard and menus without allowedRoles)
-        // Don't block sidebar - always show something
-        // Always update on error to ensure sidebar is visible
-        // Show all navItems if no public menus found (better than empty or just Dashboard)
-        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+        setFilteredNavItems(navItems);
         roleFetchedSuccessfullyRef.current = true; // Mark as attempted to prevent infinite retries
         setIsLoadingRole(false);
         return;
@@ -326,20 +334,13 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
         hasEverFetchedRoleRef.current = true;
         roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
       } else {
-        // If user has no role assigned, show public menus (Dashboard and menus without allowedRoles)
-        // But ensure sidebar is always visible - show all items if no public menus found
-        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+        setFilteredNavItems(navItems);
         hasEverFetchedRoleRef.current = true;
         roleFetchedSuccessfullyRef.current = true; // Mark as successfully fetched
       }
     } catch (error) {
       console.error("Error getting user role:", error);
-      // Fallback: tampilkan menu publik (Dashboard dan menu tanpa allowedRoles)
-      // Always ensure sidebar is visible - always update on error
-      // Show all navItems if no public menus found (better than empty or just Dashboard)
-      const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-      setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+      setFilteredNavItems(navItems);
       roleFetchedSuccessfullyRef.current = true; // Mark as attempted
     } finally {
       setIsLoadingRole(false);
@@ -357,10 +358,7 @@ export function SidebarNav({ isMobile = false, onLinkClick, className, ...props 
         // Fetch role immediately, but don't block sidebar rendering
         getUserRole();
       } else {
-        // If tenant is not available, show public menus but keep sidebar visible
-        // Show all navItems if no public menus found (better than empty or just Dashboard)
-        const filtered = navItems.filter(item => !item.allowedRoles || item.allowedRoles.length === 0);
-        setFilteredNavItems(filtered.length > 0 ? filtered : navItems); // Show all if no public menus
+        setFilteredNavItems(navItems);
       }
     }
     // If tenant is still loading, sidebar already shows all navItems (initial state)

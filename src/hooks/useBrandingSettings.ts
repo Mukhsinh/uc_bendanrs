@@ -30,16 +30,32 @@ const useBrandingSettings = () => {
 
       console.log('Fetching branding settings in hook for user:', user.id);
 
+      // Get user's tenant_id from user_profiles
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('tenant_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!userProfile?.tenant_id) {
+        console.warn('No tenant found for user, using default branding');
+        setSettings({
+          app_title: 'PINTAR UC',
+          logo_alt_text: 'Logo'
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Fetch branding settings for this tenant
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
-        .eq('user_id', user.id)
-        .single();
+        .eq('tenant_id', userProfile.tenant_id)
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching branding settings in hook:', error);
-        setLoading(false);
-        return;
+        console.warn('Note: Using default branding settings due to:', error.message);
       }
 
       if (data) {

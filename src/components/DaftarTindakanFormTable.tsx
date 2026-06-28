@@ -11,7 +11,6 @@ import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFormOperations } from "@/hooks/use-form-operations";
 import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 
 import { Button } from "@/components/ui/button";
@@ -158,7 +157,7 @@ const DaftarTindakanFormTable: React.FC = () => {
 
     setIsSearching(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await tenantSupabase
         .from('data_barang_farmasi')
         .select('id, kode_barang, nama_barang, satuan, harga, gudang')
         .or(`nama_barang.ilike.%${term}%,kode_barang.ilike.%${term}%`)
@@ -247,14 +246,14 @@ const DaftarTindakanFormTable: React.FC = () => {
       };
 
       if (editing) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("daftar_tindakan")
           .update(payload)
           .eq("id", editing.id);
         if (error) throw error;
         toast.success("Data diperbarui.");
       } else {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("daftar_tindakan")
           .insert([payload]);
         if (error) throw error;

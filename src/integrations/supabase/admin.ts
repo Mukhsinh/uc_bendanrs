@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://koepzicdtovtknsqlnac.supabase.co';
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvZXB6aWNkdG92dGtuc3FsbmFjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzMwODU3OCwiZXhwIjoyMDcyODg0NTc4fQ.kNx4t3Q7y6X7bY6X7bY6X7bY6X7bY6X7bY6X7bY6X7bY';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 console.log('Supabase Admin URL:', supabaseUrl);
 console.log('Supabase Service Key:', supabaseServiceKey ? 'Present' : 'Missing');
 
-if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
-  console.warn('⚠️ Supabase service key fallback digunakan. Pastikan environment variable VITE_SUPABASE_SERVICE_KEY diatur untuk lingkungan produksi.');
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Supabase admin client membutuhkan VITE_SUPABASE_URL dan VITE_SUPABASE_SERVICE_ROLE_KEY.');
 }
 
 // Create admin client with service role key for admin operations

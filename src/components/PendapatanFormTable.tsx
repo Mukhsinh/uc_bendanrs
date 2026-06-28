@@ -1,57 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { LoadingButton } from "@/components/ui/loading-button";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { useFormOperations } from "@/hooks/use-form-operations";
-import { showSuccess, showError, showLoading, showInfo, NotificationMessages } from "@/utils/notifications";
 import { supabase } from "@/integrations/supabase/client";
-
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Pencil, Trash2, Upload, Download, FileText, RefreshCw } from "lucide-react";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
-import { fetchUnitKerjaPusatPendapatan, validateUnitKerjaData, type UnitKerja as UnitKerjaType } from "@/utils/unit-kerja-helper";
+import { fetchUnitKerjaPusatPendapatan, validateUnitKerjaData } from "@/utils/unit-kerja-helper";
 import { useReportDownload } from "@/components/report";
+import { useYear } from "@/contexts/YearContext";
+import { useTenant } from "@/contexts/TenantContext";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface UnitKerja {
   id: string;
@@ -60,9 +31,11 @@ interface UnitKerja {
   kategori: "Pusat Biaya" | "Pusat Pendapatan";
 }
 
+// Kolom DB: pendapatan_umum, pendapatan_bpjs, pendapatan_apbd, total_pendapatan
 interface DataPendapatan {
   id: string;
   user_id?: string;
+  tenant_id?: string;
   unit_kerja_id?: string;
   kode_unit_kerja?: string;
   nama_unit_kerja?: string;
@@ -76,686 +49,464 @@ interface DataPendapatan {
 }
 
 const formSchema = z.object({
-  unit_kerja_id: z.string().min(1, { message: "Unit Kerja harus dipilih." }),
-  pendapatan_umum: z.coerce.number().min(0, { message: "Pendapatan Umum harus angka positif." }),
-  pendapatan_bpjs: z.coerce.number().min(0, { message: "Pendapatan BPJS harus angka positif." }),
-  pendapatan_apbd: z.coerce.number().min(0, { message: "Pendapatan APBD harus angka positif." }),
-  tahun: z.coerce.number().min(1900).max(3000, { message: "Tahun harus antara 1900-3000." }),
+  unit_kerja_id:    z.string().min(1, { message: "Unit Kerja harus dipilih." }),
+  pendapatan_umum:  z.coerce.number().min(0),
+  pendapatan_bpjs:  z.coerce.number().min(0),
+  pendapatan_apbd:  z.coerce.number().min(0),
+  tahun:            z.coerce.number().min(1900).max(3000),
 });
+
+type FormValues = z.infer<typeof formSchema>;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Parse angka format Indonesia: "1.500.000" → 1500000, "1.500,50" → 1500.50 */
+const parseAngka = (v: unknown): number => {
+  if (v === null || v === undefined || v === "") return 0;
+  const s = String(v).trim().replace(/\s/g, "");
+  if (!s) return 0;
+  if (s.includes(",")) {
+    const n = parseFloat(s.replace(/\./g, "").replace(",", "."));
+    return isNaN(n) ? 0 : Math.abs(n);
+  }
+  const n = parseFloat(s.replace(/\./g, ""));
+  return isNaN(n) ? 0 : Math.abs(n);
+};
+
+/** Ambil tenant_id: context → sessionStorage → user_profiles */
+const resolveTenantId = async (fromContext?: string | null): Promise<string | null> => {
+  if (fromContext) return fromContext;
+  try {
+    const s = sessionStorage.getItem("tenant_id");
+    if (s) return s;
+  } catch (_) { /* ignore */ }
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase
+      .from("user_profiles").select("tenant_id").eq("id", user.id).single();
+    return (data as any)?.tenant_id ?? null;
+  } catch (_) { return null; }
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const PendapatanFormTable: React.FC = () => {
   const { downloadReport } = useReportDownload();
-  const [pendapatanList, setPendapatanList] = useState<DataPendapatan[]>([]);
-  const [unitKerjaList, setUnitKerjaList] = useState<UnitKerja[]>([]);
-  const [editingPendapatan, setEditingPendapatan] = useState<DataPendapatan | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  // Use upload progress hook
+  const { selectedYear } = useYear();
+  const { tenant } = useTenant();
+
+  const [rows, setRows]           = useState<DataPendapatan[]>([]);
+  const [ukList, setUkList]       = useState<UnitKerja[]>([]);
+  const ukRef                     = useRef<UnitKerja[]>([]);   // stale-closure-safe ref
+  const [editing, setEditing]     = useState<DataPendapatan | null>(null);
+  const [dialogOpen, setDialog]   = useState(false);
+  const [isLoading, setLoading]   = useState(false);
+
   const { uploadProgress, startUpload, updateProgress, completeUpload, showError: showUploadError } = useUploadProgress();
-  
-  // Use form operations hook
-  const { loading, saving, deleting, importing, loadData, saveData, deleteData, importData } = useFormOperations({
-    entityName: "Pendapatan",
-    onSuccess: () => {
-      setEditingPendapatan(null);
-      setIsDialogOpen(false);
-      form.reset();
-    }
-  });
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const filtered = useMemo(() => rows.filter((r) => r.tahun === selectedYear), [rows, selectedYear]);
+
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      unit_kerja_id: "",
-      pendapatan_umum: 0,
-      pendapatan_bpjs: 0,
-      pendapatan_apbd: 0,
-      tahun: new Date().getFullYear(),
-    },
+    defaultValues: { unit_kerja_id: "", pendapatan_umum: 0, pendapatan_bpjs: 0, pendapatan_apbd: 0, tahun: new Date().getFullYear() },
   });
 
-  useEffect(() => {
-    console.log("PendapatanFormTable: Component mounted, fetching data...");
-    fetchData();
-  }, []);
-
-  // Debug effect to monitor unitKerjaList changes
-  useEffect(() => {
-    console.log("PendapatanFormTable: unitKerjaList updated:", unitKerjaList.length, "items");
-    if (unitKerjaList.length > 0) {
-      console.log("First few unit kerja:", unitKerjaList.slice(0, 3));
-    }
-  }, [unitKerjaList]);
+  // Sinkronisasi ref saat state berubah
+  useEffect(() => { ukRef.current = ukList; }, [ukList]);
+  useEffect(() => { fetchAll(); }, []);
 
   useEffect(() => {
-    if (editingPendapatan) {
+    if (editing) {
       form.reset({
-        unit_kerja_id: editingPendapatan.unit_kerja_id || "",
-        pendapatan_umum: editingPendapatan.pendapatan_umum || 0,
-        pendapatan_bpjs: editingPendapatan.pendapatan_bpjs || 0,
-        pendapatan_apbd: editingPendapatan.pendapatan_apbd || 0,
-        tahun: editingPendapatan.tahun || new Date().getFullYear(),
+        unit_kerja_id:   editing.unit_kerja_id ?? "",
+        pendapatan_umum: editing.pendapatan_umum ?? 0,
+        pendapatan_bpjs: editing.pendapatan_bpjs ?? 0,
+        pendapatan_apbd: editing.pendapatan_apbd ?? 0,
+        tahun:           editing.tahun ?? new Date().getFullYear(),
       });
     } else {
-      form.reset({
-        unit_kerja_id: "",
-        pendapatan_umum: 0,
-        pendapatan_bpjs: 0,
-        pendapatan_apbd: 0,
-        tahun: new Date().getFullYear(),
-      });
+      form.reset({ unit_kerja_id: "", pendapatan_umum: 0, pendapatan_bpjs: 0, pendapatan_apbd: 0, tahun: new Date().getFullYear() });
     }
-  }, [editingPendapatan, form]);
+  }, [editing]);
 
-  const fetchData = async () => {
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+
+  const fetchAll = async () => {
+    setLoading(true);
     try {
-      // Fetch unit kerja data using helper function
-      const unitKerjaData = await fetchUnitKerjaPusatPendapatan();
-      
-      if (validateUnitKerjaData(unitKerjaData)) {
-        setUnitKerjaList(unitKerjaData);
-        console.log(`Successfully loaded ${unitKerjaData.length} unit kerja Pusat Pendapatan`);
+      const ukData = await fetchUnitKerjaPusatPendapatan();
+      if (validateUnitKerjaData(ukData)) {
+        setUkList(ukData);
+        ukRef.current = ukData;
       } else {
         toast.error("Data unit kerja tidak valid atau kosong.");
-        setUnitKerjaList([]);
       }
 
-      // Fetch pendapatan data - optimized query with specific columns
-      const startTime = performance.now();
-      const { data: pendapatanData, error: pendapatanError } = await supabase
-        .from('data_pendapatan')
-        .select(`
-          id,
-          user_id,
-          unit_kerja_id,
-          kode_unit_kerja,
-          nama_unit_kerja,
-          pendapatan_umum,
-          pendapatan_bpjs,
-          pendapatan_apbd,
-          total_pendapatan,
-          tahun,
-          created_at,
-          updated_at
-        `)
-        .order('created_at', { ascending: false });
-      
-      const endTime = performance.now();
-      console.log(`📊 Pendapatan data fetch took ${(endTime - startTime).toFixed(2)}ms`);
+      const { data, error } = await supabase
+        .from("data_pendapatan")
+        .select("id, user_id, tenant_id, unit_kerja_id, kode_unit_kerja, nama_unit_kerja, pendapatan_umum, pendapatan_bpjs, pendapatan_apbd, total_pendapatan, tahun, created_at, updated_at")
+        .order("kode_unit_kerja", { ascending: true });
 
-      if (pendapatanError) {
-        toast.error("Gagal memuat data pendapatan.");
-        console.error(pendapatanError);
-        setPendapatanList([]);
+      if (error) {
+        console.error("Fetch error:", error);
+        toast.error(`Gagal memuat data: ${error.message}`);
       } else {
-        setPendapatanList(pendapatanData || []);
+        setRows((data as DataPendapatan[]) ?? []);
       }
-    } catch (error) {
-      console.error("Error in fetchData:", error);
-      toast.error("Terjadi kesalahan saat memuat data.");
-      setUnitKerjaList([]);
+    } catch (e: any) {
+      toast.error(`Error: ${e.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  // ── Submit (tambah / edit) ─────────────────────────────────────────────────
+
+  const onSubmit = async (v: FormValues) => {
     try {
-      // Check user authentication
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("User tidak terautentikasi. Silakan login ulang.");
-        return;
-      }
+      if (!user) { toast.error("Tidak terautentikasi."); return; }
 
-      // Get unit kerja details
-      const selectedUnitKerja = unitKerjaList.find(uk => uk.id === values.unit_kerja_id);
-      
-      if (!selectedUnitKerja) {
-        toast.error("Unit kerja tidak ditemukan.");
-        return;
-      }
+      const tenantId = await resolveTenantId(tenant?.id);
+      if (!tenantId) { toast.error("Tenant tidak ditemukan, coba login ulang."); return; }
 
-      const pendapatanData = {
-        user_id: user.id,
-        unit_kerja_id: values.unit_kerja_id,
-        kode_unit_kerja: selectedUnitKerja.kode,
-        nama_unit_kerja: selectedUnitKerja.nama,
-        pendapatan_umum: values.pendapatan_umum,
-        pendapatan_bpjs: values.pendapatan_bpjs,
-        pendapatan_apbd: values.pendapatan_apbd,
-        tahun: values.tahun,
+      const uk = ukList.find((u) => u.id === v.unit_kerja_id);
+      if (!uk) { toast.error("Unit kerja tidak ditemukan."); return; }
+
+      const payload = {
+        user_id: user.id, tenant_id: tenantId,
+        unit_kerja_id: uk.id, kode_unit_kerja: uk.kode, nama_unit_kerja: uk.nama,
+        pendapatan_umum: v.pendapatan_umum,
+        pendapatan_bpjs: v.pendapatan_bpjs,
+        pendapatan_apbd: v.pendapatan_apbd,
+        tahun: v.tahun,
       };
 
-      if (editingPendapatan) {
-        const { error } = await supabase
-          .from('data_pendapatan')
-          .update(pendapatanData)
-          .eq('id', editingPendapatan.id);
+      const { error } = editing
+        ? await supabase.from("data_pendapatan").update(payload).eq("id", editing.id)
+        : await supabase.from("data_pendapatan").insert([payload]);
 
-        if (error) throw error;
-        toast.success("Data Pendapatan berhasil diperbarui.");
-      } else {
-        const { error } = await supabase
-          .from('data_pendapatan')
-          .insert([pendapatanData]);
-
-        if (error) throw error;
-        toast.success("Data Pendapatan berhasil ditambahkan.");
-      }
-      
-      await fetchData();
-      setEditingPendapatan(null);
-      setIsDialogOpen(false);
-      form.reset();
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Terjadi kesalahan saat menyimpan data.");
+      if (error) throw error;
+      toast.success(editing ? "Data berhasil diperbarui." : "Data berhasil ditambahkan.");
+      await fetchAll();
+      setEditing(null); setDialog(false); form.reset();
+    } catch (e: any) {
+      toast.error(`Gagal menyimpan: ${e.message}`);
     }
-  };
-
-  const handleEdit = (pendapatan: DataPendapatan) => {
-    setEditingPendapatan(pendapatan);
-    setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('data_pendapatan')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      await fetchData();
-      toast.success("Data Pendapatan berhasil dihapus.");
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Terjadi kesalahan saat menghapus data.");
-    }
+    const { error } = await supabase.from("data_pendapatan").delete().eq("id", id);
+    if (error) { toast.error(`Gagal hapus: ${error.message}`); return; }
+    toast.success("Data berhasil dihapus.");
+    await fetchAll();
   };
 
-  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    // Reset file input
-    event.target.value = '';
-    
-    file.text().then((text) => {
-      (Papa as any).parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results: Papa.ParseResult<any>) => {
-          try {
-            // Check user authentication first
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-              showUploadError("User tidak terautentikasi. Silakan login ulang.");
-              return;
-            }
-
-            const allRows = results.data;
-            const totalRows = allRows.length;
-            
-            // Debug: Log CSV headers and first few rows
-            console.log("CSV Headers:", results.meta.fields);
-            console.log("First few rows:", allRows.slice(0, 3));
-            console.log("Total rows:", totalRows);
-            
-            if (totalRows === 0) {
-              showUploadError("File CSV kosong atau tidak valid.");
-              return;
-            }
-            
-            // Start upload progress
-            startUpload(totalRows, "Sedang mengimpor data pendapatan...");
-            
-            const importedData: any[] = [];
-            let processedCount = 0;
-            let successCount = 0;
-            let errorCount = 0;
-            let skippedCount = 0;
-            const errors: string[] = [];
-            
-            for (const row of results.data) {
-              processedCount++;
-              updateProgress(processedCount, successCount, errorCount);
-              
-              try {
-                // Debug logging
-                console.log(`Processing row ${processedCount}:`, row);
-                
-                // Validate required fields - try different column name variations
-                const kodeUnitKerja = row["Kode Unit Kerja"] || row["kode_unit_kerja"] || row["Kode Unit Kerja"] || row["Unit Kerja"];
-                if (!kodeUnitKerja || kodeUnitKerja.toString().trim() === "") {
-                  errors.push(`Baris ${processedCount}: Kode Unit Kerja tidak boleh kosong`);
-                  errorCount++;
-                  continue;
-                }
-                
-                // Find unit kerja by kode
-                const unitKerja = unitKerjaList.find(uk => uk.kode === kodeUnitKerja);
-                
-                if (unitKerja) {
-                  // Validate numeric fields - handle empty strings properly with multiple column name variations
-                  const pendapatanUmumStr = row["Pendapatan Umum"] || row["pendapatan_umum"] || row["Pendapatan Umum (Rp)"] || row["Pendapatan_Umum"];
-                  const pendapatanBpjsStr = row["Pendapatan BPJS"] || row["pendapatan_bpjs"] || row["Pendapatan BPJS (Rp)"] || row["Pendapatan_BPJS"];
-                  const pendapatanApbdStr = row["Pendapatan APBD"] || row["pendapatan_apbd"] || row["Pendapatan APBD (Rp)"] || row["Pendapatan_APBD"];
-                  
-                  // Debug logging for values
-                  console.log(`Row ${processedCount} values:`, {
-                    pendapatanUmumStr,
-                    pendapatanBpjsStr,
-                    pendapatanApbdStr,
-                    pendapatanUmumStrType: typeof pendapatanUmumStr,
-                    pendapatanBpjsStrType: typeof pendapatanBpjsStr,
-                    pendapatanApbdStrType: typeof pendapatanApbdStr
-                  });
-                  
-                  // Skip rows where all values are empty
-                  const pendapatanUmumEmpty = !pendapatanUmumStr || pendapatanUmumStr.toString().trim() === "";
-                  const pendapatanBpjsEmpty = !pendapatanBpjsStr || pendapatanBpjsStr.toString().trim() === "";
-                  const pendapatanApbdEmpty = !pendapatanApbdStr || pendapatanApbdStr.toString().trim() === "";
-                  
-                  console.log(`Row ${processedCount} empty check:`, {
-                    pendapatanUmumEmpty,
-                    pendapatanBpjsEmpty,
-                    pendapatanApbdEmpty,
-                    allEmpty: pendapatanUmumEmpty && pendapatanBpjsEmpty && pendapatanApbdEmpty
-                  });
-                  
-                  if (pendapatanUmumEmpty && pendapatanBpjsEmpty && pendapatanApbdEmpty) {
-                    // Skip rows where all values are empty - this is expected behavior for template rows
-                    console.log(`Skipping row ${processedCount} - all values empty`);
-                    skippedCount++;
-                    continue;
-                  }
-                  
-                  // Parse values, default to 0 if empty
-                  const pendapatanUmum = pendapatanUmumEmpty ? 0 : parseFloat(pendapatanUmumStr);
-                  const pendapatanBpjs = pendapatanBpjsEmpty ? 0 : parseFloat(pendapatanBpjsStr);
-                  const pendapatanApbd = pendapatanApbdEmpty ? 0 : parseFloat(pendapatanApbdStr);
-                  const tahun = parseInt(row["Tahun"]) || new Date().getFullYear();
-                  
-                  console.log(`Row ${processedCount} parsed values:`, {
-                    pendapatanUmum,
-                    pendapatanBpjs,
-                    pendapatanApbd,
-                    tahun,
-                    pendapatanUmumIsNaN: isNaN(pendapatanUmum),
-                    pendapatanBpjsIsNaN: isNaN(pendapatanBpjs),
-                    pendapatanApbdIsNaN: isNaN(pendapatanApbd)
-                  });
-                  
-                  // Validate that parsed values are valid numbers
-                  if (!pendapatanUmumEmpty && isNaN(pendapatanUmum)) {
-                    console.log(`Row ${processedCount}: Pendapatan Umum isNaN`);
-                    errors.push(`Baris ${processedCount}: Pendapatan Umum harus berupa angka`);
-                    errorCount++;
-                    continue;
-                  }
-                  
-                  if (!pendapatanBpjsEmpty && isNaN(pendapatanBpjs)) {
-                    console.log(`Row ${processedCount}: Pendapatan BPJS isNaN`);
-                    errors.push(`Baris ${processedCount}: Pendapatan BPJS harus berupa angka`);
-                    errorCount++;
-                    continue;
-                  }
-                  
-                  if (!pendapatanApbdEmpty && isNaN(pendapatanApbd)) {
-                    console.log(`Row ${processedCount}: Pendapatan APBD isNaN`);
-                    errors.push(`Baris ${processedCount}: Pendapatan APBD harus berupa angka`);
-                    errorCount++;
-                    continue;
-                  }
-                  
-                  const dataToInsert = {
-                    user_id: user.id,
-                    unit_kerja_id: unitKerja.id,
-                    kode_unit_kerja: unitKerja.kode,
-                    nama_unit_kerja: unitKerja.nama,
-                    pendapatan_umum: pendapatanUmum,
-                    pendapatan_bpjs: pendapatanBpjs,
-                    pendapatan_apbd: pendapatanApbd,
-                    tahun: tahun,
-                  };
-                  
-                  console.log(`Row ${processedCount}: Adding to import data:`, dataToInsert);
-                  importedData.push(dataToInsert);
-                  successCount++;
-                } else {
-                  console.log(`Unit kerja not found for kode: ${kodeUnitKerja}`);
-                  console.log(`Available unit kerja:`, unitKerjaList.map(uk => uk.kode));
-                  errors.push(`Baris ${processedCount}: Unit kerja dengan kode "${kodeUnitKerja}" tidak ditemukan`);
-                  errorCount++;
-                }
-              } catch (rowError: any) {
-                errors.push(`Baris ${processedCount}: ${rowError.message}`);
-                errorCount++;
-              }
-            }
-
-            if (importedData.length === 0) {
-              console.log("No valid data found. Errors:", errors);
-              console.log("Processed count:", processedCount, "Success:", successCount, "Skipped:", skippedCount, "Errors:", errorCount);
-              showUploadError(`Tidak ada data yang valid untuk diimpor. Processed: ${processedCount}, Success: ${successCount}, Skipped: ${skippedCount}, Errors: ${errorCount}. Details: ${errors.join('; ')}`);
-              return;
-            }
-
-            // Insert data to database in batches to avoid timeout
-            const batchSize = 50;
-            let insertErrors: string[] = [];
-            
-            for (let i = 0; i < importedData.length; i += batchSize) {
-              const batch = importedData.slice(i, i + batchSize);
-              try {
-                const { error } = await supabase
-                  .from('data_pendapatan')
-                  .insert(batch);
-
-                if (error) {
-                  insertErrors.push(`Batch ${Math.floor(i/batchSize) + 1}: ${error.message}`);
-                  console.error('Insert error:', error);
-                }
-              } catch (batchError: any) {
-                insertErrors.push(`Batch ${Math.floor(i/batchSize) + 1}: ${batchError.message}`);
-                console.error('Batch error:', batchError);
-              }
-            }
-
-            if (insertErrors.length > 0) {
-              showUploadError(`Gagal mengimpor sebagian data: ${insertErrors.join(', ')}`);
-            } else {
-              // Complete upload with final counts
-              completeUpload(successCount, errorCount, 0);
-              
-              // Refresh data
-              await fetchData();
-              
-              // Show success message with details
-              let message = `${successCount} data berhasil diimpor`;
-              if (skippedCount > 0) {
-                message += `, ${skippedCount} baris dilewati (kosong)`;
-              }
-              if (errorCount > 0) {
-                message += `, ${errorCount} data gagal diimpor`;
-              }
-              toast.success(message);
-            }
-            
-          } catch (error: any) {
-            console.error('Import error:', error);
-            showUploadError(`Gagal mengimpor data: ${error.message}`);
-          }
-        },
-        error: (error: Papa.ParseError) => {
-          console.error('Parse error:', error);
-          showUploadError(`Gagal memparse file CSV: ${error.message}`);
-        }
-      });
-    });
-  };
+  // ── Download Template Excel ────────────────────────────────────────────────
 
   const handleDownloadTemplate = async () => {
     try {
-      let dataToUse = unitKerjaList;
-      
-      // If no data loaded, fetch it
-      if (dataToUse.length === 0) {
-        toast.info("Memuat data unit kerja...");
-        dataToUse = await fetchUnitKerjaPusatPendapatan();
-        
-        if (!validateUnitKerjaData(dataToUse)) {
-          toast.error("Tidak ada unit kerja dengan kategori 'Pusat Pendapatan' di database.");
-          return;
-        }
-        
-        // Update state for future use
-        setUnitKerjaList(dataToUse);
+      let list = ukRef.current;
+      if (list.length === 0) {
+        list = await fetchUnitKerjaPusatPendapatan();
+        if (!validateUnitKerjaData(list)) { toast.error("Unit kerja kosong."); return; }
+        setUkList(list); ukRef.current = list;
       }
 
-      // Create template with unit kerja data and example values
-      const templateData = dataToUse.map((unitKerja, index) => ({
-        "Kode Unit Kerja": unitKerja.kode,
-        "Nama Unit Kerja": unitKerja.nama,
-        "Pendapatan Umum": index < 3 ? (index + 1) * 5000000 : "", // Example values for first 3 rows
-        "Pendapatan BPJS": index < 3 ? (index + 1) * 3000000 : "", // Example values for first 3 rows
-        "Pendapatan APBD": index < 3 ? (index + 1) * 2000000 : "", // Example values for first 3 rows
-        "Tahun": new Date().getFullYear()
+      // Template kolom sesuai gambar: Kode Unit Kerja | Nama Unit Kerja | Pendapatan Umum | Pendapatan BPJS | Tahun
+      // Pendapatan APBD ditambahkan setelah BPJS (ada di DB)
+      const templateData = list.map((uk, i) => ({
+        "Kode Unit Kerja":  uk.kode,
+        "Nama Unit Kerja":  uk.nama,
+        "Pendapatan Umum":  i < 3 ? (i + 1) * 50000000 : 0,
+        "Pendapatan BPJS":  i < 3 ? (i + 1) * 30000000 : 0,
+        "Pendapatan APBD":  0,
+        "Tahun":            selectedYear,
       }));
-      
-      console.log("Template data sample:", templateData.slice(0, 2));
 
       const ws = XLSX.utils.json_to_sheet(templateData);
+      ws["!cols"] = [{ wch: 16 }, { wch: 36 }, { wch: 22 }, { wch: 22 }, { wch: 18 }, { wch: 8 }];
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Template Data Pendapatan");
-      XLSX.writeFile(wb, "template_data_pendapatan.xlsx");
-      toast.success(`Template impor data berhasil diunduh dengan ${dataToUse.length} unit kerja Pusat Pendapatan. 3 baris pertama berisi contoh nilai. Silakan isi nilai pendapatan untuk unit kerja yang diinginkan.`);
-      
-    } catch (error) {
-      console.error("Error in handleDownloadTemplate:", error);
-      toast.error("Terjadi kesalahan saat membuat template. Silakan coba lagi.");
+      XLSX.utils.book_append_sheet(wb, ws, "Data Pendapatan");
+      XLSX.writeFile(wb, `template_data_pendapatan_${selectedYear}.xlsx`);
+      toast.success(`Template berhasil diunduh (${list.length} unit kerja).`);
+    } catch (e: any) {
+      toast.error(`Gagal membuat template: ${e.message}`);
     }
   };
 
-  const handleDownloadReport = async () => {
-    if (pendapatanList.length === 0) {
-      toast.warning("Tidak ada data untuk dibuat laporan.");
-      return;
+  // ── Import (Excel / CSV) ───────────────────────────────────────────────────
+
+  const processRows = async (rawRows: Record<string, unknown>[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { showUploadError("Tidak terautentikasi."); return; }
+
+      const tenantId = await resolveTenantId(tenant?.id);
+      if (!tenantId) { showUploadError("Tenant tidak ditemukan, coba login ulang."); return; }
+
+      if (rawRows.length === 0) { showUploadError("File kosong."); return; }
+
+      // Pastikan ukList tersedia via ref (tidak stale)
+      let list = ukRef.current;
+      if (list.length === 0) {
+        list = await fetchUnitKerjaPusatPendapatan();
+        if (!validateUnitKerjaData(list)) { showUploadError("Gagal memuat unit kerja."); return; }
+        setUkList(list); ukRef.current = list;
+      }
+
+      console.log(`Import: ${rawRows.length} baris | ${list.length} unit kerja`);
+      console.log("Header kolom file:", Object.keys(rawRows[0]));
+
+      startUpload(rawRows.length, "Memvalidasi data pendapatan...");
+
+      const valid: Record<string, unknown>[] = [];
+      let skipped = 0, errCount = 0;
+      const errMsgs: string[] = [];
+
+      for (let i = 0; i < rawRows.length; i++) {
+        const row = rawRows[i];
+        updateProgress(i + 1, valid.length, errCount);
+
+        const kode = (row["Kode Unit Kerja"] ?? row["kode_unit_kerja"] ?? row["KODE UNIT KERJA"])
+          ?.toString().trim();
+
+        if (!kode) { skipped++; continue; }
+
+        const uk = list.find((u) => u.kode === kode);
+        if (!uk) {
+          errMsgs.push(`Baris ${i + 2}: kode "${kode}" tidak ditemukan`);
+          errCount++; continue;
+        }
+
+        const umum  = parseAngka(row["Pendapatan Umum"]  ?? row["pendapatan_umum"]  ?? 0);
+        const bpjs  = parseAngka(row["Pendapatan BPJS"]  ?? row["pendapatan_bpjs"]  ?? 0);
+        const apbd  = parseAngka(row["Pendapatan APBD"]  ?? row["pendapatan_apbd"]  ?? 0);
+        const tahun = parseInt(String(row["Tahun"] ?? "")) || selectedYear;
+
+        // Lewati baris yang semua nilai 0 (baris kosong template)
+        if (umum === 0 && bpjs === 0 && apbd === 0) { skipped++; continue; }
+
+        valid.push({
+          user_id: user.id, tenant_id: tenantId,
+          unit_kerja_id: uk.id, kode_unit_kerja: uk.kode, nama_unit_kerja: uk.nama,
+          pendapatan_umum: umum,
+          pendapatan_bpjs: bpjs,
+          pendapatan_apbd: apbd,
+          tahun,
+        });
+      }
+
+      if (valid.length === 0) {
+        const detail = errMsgs.length
+          ? `\n${errMsgs.slice(0, 5).join("\n")}`
+          : "\nPastikan kolom 'Kode Unit Kerja' benar dan nilai pendapatan diisi.";
+        showUploadError(`Tidak ada data valid. Diproses: ${rawRows.length}, Dilewati: ${skipped}, Error: ${errCount}.${detail}`);
+        return;
+      }
+
+      // Insert per batch 50
+      const BATCH = 50;
+      const insertErrs: string[] = [];
+      for (let i = 0; i < valid.length; i += BATCH) {
+        const { error } = await supabase.from("data_pendapatan").insert(valid.slice(i, i + BATCH) as any);
+        if (error) { console.error("Insert error:", error); insertErrs.push(error.message); }
+      }
+
+      if (insertErrs.length) { showUploadError(`Gagal simpan: ${insertErrs[0]}`); return; }
+
+      completeUpload(valid.length, errCount, 0);
+      await fetchAll();
+      let msg = `${valid.length} data berhasil diimpor`;
+      if (skipped)   msg += `, ${skipped} baris dilewati`;
+      if (errCount)  msg += `, ${errCount} baris error`;
+      toast.success(msg);
+    } catch (e: any) {
+      showUploadError(`Gagal impor: ${e.message}`);
     }
+  };
 
-    const dataToExport = pendapatanList.map(item => ({
-      "Kode Unit Kerja": item.kode_unit_kerja,
-      "Nama Unit Kerja": item.nama_unit_kerja,
-      "Pendapatan Umum": item.pendapatan_umum,
-      "Pendapatan BPJS": item.pendapatan_bpjs,
-      "Pendapatan APBD": item.pendapatan_apbd,
-      "Total Pendapatan": (item.pendapatan_umum || 0) + (item.pendapatan_bpjs || 0) + (item.pendapatan_apbd || 0),
-      "Tahun": item.tahun,
-    }));
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const wb = XLSX.read(new Uint8Array(ev.target?.result as ArrayBuffer), { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          processRows(XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" }));
+        } catch (err: any) { showUploadError(`Gagal baca Excel: ${err.message}`); }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      file.text().then((text) => {
+        (Papa as any).parse(text, {
+          header: true, skipEmptyLines: true,
+          complete: (r: Papa.ParseResult<Record<string, unknown>>) => processRows(r.data),
+          error: (err: Papa.ParseError) => showUploadError(`Gagal baca CSV: ${err.message}`),
+        });
+      });
+    }
+  };
 
+  // ── Download Laporan ───────────────────────────────────────────────────────
+
+  const handleDownloadReport = async () => {
+    if (!filtered.length) { toast.warning("Tidak ada data untuk diekspor."); return; }
     await downloadReport({
       title: "Laporan Pendapatan Unit Kerja",
-      subtitle: "Ringkasan pendapatan per unit kerja",
-      filename: "laporan_data_pendapatan",
-      records: dataToExport,
+      subtitle: `Tahun ${selectedYear}`,
+      filename: `laporan_pendapatan_${selectedYear}`,
+      records: filtered.map((r) => ({
+        "Kode Unit Kerja":  r.kode_unit_kerja ?? "",
+        "Nama Unit Kerja":  r.nama_unit_kerja ?? "",
+        "Pendapatan Umum":  r.pendapatan_umum ?? 0,
+        "Pendapatan BPJS":  r.pendapatan_bpjs ?? 0,
+        "Pendapatan APBD":  r.pendapatan_apbd ?? 0,
+        "Total Pendapatan": r.total_pendapatan ?? 0,
+        "Tahun":            r.tahun ?? "",
+      })),
     });
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const fmt = (n: number | undefined) => (n ?? 0).toLocaleString("id-ID");
+
   return (
     <div className="container mx-auto p-4">
+      {/* Header — tidak perlu YearFilter di sini karena sudah ada di PendapatanChart */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manajemen Data Pendapatan</h2>
       </div>
 
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <Button
-          onClick={handleDownloadTemplate}
-          className="bg-orange-500 hover:bg-orange-600 text-white"
-        >
+        <Button onClick={handleDownloadTemplate} className="bg-orange-500 hover:bg-orange-600 text-white">
           <Download className="mr-2 h-4 w-4" /> Unduh Template Impor
         </Button>
+
         <label
-          htmlFor="import-file"
-          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-green-600 hover:bg-green-700 text-white ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 cursor-pointer"
+          htmlFor="import-pendapatan"
+          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium bg-green-600 hover:bg-green-700 text-white h-10 px-4 py-2 cursor-pointer transition-colors"
         >
           <Upload className="mr-2 h-4 w-4" /> Impor Data
-          <Input id="import-file" type="file" accept=".csv" onChange={handleImportData} className="sr-only" />
+          <input id="import-pendapatan" type="file" accept=".xlsx,.xls,.csv" onChange={handleImportData} className="sr-only" />
         </label>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+
+        {/* Dialog tambah / edit */}
+        <Dialog open={dialogOpen} onOpenChange={setDialog}>
           <DialogTrigger asChild>
-            <Button
-              onClick={() => setEditingPendapatan(null)}
-              className="bg-red-500 hover:bg-red-600 text-white"
-            >
+            <Button onClick={() => setEditing(null)} className="bg-red-500 hover:bg-red-600 text-white">
               Tambah Data Pendapatan
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[440px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingPendapatan ? "Edit Data Pendapatan" : "Tambah Data Pendapatan"}</DialogTitle>
-              <DialogDescription>
-                {editingPendapatan ? "Perbarui detail pendapatan." : "Tambahkan data pendapatan baru ke sistem."}
-              </DialogDescription>
+              <DialogTitle>{editing ? "Edit Data Pendapatan" : "Tambah Data Pendapatan"}</DialogTitle>
+              <DialogDescription>{editing ? "Perbarui data pendapatan." : "Tambah data pendapatan baru."}</DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-                <FormField
-                  control={form.control}
-                  name="unit_kerja_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Unit Kerja (Pusat Pendapatan)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih Unit Kerja" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {unitKerjaList.map((unitKerja) => (
-                            <SelectItem key={unitKerja.id} value={unitKerja.id}>
-                              {unitKerja.kode} - {unitKerja.nama}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="tahun"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tahun</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="2024" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="pendapatan_umum"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pendapatan Umum (Rp)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="0" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="pendapatan_bpjs"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pendapatan BPJS (Rp)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="0" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="pendapatan_apbd"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pendapatan APBD (Rp)</FormLabel>
-                      <FormControl>
-                        <Input type="number" placeholder="0" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormField control={form.control} name="unit_kerja_id" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Unit Kerja (Pusat Pendapatan)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Pilih Unit Kerja" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        {ukList.map((uk) => (
+                          <SelectItem key={uk.id} value={uk.id}>{uk.kode} – {uk.nama}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="tahun" render={({ field }) => (
+                  <FormItem><FormLabel>Tahun</FormLabel>
+                    <FormControl><Input type="number" {...field} /></FormControl><FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="pendapatan_umum" render={({ field }) => (
+                  <FormItem><FormLabel>Pendapatan Umum (Rp)</FormLabel>
+                    <FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="pendapatan_bpjs" render={({ field }) => (
+                  <FormItem><FormLabel>Pendapatan BPJS (Rp)</FormLabel>
+                    <FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="pendapatan_apbd" render={({ field }) => (
+                  <FormItem><FormLabel>Pendapatan APBD (Rp)</FormLabel>
+                    <FormControl><Input type="number" placeholder="0" {...field} /></FormControl><FormMessage />
+                  </FormItem>
+                )} />
                 <DialogFooter>
-                  <Button type="submit">{editingPendapatan ? "Simpan Perubahan" : "Tambah"}</Button>
+                  <Button type="submit">{editing ? "Simpan Perubahan" : "Tambah"}</Button>
                 </DialogFooter>
               </form>
             </Form>
           </DialogContent>
         </Dialog>
-        <Button
-          onClick={() => { void handleDownloadReport(); }}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
+
+        <Button onClick={() => { void handleDownloadReport(); }} className="bg-blue-600 hover:bg-blue-700 text-white">
           <FileText className="mr-2 h-4 w-4" /> Unduh Laporan
         </Button>
-        <Button
-          onClick={() => fetchData()}
-          size="icon"
-          className="bg-slate-200 hover:bg-slate-300 text-teal-700"
-          title="Perbarui Data"
-        >
+        <Button onClick={fetchAll} size="icon" variant="outline" title="Perbarui Data">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
-      <div className="rounded-md border">
+      {/* Tabel data */}
+      <div className="rounded-md border overflow-x-auto">
         <Table>
-          <TableHeader className="bg-[#0f766e]">
+          <TableHeader>
             <TableRow className="bg-[#0f766e] hover:bg-[#0f766e]">
-              <TableHead className="text-white">Kode Unit Kerja</TableHead>
-              <TableHead className="text-white">Nama Unit Kerja</TableHead>
-              <TableHead className="text-white">Tahun</TableHead>
-              <TableHead className="text-white">Pendapatan Umum (Rp)</TableHead>
-              <TableHead className="text-white">Pendapatan BPJS (Rp)</TableHead>
-              <TableHead className="text-white">Pendapatan APBD (Rp)</TableHead>
-              <TableHead className="text-white">Total Pendapatan (Rp)</TableHead>
-              <TableHead className="text-right text-white">Aksi</TableHead>
+              <TableHead className="text-white font-semibold">Kode Unit Kerja</TableHead>
+              <TableHead className="text-white font-semibold">Nama Unit Kerja</TableHead>
+              <TableHead className="text-white font-semibold">Tahun</TableHead>
+              <TableHead className="text-white font-semibold text-right">Pendapatan Umum (Rp)</TableHead>
+              <TableHead className="text-white font-semibold text-right">Pendapatan BPJS (Rp)</TableHead>
+              <TableHead className="text-white font-semibold text-right">Pendapatan APBD (Rp)</TableHead>
+              <TableHead className="text-white font-semibold text-right">Total Pendapatan (Rp)</TableHead>
+              <TableHead className="text-white font-semibold text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  Memuat data...
+            {isLoading ? (
+              <TableRow><TableCell colSpan={8} className="h-24 text-center">Memuat data...</TableCell></TableRow>
+            ) : filtered.length > 0 ? filtered.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-medium">{item.kode_unit_kerja}</TableCell>
+                <TableCell>{item.nama_unit_kerja}</TableCell>
+                <TableCell>{item.tahun}</TableCell>
+                <TableCell className="text-right">{fmt(item.pendapatan_umum)}</TableCell>
+                <TableCell className="text-right">{fmt(item.pendapatan_bpjs)}</TableCell>
+                <TableCell className="text-right">{fmt(item.pendapatan_apbd)}</TableCell>
+                <TableCell className="text-right font-semibold">{fmt(item.total_pendapatan)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="edit" size="icon" onClick={() => { setEditing(item); setDialog(true); }}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="destructive" size="icon" onClick={() => handleDelete(item.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
-            ) : pendapatanList.length > 0 ? (
-              pendapatanList.map((pendapatan) => {
-                const totalPendapatan = (pendapatan.pendapatan_umum || 0) + (pendapatan.pendapatan_bpjs || 0) + (pendapatan.pendapatan_apbd || 0);
-                return (
-                  <TableRow key={pendapatan.id}>
-                    <TableCell className="font-medium">{pendapatan.kode_unit_kerja}</TableCell>
-                    <TableCell>{pendapatan.nama_unit_kerja}</TableCell>
-                    <TableCell>{pendapatan.tahun}</TableCell>
-                    <TableCell>{pendapatan.pendapatan_umum?.toLocaleString('id-ID')}</TableCell>
-                    <TableCell>{pendapatan.pendapatan_bpjs?.toLocaleString('id-ID')}</TableCell>
-                    <TableCell>{pendapatan.pendapatan_apbd?.toLocaleString('id-ID')}</TableCell>
-                    <TableCell className="font-medium">{totalPendapatan.toLocaleString('id-ID')}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="edit" size="icon" onClick={() => handleEdit(pendapatan)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDelete(pendapatan.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
-                  Tidak ada data pendapatan.
-                </TableCell>
-              </TableRow>
+            )) : (
+              <TableRow><TableCell colSpan={8} className="h-24 text-center">Tidak ada data pendapatan.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      
-      {/* Import Progress Modal */}
+
       <ImportProgressModal progress={uploadProgress} />
     </div>
   );

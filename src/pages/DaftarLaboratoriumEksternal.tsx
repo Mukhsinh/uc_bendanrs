@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { useYear } from "@/contexts/YearContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Trash2, Edit, Plus, Upload, Download, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
-import { supabase } from "@/integrations/supabase/client";
+import { tenantSupabase } from "@/lib/supabase-tenant-wrapper";
 import { useToast } from "@/hooks/use-toast";
 import { useReportDownload } from "@/components/report";
 import Papa from "papaparse";
@@ -75,7 +74,7 @@ const DaftarLaboratoriumEksternal = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const { data: result, error } = await supabase
+      const { data: result, error } = await tenantSupabase
         .from("daftar_laboratorium_eksternal")
         .select("*")
         .eq("tahun", tahun)
@@ -96,7 +95,7 @@ const DaftarLaboratoriumEksternal = () => {
 
   const handleSave = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await tenantSupabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
       const dataToSave = {
@@ -106,7 +105,7 @@ const DaftarLaboratoriumEksternal = () => {
       };
 
       if (editingId) {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("daftar_laboratorium_eksternal")
           .update(dataToSave)
           .eq("id", editingId);
@@ -114,7 +113,7 @@ const DaftarLaboratoriumEksternal = () => {
         if (error) throw error;
         toast({ title: "Berhasil", description: "Data berhasil diupdate" });
       } else {
-        const { error } = await supabase
+        const { error } = await tenantSupabase
           .from("daftar_laboratorium_eksternal")
           .insert(dataToSave);
 
@@ -152,7 +151,7 @@ const DaftarLaboratoriumEksternal = () => {
     if (!confirm("Apakah Anda yakin ingin menghapus data ini?")) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("daftar_laboratorium_eksternal")
         .delete()
         .eq("id", id);
@@ -195,7 +194,7 @@ const DaftarLaboratoriumEksternal = () => {
     event.target.value = "";
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await tenantSupabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
 
       const fileExtension = file.name.split(".").pop()?.toLowerCase();
@@ -260,7 +259,7 @@ const DaftarLaboratoriumEksternal = () => {
         throw new Error("Tidak ada data valid untuk diimpor");
       }
 
-      const { error } = await supabase
+      const { error } = await tenantSupabase
         .from("daftar_laboratorium_eksternal")
         .insert(validData);
 

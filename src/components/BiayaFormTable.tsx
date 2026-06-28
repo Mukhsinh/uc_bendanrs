@@ -58,9 +58,12 @@ import {
 } from "@/components/ui/accordion";
 import { ImportProgressModal } from "@/components/ui/ImportProgressModal";
 import { useUploadProgress } from "@/hooks/use-upload-progress";
+import YearFilter from "@/components/ui/YearFilter";
 import { testSupabaseConnection, testAuthStatus } from "@/test-supabase";
 import { logCreate, logUpdate, logDelete, logView, logExport } from "@/utils/auditTrail";
 import { useReportDownload } from "@/components/report";
+import { useYear } from "@/contexts/YearContext";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface Biaya {
   id: string;
@@ -141,8 +144,9 @@ interface UnitKerja {
 
 const BiayaFormTable: React.FC = () => {
   const { downloadReport } = useReportDownload();
+  const { selectedYear } = useYear();
+  const { tenant } = useTenant();
   const [biayaList, setBiayaList] = useState<Biaya[]>([]);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedUnitId, setSelectedUnitId] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [viewingItem, setViewingItem] = useState<Biaya | null>(null);
@@ -825,7 +829,7 @@ const BiayaFormTable: React.FC = () => {
                 };
 
                 importedData.push({
-                  tahun,
+                  tahun: tahun, // gunakan tahun dari CSV, bukan selectedYear
                   unit_kerja_id: unitKerjaId,
                   biaya_gaji_tunjangan: safeParseFloat(row["Biaya Gaji dan Tunjangan"]),
                   biaya_jasa_pelayanan: safeParseFloat(row["Biaya Jasa Pelayanan"]),
@@ -849,6 +853,7 @@ const BiayaFormTable: React.FC = () => {
                   biaya_penyusutan_alat_medis: safeParseFloat(row["Biaya Penyusutan Alat Medis"]),
                   biaya_penyusutan_alat_non_medis: safeParseFloat(row["Biaya Penyusutan Alat Non Medis"]),
                   user_id: userId,
+                  tenant_id: tenant?.id ?? null,
                 });
                 successCount++;
               }
@@ -1194,16 +1199,7 @@ const BiayaFormTable: React.FC = () => {
           </div>
           
           <div className="flex gap-2 mb-4 flex-wrap items-center">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="filter-year">Tahun</Label>
-              <Input 
-                id="filter-year" 
-                className="w-24" 
-                type="number" 
-                value={selectedYear} 
-                onChange={(e) => setSelectedYear(parseInt(e.target.value) || new Date().getFullYear())} 
-              />
-            </div>
+            <YearFilter />
             <div className="flex items-center gap-2">
               <Label htmlFor="filter-unit">Unit Kerja</Label>
               <Select value={selectedUnitId} onValueChange={(value) => setSelectedUnitId(value === "all" ? "all" : value)}>
