@@ -11,8 +11,6 @@
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "composite": true,
-    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.app.tsbuildinfo",
     "noEmit": true,
 
     /* Linting */

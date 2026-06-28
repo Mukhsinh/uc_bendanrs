@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { getCurrentTenantId } from '@/lib/tenantAwareClient';
-import { isSuperAdmin, normalizeRoleName } from '@/utils/role-check';
+import { isSuperAdmin as checkIsSuperAdmin, normalizeRoleName } from '@/utils/role-check';
 
 interface Permission {
   id: string;
@@ -52,7 +52,7 @@ export const usePermissions = () => {
         return;
       }
 
-      const superAdmin = await isSuperAdmin(userId);
+      const superAdmin = await checkIsSuperAdmin(userId);
       
       if (superAdmin) {
         // Super Admin - bisa akses semua
