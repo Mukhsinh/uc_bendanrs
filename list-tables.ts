@@ -1,64 +1,74 @@
-// @ts-ignore
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+import fs from 'node:fs';
+import path from 'node:path';
 
-// Use the same configuration as in the client.ts file
-const supabaseUrl = 'https://koepzicdtovtknsqlnac.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvZXB6aWNkdG92dGtuc3FsbmFjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTczMDg1NzgsImV4cCI6MjA3Mjg4NDU3OH0.QUpuIaPDlDVp2LKSJYkBj4z3IY0aJwyCNhOXyVC2Ui0';
+dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Set SUPABASE_URL dan SUPABASE_ANON_KEY (atau VITE_SUPABASE_URL/VITE_SUPABASE_ANON_KEY) sebelum menjalankan script ini.');
+}
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+function walkFiles(dir: string, fileList: string[] = []): string[] {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkFiles(fullPath, fileList);
+    } else if (entry.isFile()) {
+      fileList.push(fullPath);
+    }
+  }
+  return fileList;
+}
+
+function extractSupabaseTablesFromSource(srcRoot: string): string[] {
+  const files = walkFiles(srcRoot).filter(p => /\.(ts|tsx|js|jsx)$/.test(p));
+  const tables = new Set<string>();
+  const fromRegex = /\.from\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+
+  for (const filePath of files) {
+    const content = fs.readFileSync(filePath, 'utf8');
+    let match: RegExpExecArray | null;
+    while ((match = fromRegex.exec(content)) !== null) {
+      const table = match[1]?.trim();
+      if (table) tables.add(table);
+    }
+  }
+
+  return Array.from(tables).sort((a, b) => a.localeCompare(b));
+}
 
 async function listTables() {
   try {
     console.log('Fetching table information from Supabase...');
     
-    // Try to get table information using RPC or direct query
-    // First, let's try a simple query to see what tables might exist
-    
-    // Check if the tenant tables exist by trying to query them
-    console.log('\nChecking for tenant tables:');
-    const tenantTables = ['tenants', 'tenant_settings', 'tenant_audit_log', 'user_profiles'];
-    
-    for (const tableName of tenantTables) {
-      try {
-        // Try a simple count query to see if table exists
-        const { count, error } = await supabase
-          .from(tableName)
-          .select('*', { count: 'exact', head: true });
-        
-        if (error && error.message.includes('Could not find the table')) {
-          console.log(`✗ ${tableName} does not exist`);
-        } else if (error) {
-          // Table exists but we got another kind of error (like permissions)
-          console.log(`✓ ${tableName} exists (but may have access restrictions)`);
-        } else {
-          console.log(`✓ ${tableName} exists (count: ${count})`);
-        }
-      } catch (tableError) {
-        console.error(`Error checking ${tableName}:`, tableError);
-      }
-    }
-    
-    // Try to get a list of tables using a different approach
-    console.log('\nAttempting to list tables using RPC...');
-    
-    // Let's try to query some of the application tables that should exist
-    const appTables = ['data_biaya', 'unit_kerja', 'jenis_biaya'];
-    
-    for (const tableName of appTables) {
+    const srcTables = extractSupabaseTablesFromSource(path.resolve(process.cwd(), 'src'));
+    console.log(`\nDetected ${srcTables.length} tables referenced by supabase.from() in src/:`);
+    console.log(srcTables.join(', '));
+
+    console.log('\nChecking table availability (may show access restrictions when RLS blocks anon):');
+    for (const tableName of srcTables) {
       try {
         const { count, error } = await supabase
           .from(tableName)
           .select('*', { count: 'exact', head: true });
-        
+
         if (error && error.message.includes('Could not find the table')) {
-          console.log(`✗ ${tableName} does not exist`);
+          console.log(`✗ ${tableName} MISSING`);
         } else if (error) {
-          console.log(`✓ ${tableName} exists (access error: ${error.message})`);
+          console.log(`✓ ${tableName} EXISTS (restricted)`);
         } else {
-          console.log(`✓ ${tableName} exists (count: ${count})`);
+          console.log(`✓ ${tableName} EXISTS (count: ${count})`);
         }
-      } catch (tableError) {
-        console.log(`? ${tableName} - connection test failed`);
+      } catch {
+        console.log(`? ${tableName} UNKNOWN (connection test failed)`);
       }
     }
     

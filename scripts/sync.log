@@ -1,0 +1,1490 @@
+Debug Env - URL: https://iryiykkzapmjioazjcwf.supabase.co
+Debug Env - Key (last 4 chars): WCuQ
+≡ƒÜÇ Starting synchronization of 29 files...
+
+Processing tenants_rows.sql...
+   ≡ƒöì Parsing 398 bytes of data for tenants...
+   Γ£à Parsing complete. Found 2 rows in 0.00s
+≡ƒôè Found 2 rows for table tenants
+Γ¥î Error upserting batch to tenants: Could not find the 'status' column of 'tenants' in the schema cache
+Sample record: {
+  "id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "name": "RSUD BENDAN",
+  "slug": "default-hospital",
+  "logo_url": null,
+  "status": "active",
+  "created_at": "2025-11-25 14:08:12.03988+00",
+  "updated_at": "2025-11-26 10:03:18.856+00",
+  "metadata": "{\"is_default\":true,\"description\":\"Default tenant for existing data migration\"}",
+  "is_active": true
+}
+Continuing to next batch...
+
+Processing tenant_settings_rows.sql...
+   ≡ƒöì Parsing 456 bytes of data for tenant_settings...
+   Γ£à Parsing complete. Found 2 rows in 0.00s
+≡ƒôè Found 2 rows for table tenant_settings
+Γ¥î Error upserting batch to tenant_settings: Could not find the 'calculation_method' column of 'tenant_settings' in the schema cache
+Sample record: {
+  "id": "4fe0f286-5d36-4f20-85cf-d78f6aba7069",
+  "tenant_id": "a878b603-090e-4787-9342-578be7572956",
+  "primary_color": "#6366f1",
+  "secondary_color": "#8b5cf6",
+  "include_jasa_pelayanan": true,
+  "calculation_method": "standard",
+  "metadata": "{}",
+  "created_at": "2025-12-03 00:27:44.725898+00",
+  "updated_at": "2025-12-03 00:27:44.725898+00",
+  "currency": "IDR"
+}
+Continuing to next batch...
+
+Processing user_roles_rows.sql...
+   ≡ƒöì Parsing 3378 bytes of data for user_roles...
+   Γ£à Parsing complete. Found 14 rows in 0.00s
+≡ƒôè Found 14 rows for table user_roles
+Γ¥î Error upserting batch to user_roles: Could not find the 'assigned_at' column of 'user_roles' in the schema cache
+Sample record: {
+  "id": "04b36f13-178a-4da0-a092-f49c2dab290d",
+  "user_id": "a024d81a-4458-4d34-8283-c13b7bc5bc8a",
+  "role_id": "0885db64-fd3c-4385-a5f2-21a97cb3d22e",
+  "assigned_by": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "assigned_at": "2025-10-13 03:11:49.36121+00",
+  "is_active": false,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing user_profiles_rows.sql...
+   ≡ƒöì Parsing 1507 bytes of data for user_profiles...
+   Γ£à Parsing complete. Found 7 rows in 0.00s
+≡ƒôè Found 7 rows for table user_profiles
+Γ¥î Error upserting batch to user_profiles: Could not find the 'avatar_url' column of 'user_profiles' in the schema cache
+Sample record: {
+  "id": "091d4ebe-061b-4822-9273-dd9fe2298015",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "full_name": "mukhsin9",
+  "phone": null,
+  "avatar_url": null,
+  "preferences": "{}",
+  "created_at": "2025-11-26 07:06:18.503359+00",
+  "updated_at": "2025-11-26 07:06:18.503359+00"
+}
+Continuing to next batch...
+
+Processing users_with_roles_rows.sql...
+   ≡ƒöì Parsing 2238 bytes of data for users_with_roles...
+   Γ£à Parsing complete. Found 7 rows in 0.00s
+≡ƒôè Found 7 rows for table users_with_roles
+Γ¥î Error upserting batch to users_with_roles: Could not find the table 'public.users_with_roles' in the schema cache
+Continuing to next batch...
+Sample record: {
+  "id": "24d6a41b-411c-4bd3-bee0-0a0aedb6df9a",
+  "email": "riekehandayani.rsudbendan@gmail.com",
+  "created_at": "2025-11-27 21:38:38.669459+00",
+  "last_sign_in_at": "2025-12-08 07:40:56.125726+00",
+  "raw_user_meta_data": "{\"full_name\":\"Rieke\"}",
+  "role_name": "Admin",
+  "role_description": "Administrator dengan akses terbatas",
+  "role_is_active": true,
+  "assigned_at": "2025-11-27 21:38:38.669459+00",
+  "assigned_by_email": "mukhsin9@gmail.com"
+}
+
+Processing daftar_tindakan_rows.sql...
+   ≡ƒöì Parsing 265496 bytes of data for daftar_tindakan...
+   Γ£à Parsing complete. Found 364 rows in 0.03s
+≡ƒôè Found 364 rows for table daftar_tindakan
+Γ¥î Error upserting batch to daftar_tindakan: cannot extract elements from a scalar
+Sample record: {
+  "id": "008d0a10-d0ce-4605-9de3-3e0f527f5a3b",
+  "kode_tindakan": "T.263",
+  "nama_tindakan": "Ganti Tampon Abses Leher",
+  "created_at": "2025-10-08 02:13:36.190449+00",
+  "updated_at": "2025-11-03 03:58:33.65605+00",
+  "medis": true,
+  "paramedis": false,
+  "bahan_tindakan": "[{\"nama\":\"Sarung Tangan Non Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":630,\"harga_satuan\":630},{\"nama\":\"Masker Bedah\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":200,\"harga_satuan\":200},{\"nama\":\"Adhesive Tape 10Cm X 10M\",\"jumlah\":0.008,\"satuan\":\"ROL\",\"harga_total\":569,\"harga_satuan\":71151},{\"nama\":\"Povidon Iodine 1000 Ml\",\"jumlah\":0.001,\"satuan\":\"BOTOL\",\"harga_total\":86,\"harga_satuan\":86000},{\"nama\":\"Kassa Roll 80 Cm X 40 Cm\",\"jumlah\":0.005,\"satuan\":\"BUAH\",\"harga_total\":643,\"harga_satuan\":128500}]",
+  "biaya_bahan_tindakan": 2128,
+  "waktu": 10,
+  "profesionalisme": 3,
+  "tingkat_kesulitan": 4,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing data_master_barang_farmasi_rows.sql...
+   ≡ƒöì Parsing 278374 bytes of data for data_master_barang_farmasi...
+   Γ£à Parsing complete. Found 1313 rows in 0.04s
+≡ƒôè Found 1313 rows for table data_master_barang_farmasi
+Γ¥î Error upserting batch to data_master_barang_farmasi: Could not find the table 'public.data_master_barang_farmasi' in the schema cache
+Sample record: {
+  "id": "000dc869-5b16-4925-9c8a-328bb2d65a0c",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "OBT05891",
+  "nama_barang": "Antipac 200 Mg/Ml 25Ml Injeksi",
+  "gudang": "obat",
+  "created_at": "2025-09-21 09:18:12.602364+00",
+  "updated_at": "2025-09-21 09:18:12.602364+00",
+  "satuan": "VIAL",
+  "harga": 98290
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to data_master_barang_farmasi: Could not find the table 'public.data_master_barang_farmasi' in the schema cache
+Sample record: {
+  "id": "5de25b4c-658f-4692-9beb-33f762e250bd",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "ALS03691",
+Continuing to next batch...
+  "nama_barang": "Tensoplast Skintraksi Dewasa",
+  "gudang": "bhp",
+  "created_at": "2025-09-21 09:18:12.396172+00",
+  "updated_at": "2025-09-21 09:18:12.396172+00",
+  "satuan": "BUAH",
+  "harga": 361338
+}
+Γ¥î Error upserting batch to data_master_barang_farmasi: Could not find the table 'public.data_master_barang_farmasi' in the schema cache
+Sample record: {
+  "id": "c08f7e34-f0ac-4756-a4e4-c81ec19635ce",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "OBT00027",
+  "nama_barang": "Alprazolam 0,5 Mg Tablet",
+  "gudang": "obat",
+  "created_at": "2025-09-21 09:18:13.342923+00",
+  "updated_at": "2025-09-21 09:18:13.342923+00",
+  "satuan": "TABLET",
+  "harga": 150
+}
+Continuing to next batch...
+
+Processing data_barang_farmasi_rows.sql...
+   ≡ƒöì Parsing 330894 bytes of data for data_barang_farmasi...
+   Γ£à Parsing complete. Found 1313 rows in 0.05s
+≡ƒôè Found 1313 rows for table data_barang_farmasi
+Γ¥î Error upserting batch to data_barang_farmasi: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Sample record: {
+  "id": "000dc869-5b16-4925-9c8a-328bb2d65a0c",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "OBT05891",
+  "nama_barang": "Antipac 200 Mg/Ml 25Ml Injeksi",
+  "gudang": "obat",
+  "created_at": "2025-09-21 09:18:12.602364+00",
+  "updated_at": "2025-09-21 09:18:12.602364+00",
+  "satuan": "VIAL",
+  "harga": 98290,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to data_barang_farmasi: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Sample record: {
+  "id": "5de25b4c-658f-4692-9beb-33f762e250bd",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "ALS03691",
+  "nama_barang": "Tensoplast Skintraksi Dewasa",
+  "gudang": "bhp",
+  "created_at": "2025-09-21 09:18:12.396172+00",
+  "updated_at": "2025-09-21 09:18:12.396172+00",
+  "satuan": "BUAH",
+  "harga": 361338,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to data_barang_farmasi: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Sample record: {
+  "id": "c08f7e34-f0ac-4756-a4e4-c81ec19635ce",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "OBT00027",
+  "nama_barang": "Alprazolam 0,5 Mg Tablet",
+  "gudang": "obat",
+  "created_at": "2025-09-21 09:18:13.342923+00",
+  "updated_at": "2025-09-21 09:18:13.342923+00",
+  "satuan": "TABLET",
+  "harga": 150,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing data_barang_gizi_rows.sql...
+   ≡ƒöì Parsing 48384 bytes of data for data_barang_gizi...
+   Γ£à Parsing complete. Found 196 rows in 0.00s
+≡ƒôè Found 196 rows for table data_barang_gizi
+Γ¥î Error upserting batch to data_barang_gizi: new row violates row-level security policy for table "data_barang_gizi"
+Continuing to next batch...
+Sample record: {
+  "id": "0068cc2e-242a-48a6-9e3d-9fbbc6dbb67e",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_barang": "01.01.07.01.07.01.01.311",
+  "nama_barang": "Lactogen 1",
+  "satuan": "doos",
+  "harga": 31400,
+  "created_at": "2025-09-21 09:31:12.821998+00",
+  "updated_at": "2025-09-21 09:31:12.821998+00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+
+Processing data_dokter_rows.sql...
+   ≡ƒöì Parsing 13531 bytes of data for data_dokter...
+   Γ£à Parsing complete. Found 52 rows in 0.00s
+≡ƒôè Found 52 rows for table data_dokter
+Γ¥î Error upserting batch to data_dokter: Could not find the 'jenis_spesialistik' column of 'data_dokter' in the schema cache
+Sample record: {
+  "id": "02147d5b-ed86-46e2-8d3c-574ff83df024",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_dokter": "DK.020",
+  "nama_dokter": "Dwi Apriyanti,Dr",
+  "spesialistik": "Dokter Umum",
+  "jenis_spesialistik": "Non Spesialistik",
+  "created_at": "2025-10-23 08:20:54.490704+00",
+  "updated_at": "2025-10-23 08:20:54.490704+00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing data_kegiatan_rows.sql...
+   ≡ƒöì Parsing 28378 bytes of data for data_kegiatan...
+   Γ£à Parsing complete. Found 77 rows in 0.00s
+≡ƒôè Found 77 rows for table data_kegiatan
+Γ¥î Error upserting batch to data_kegiatan: Could not find the 'is_dummy' column of 'data_kegiatan' in the schema cache
+Sample record: {
+  "id": 5293,
+  "Kode_UK": "UK001",
+  "Nama_Unit_Kerja": "Direktur",
+  "Jml_jam_Praktek_Harian": 7,
+  "SDM_dokter": 1,
+  "SDM_Perawat": "0",
+  "SDM_Non": "0",
+  "Listrik_kwh": 43264,
+  "Air_m3": 5,
+  "Telepon_Freq_pakai_per_titik": 1,
+  "Komputer_simrs_user": 1,
+  "Tempat_Tidur_SVIP": "0",
+  "Tempat_Tidur_VIP": "0",
+  "Tempat_Tidur_I": "0",
+  "Tempat_Tidur_II": "0",
+  "Tempat_Tidur_III": "0",
+  "Tempat_Tidur_Khusus": "0",
+  "Kunjungan_Pasien_Lama": "0",
+  "Kunjungan_Pasien_Baru": "0",
+  "Jumlah_Tindakan": "0",
+  "Resep_Lembar_Resep": "0",
+  "Cucian_kg_Cucian": "0",
+  "Instrumen_Besar": "0",
+  "Instrumen_Sedang": "0",
+  "Instrumen_Kecil": "0",
+  "Set_Pack_Besar": "0",
+  "Set_Pack_Sedang": "0",
+  "Set_Pack_Kecil": "0",
+  "Makanan_Karyawan_jml_Porsi": "0",
+  "Makanan_Pasien_jml_Porsi": "0",
+  "Hari_Rawat_SVIP": "0",
+  "Hari_Rawat_VIP": "0",
+  "Hari_Rawat_I": "0",
+  "Hari_Rawat_II": "0",
+  "Hari_Rawat_III": "0",
+  "created_at": "2025-10-20 00:37:01.549346+00",
+Continuing to next batch...
+  "updated_at": "2025-10-20 00:37:01.549346+00",
+  "tahun": 2025,
+  "Diklat_Jumlah_Siswa": "0",
+  "Diklat_Lama_Hari": "0",
+  "Jumlah_SDM": 1,
+  "Total_Kunjungan_Pasien": "0",
+  "Total_Diklat": "0",
+  "Jenis": "Operatif",
+  "Jumlah_Hari_Rawat": "0",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "jumlah_porsi_svip": "0",
+  "jumlah_porsi_vip": "0",
+  "jumlah_porsi_i": "0",
+  "jumlah_porsi_ii": "0",
+  "jumlah_porsi_iii": "0",
+  "kamar_luas_svip": "0",
+  "kamar_luas_vip": "0",
+  "kamar_luas_i": "0",
+  "kamar_luas_ii": "0",
+  "kamar_luas_iii": "0",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "is_dummy": false
+}
+
+Processing data_kegiatan_transpose_rows.sql...
+   ≡ƒöì Parsing 19952 bytes of data for data_kegiatan_transpose...
+   Γ£à Parsing complete. Found 48 rows in 0.00s
+≡ƒôè Found 48 rows for table data_kegiatan_transpose
+Γ¥î Error upserting batch to data_kegiatan_transpose: new row violates row-level security policy for table "data_kegiatan_transpose"
+Sample record: {
+  "id": 34943,
+  "dasar_alokasi": "Jml jam Praktek",
+  "sub_kategori": "Shift (8 jam)",
+  "direktur": 7,
+  "komite_ppi": 7,
+  "komite_pmkp": 7,
+  "komite_medik": 7,
+  "akreditasi": 7,
+  "dewan_pengawas": 7,
+  "bid_pengembangan": 7,
+  "seksi_penunjang_non_medis": 7,
+  "ipsrs_medis_non_medis": 21,
+  "seksi_penunjang_medis": 7,
+  "bid_keperawatan": 7,
+  "seksi_asuhan_pelayanan_keperawatan": 7,
+  "seksi_pengembangan_dan_etika_keperawatan": 7,
+  "bid_pelayanan_medis": 7,
+  "seksi_pengembangan_pelayanan_medis": 7,
+  "seksi_pelayanan_medis_dan_rekam_medis": 7,
+  "tpprj": 7,
+  "tppri": 21,
+  "bag_tata_usaha": 7,
+  "subag_keuangan": 7,
+  "unit_perbendaharaan": 7,
+  "unit_pendapatan": 7,
+  "unit_akuntansi_dan_verifikasi": 7,
+  "unit_akuntansi_manajemen": 7,
+  "analis_biaya_dan_kasir": 21,
+  "subag_umpeg": 7,
+  "staf_umum_dan_kepegawaian": 7,
+  "unit_it": 14,
+  "rumah_tangga": 7,
+  "cleaning_service": 21,
+  "security": 21,
+  "unit_aset": 7,
+  "instalasi_humas_komplain": 7,
+  "subag_renval": 7,
+Continuing to next batch...
+  "staf_renval": 7,
+  "rekam_medik": 7,
+  "ambulance": 21,
+  "laboratorium_pk_pa": 21,
+  "radiologi": 21,
+  "farmasi": 21,
+  "rehab_medik": 21,
+  "gizi_dapur": 21,
+  "laundry_cssd": 14,
+  "bdrs": 21,
+  "cathlab": 7,
+  "terang_bulan_vip_vvip": 21,
+  "truntum": 21,
+  "sekarjagat": 21,
+  "jlamprang": 21,
+  "nifas": 21,
+  "perinatologi": 21,
+  "buketan": 21,
+  "icu_picu_nicu": 21,
+  "vk": 21,
+  "igd_ponek": 21,
+  "klinik_kebid_kandungan": 7,
+  "klinik_bedah_mulut": 7,
+  "klinik_syaraf": 7,
+  "klinik_bedah_syaraf": 7,
+  "klinik_bedah_digestif": 7,
+  "klinik_bedah_umum": 7,
+  "klinik_anak": 7,
+  "klinik_penyakit_dalam": 7,
+  "klinik_mata": 7,
+  "klinik_kulit_kelamin": 7,
+  "klinik_tht": 7,
+  "klinik_gigi": 7,
+  "klinik_jantung": 7,
+  "klinik_dot_vct_cst": 7,
+  "klinik_paru": 7,
+  "klinik_orthopedi": 7,
+  "klinik_jiwa": 7,
+  "klinik_parikesit": 7,
+  "ibs": 14,
+  "pemulasaran_jenazah": 21,
+  "hemodialisis": 14,
+  "unit_diklat": 7,
+  "tahun": 2025,
+  "total_dasar_alokasi": 889,
+  "created_at": "2025-11-08 10:45:31.221475+00",
+  "updated_at": "2025-11-08 10:45:31.221475+00",
+  "total_dasar_alokasi_pusat_biaya": 329,
+  "total_dasar_alokasi_pusat_pendapatan": 560,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+
+Processing Dasar_Alokasi_rows.sql...
+   ≡ƒöì Parsing 52542 bytes of data for Dasar_Alokasi...
+   Γ£à Parsing complete. Found 346 rows in 0.00s
+≡ƒôè Found 346 rows for table Dasar_Alokasi
+Γ¥î Error upserting batch to Dasar_Alokasi: new row violates row-level security policy for table "Dasar_Alokasi"
+Sample record: {
+  "id": 245,
+  "Kode_UK": "UK001",
+  "Tahun": 2025,
+  "Dasar_Alokasi_Field": "Total_SDM",
+  "Dasar_Alokasi_Value": 13,
+  "created_at": "2025-09-25 00:25:14.963504+00",
+  "updated_at": "2025-09-25 00:25:14.963504+00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing Alokasi biaya kedua dengan JP_rows.sql...
+   ≡ƒöì Parsing 23045 bytes of data for Alokasi...
+   Γ£à Parsing complete. Found 36 rows in 0.00s
+≡ƒôè Found 36 rows for table Alokasi
+Γ¥î Error upserting batch to Alokasi: Could not find the table 'public.Alokasi' in the schema cache
+Sample record: {
+  "id": "02288f33-25fc-40c7-a345-37683fc542c5",
+  "user_id": null,
+  "biaya_alokasi_i": 90034458,
+  "dasar_alokasi": "Komputer_SIMRS",
+  "keterangan": "Distribusi berdasarkan Komputer_SIMRS ke pusat pendapatan",
+  "uk038_laboratorium_pk_pa": 2590920,
+  "uk039_radiologi": 12954598,
+  "uk040_farmasi": 2590920,
+  "uk041_rehab_medik": 2590920,
+  "uk042_gizi_dapur": 647730,
+  "uk043_laundry_cssd": 1295460,
+  "uk044_bdrs": 1295460,
+  "uk045_cathlab": 2590920,
+  "uk046_terang_bulan_vip_vvip": 2590920,
+  "uk047_truntum": 2590920,
+  "uk048_sekarjagat": 2590920,
+  "uk049_jlamprang": 3238650,
+  "uk050_nifas": 1943190,
+  "uk051_perinatologi": 3238650,
+  "uk052_buketan": 3238650,
+  "uk053_icu_picu_nicu": 2590920,
+  "uk054_vk": 4534109,
+  "uk055_igd_ponek": 647730,
+  "uk056_klinik_kebid_kandungan": 647730,
+  "uk057_klinik_bedah_mulut": 647730,
+  "uk058_klinik_syaraf": 647730,
+  "uk059_klinik_bedah_syaraf": 647730,
+  "uk060_klinik_bedah_digestif": 647730,
+  "uk061_klinik_bedah_umum": 647730,
+Continuing to next batch...
+  "uk062_klinik_anak": 1295460,
+  "uk063_klinik_penyakit_dalam": 1943190,
+  "uk064_klinik_mata": 647730,
+  "uk065_klinik_kulit_kelamin": 647730,
+  "uk066_klinik_tht": 1295460,
+  "uk067_klinik_gigi": 1295460,
+  "uk068_klinik_jantung": 647730,
+  "uk069_klinik_dot_vct_cst": 647730,
+  "uk070_klinik_paru": 647730,
+  "uk071_klinik_orthopedi": 647730,
+  "uk072_klinik_jiwa": 1943190,
+  "uk073_klinik_parikesit": 3886379,
+  "uk074_ibs": 647730,
+  "uk075_pemulasaran_jenazah": 2590920,
+  "uk076_hemodialisis": 9068219,
+  "uk077_unit_diklat": 1943183,
+  "tahun": 2025,
+  "created_at": "2025-11-09 09:22:30.945505+00",
+  "updated_at": "2025-11-09 09:22:30.945505+00",
+  "total_alokasi_i": 90034458,
+  "audit_check": "OK",
+  "uk037_ambulance": 2590920,
+  "distribusi_biaya_pertama_id": null,
+  "unit_kerja_pusat_biaya": "UK028 - Unit IT",
+  "total_alokasi_biaya_kedua": 90034458,
+  "selisih_pembulatan": "0",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+
+Processing Alokasi BTL dengan JP_rows.sql...
+   ≡ƒöì Parsing 3821 bytes of data for Alokasi...
+   Γ£à Parsing complete. Found 5 rows in 0.00s
+≡ƒôè Found 5 rows for table Alokasi
+Γ¥î Error upserting batch to Alokasi: Could not find the table 'public.Alokasi' in the schema cache
+Sample record: {
+  "id": "584b6957-69a3-4f42-a9bb-802685fad42e",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "biaya": "Biaya Alokasi Tahap II",
+  "uk037_ambulance": 57712599,
+  "uk038_laboratorium_pk_pa": 231309042,
+  "uk039_radiologi": 116494481,
+  "uk040_farmasi": 382685082,
+  "uk041_rehab_medik": 275822034,
+  "uk042_gizi_dapur": 188658768,
+  "uk043_laundry_cssd": 145697772,
+  "uk044_bdrs": 53427174,
+  "uk045_cathlab": 83714633,
+  "uk046_terang_bulan_vip_vvip": 161163818,
+  "uk047_truntum": 261720704,
+  "uk048_sekarjagat": 231313385,
+  "uk049_jlamprang": 269873440,
+  "uk050_nifas": 148029618,
+  "uk051_perinatologi": 93178297,
+  "uk052_buketan": 250410513,
+  "uk053_icu_picu_nicu": 290903432,
+  "uk054_vk": 112944110,
+  "uk055_igd_ponek": 516784345,
+  "uk056_klinik_kebid_kandungan": 46201921,
+  "uk057_klinik_bedah_mulut": 47388359,
+  "uk058_klinik_syaraf": 116329317,
+  "uk059_klinik_bedah_syaraf": 27187021,
+  "uk060_klinik_bedah_digestif": 13632996,
+  "uk061_klinik_bedah_umum": 70450382,
+  "uk062_klinik_anak": 77224858,
+  "uk063_klinik_penyakit_dalam": 138019896,
+  "uk064_klinik_mata": 155970967,
+  "uk065_klinik_kulit_kelamin": 38565815,
+  "uk066_klinik_tht": 50012610,
+  "uk067_klinik_gigi": 61359848,
+  "uk068_klinik_jantung": 116880615,
+  "uk069_klinik_dot_vct_cst": 29177600,
+  "uk070_klinik_paru": 41978930,
+  "uk071_klinik_orthopedi": 58532614,
+  "uk072_klinik_jiwa": 53124341,
+  "uk073_klinik_parikesit": 73566101,
+  "uk074_ibs": 259886904,
+  "uk075_pemulasaran_jenazah": 37027605,
+  "uk076_hemodialisis": 198743819,
+  "uk077_unit_diklat": 9065884,
+  "tahun": 2025,
+  "created_at": "2025-11-09 09:22:35.712146+00",
+  "updated_at": "2025-11-09 09:22:35.712146+00",
+  "urutan": 3,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+Continuing to next batch...
+}
+
+Processing Alokasibiaya pertama dengan JP_rows.sql...
+   ≡ƒöì Parsing 35845 bytes of data for Alokasibiaya...
+   Γ£à Parsing complete. Found 36 rows in 0.00s
+≡ƒôè Found 36 rows for table Alokasibiaya
+Γ¥î Error upserting batch to Alokasibiaya: Could not find the table 'public.Alokasibiaya' in the schema cache
+Sample record: {
+  "id": "023cb1d0-c8d8-4390-b12d-c33c4e6cc901",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "unit_kerja_pusat_biaya": "UK018 - TPPRI",
+  "biaya_tahunan": 635513139,
+  "dasar_alokasi": "Total_Kunjungan_Pasien",
+  "tahun": 2025,
+  "uk001_direktur_": "0",
+  "uk002_komite_ppi": "0",
+  "uk003_komite_pmkp": "0",
+  "uk004_komite_medik": "0",
+  "uk005_akreditasi": "0",
+  "uk006_dewan_pengawas": "0",
+  "uk007_bid_pengembangan_dan_penunjang_pelayanan": "0",
+  "uk008_seksi_penunjang_non_medis_dan_pengembangan_penunjang_pela": "0",
+  "uk009_ipsrs_medis_dan_non_medis_": "0",
+  "uk010_seksi_penunjang_pelayanan_medis": "0",
+  "uk011_bid_keperawatan": "0",
+  "uk012_seksi_asuhan_pelayanan_keperawatan": "0",
+  "uk013_seksi_pengembangan_dan_etika_keperawatan": "0",
+  "uk014_bid_pelayanan_medis": "0",
+  "uk015_seksi_pengembangan_pelayanan_medis": "0",
+  "uk016_seksi_pelayanan_medis_dan_rekam_medis": "0",
+  "uk017_tpprj": "0",
+  "uk018_tppri": "0",
+  "uk019_bag_tata_usaha": "0",
+Continuing to next batch...
+  "uk020_subag_keuangan": "0",
+  "uk021_unit_perbendaharaan": "0",
+  "uk022_unit_pendapatan": "0",
+  "uk023_unit_akuntansi_dan_verifikasi": "0",
+  "uk024_unit_akuntansi_manajemen": "0",
+  "uk025_analis_biaya_dan_kasir": "0",
+  "uk026_subag_umpeg": "0",
+  "uk027_staf_umum_dan_kepegawaian": "0",
+  "uk028_unit_it": "0",
+  "uk029_rumah_tangga": "0",
+  "uk030_cleaning_service": "0",
+  "uk031_security": "0",
+  "uk032_unit_aset": "0",
+  "uk033_instalasi_humas_komplain": "0",
+  "uk034_subag_renval": "0",
+  "uk035_staf_renval": "0",
+  "uk036_rekam_medik": "0",
+  "uk037_ambulance": "0",
+  "uk038_laboratorium_pk_pa_": "0",
+  "uk039_radiologi": "0",
+  "uk040_farmasi": "0",
+  "uk041_rehab_medik": 82263088,
+  "uk042_gizi_dapur_": "0",
+  "uk043_laundry_cssd": "0",
+  "uk044_bdrs": "0",
+  "uk045_cathlab": "0",
+  "uk046_terang_bulan_vip_vvip_": 3072744,
+  "uk047_truntum": 12232862,
+  "uk048_sekarjagat": 10652905,
+  "uk049_jlamprang": 12570645,
+  "uk050_nifas_": 4343973,
+  "uk051_perinatologi": 1935901,
+  "uk052_buketan": 5139400,
+  "uk053_icu_picu_nicu": 791794,
+  "uk054_vk_": "0",
+  "uk055_igd_ponek": 64879931,
+  "uk056_klinik_kebid_kandungan": 8738796,
+  "uk057_klinik_bedah_mulut": 16569571,
+  "uk058_klinik_syaraf": 49109418,
+  "uk059_klinik_bedah_syaraf": 6592234,
+  "uk060_klinik_bedah_digestif": 2680479,
+  "uk061_klinik_bedah_umum": 23960863,
+  "uk062_klinik_anak": 27077192,
+  "uk063_klinik_penyakit_dalam": 52966692,
+  "uk064_klinik_mata": 65021582,
+  "uk065_klinik_kulit_kelamin": 13315223,
+  "uk066_klinik_tht": 11502813,
+  "uk067_klinik_gigi": 8055964,
+  "uk068_klinik_jantung": 52076832,
+  "uk069_klinik_dot_vct_cst": 7656435,
+  "uk070_klinik_paru": 15163954,
+  "uk071_klinik_orthopedi": 19057549,
+  "uk072_klinik_jiwa": 16271740,
+  "uk073_klinik_parikesit": 13772866,
+  "uk074_ibs": "0",
+  "uk075_pemulasaran_jenazah": "0",
+  "uk076_hemodialisis": 28039695,
+  "uk077_unit_diklat": "0",
+  "created_at": "2025-11-03 10:59:00.520261+00",
+  "updated_at": "2025-11-03 10:59:00.520261+00",
+  "jumlah_biaya_terdistribusi_i": 635513139,
+  "audit_check": "OK",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+
+Processing analisa_bahan_pemeriksaan_rows.sql...
+   ≡ƒöì Parsing 2692582 bytes of data for analisa_bahan_pemeriksaan...
+   Γ£à Parsing complete. Found 7992 rows in 0.53s
+≡ƒôè Found 7992 rows for table analisa_bahan_pemeriksaan
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "000868a2-5efd-4c22-9c9b-557eeae512b1",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.01,
+  "nama_operator": "Bedah Mulut",
+  "kode_tindakan": "3.01.012",
+  "nama_tindakan": "REKONSTRUKSI LIDAH",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "OBT00482",
+  "nama_bahan": "Ketorolac 30 Mg/Ml Injeksi",
+  "satuan": "-",
+  "harga_satuan": 1202,
+  "jumlah_satuan": 1,
+  "total_harga": 1202,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "1077c6be-2a32-487a-80cb-7da96036231c",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.05,
+  "nama_operator": "Bedah Orthopedi",
+  "kode_tindakan": "3.05.022",
+  "nama_tindakan": "NECROTIC TISSUE + DEBRIDEMENT",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "OBT04972",
+  "nama_bahan": "Dexketoprofen 25 Mg/Ml Injeksi",
+  "satuan": "-",
+  "harga_satuan": 8009,
+  "jumlah_satuan": 1,
+  "total_harga": 8009,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "20328f7f-dabd-472c-8e55-515b3f3d14fa",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.02,
+  "nama_operator": "Bedah Syaraf",
+  "kode_tindakan": "3.02.011",
+  "nama_tindakan": "RESEKSI STT",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "ALS00020",
+  "nama_bahan": "Bisturi 22 - Aesculap",
+  "satuan": "-",
+  "harga_satuan": 2865,
+  "jumlah_satuan": 1,
+  "total_harga": 2865,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "307c831c-b7fc-47fc-aa32-3bab4675983a",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.03,
+  "nama_operator": "Kebidanan dan Kandungan",
+  "kode_tindakan": "3.03.001",
+  "nama_tindakan": "SC",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "OBT04907",
+  "nama_bahan": "Oxytocin Injeksi",
+  "satuan": "-",
+  "harga_satuan": 3294,
+  "jumlah_satuan": 2,
+  "total_harga": 6588,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "3fc792cb-e7b9-45f9-9379-bf50b1e68246",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.04,
+  "nama_operator": "Bedah Digestif",
+  "kode_tindakan": "3.04.027",
+  "nama_tindakan": "HIDROCELEKTOMY",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "OBT00858",
+  "nama_bahan": "Tramadol 100 Mg / 2 Ml Injeksi",
+  "satuan": "-",
+  "harga_satuan": 3000,
+  "jumlah_satuan": 1,
+  "total_harga": 3000,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "511241aa-b57c-4f61-b548-9fdeefe9e3f6",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.08,
+  "nama_operator": "Mata",
+  "kode_tindakan": "3.08.001",
+  "nama_tindakan": "PHACO + IOL",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "ALS00306",
+  "nama_bahan": "Spuit 3 Cc",
+  "satuan": "-",
+  "harga_satuan": 969,
+  "jumlah_satuan": 1,
+  "total_harga": 969,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "606ec75e-7f11-40fd-b548-f3a6ef01d23a",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.06,
+  "nama_operator": "Bedah Umum",
+  "kode_tindakan": "3.06.036",
+  "nama_tindakan": "INCISI DRAINAGE + DEBRIDEMENT",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "OBT00858",
+  "nama_bahan": "Tramadol 100 Mg / 2 Ml Injeksi",
+  "satuan": "-",
+  "harga_satuan": 3000,
+  "jumlah_satuan": 1,
+  "total_harga": 3000,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "705bf6fc-92e5-428e-bc4a-824f39a1e8fe",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.04,
+  "nama_operator": "Bedah Digestif",
+  "kode_tindakan": "3.04.018",
+  "nama_tindakan": "COLOSTOMY",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "ALS00107",
+  "nama_bahan": "Folley Catheter 2 Way 10",
+  "satuan": "-",
+  "harga_satuan": 24642,
+  "jumlah_satuan": 1,
+  "total_harga": 24642,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+Continuing to next batch...
+}
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "810f880a-ce4d-4ca3-a07f-6d00c6904324",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.01,
+  "nama_operator": "Bedah Mulut",
+  "kode_tindakan": "3.01.017",
+  "nama_tindakan": "PALATO PLASTY",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "ALS00018",
+  "nama_bahan": "Bisturi 15 - Aesculap",
+  "satuan": "-",
+  "harga_satuan": 3010,
+  "jumlah_satuan": 1,
+  "total_harga": 3010,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "925e4198-1161-468b-8d12-b9d380ecc3a0",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.04,
+  "nama_operator": "Bedah Digestif",
+  "kode_tindakan": "3.04.024",
+  "nama_tindakan": "HEPATECTOMY",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "ALS00110",
+  "nama_bahan": "Folley Catheter 2 Way 16",
+  "satuan": "-",
+  "harga_satuan": 10000,
+  "jumlah_satuan": 1,
+  "total_harga": 10000,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "a1aa6dad-59bb-4ec7-8f72-4b5a5f8f7c65",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.06,
+  "nama_operator": "Bedah Umum",
+  "kode_tindakan": "3.06.018",
+  "nama_tindakan": "TROMBOEMBOLECTOMY",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "BHP00098",
+  "nama_bahan": "Apron Plastik 75 X 125 Cm",
+  "satuan": "-",
+  "harga_satuan": 2000,
+  "jumlah_satuan": 3,
+  "total_harga": 6000,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "b1188ccb-4d74-42e3-93b5-cc52532bd40c",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.06,
+  "nama_operator": "Bedah Umum",
+  "kode_tindakan": "3.06.047",
+  "nama_tindakan": "VENA SECTIE",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "ALS00290",
+  "nama_bahan": "Sarung Tangan Non Steril",
+  "satuan": "-",
+  "harga_satuan": 630,
+  "jumlah_satuan": 2,
+  "total_harga": 1260,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "c0f32592-3edc-4a45-8699-8ef8bfca60c8",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.01,
+  "nama_operator": "Bedah Mulut",
+  "kode_tindakan": "3.01.004",
+  "nama_tindakan": "ENUKLEASI KISTA",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "BHP01707",
+  "nama_bahan": "Adhesive Tape 10Cm X 10M",
+  "satuan": "-",
+  "harga_satuan": 71151,
+  "jumlah_satuan": "0.02",
+  "total_harga": 1423,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "d07224a5-35ae-425b-950d-4aacd73e2b00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.01,
+  "nama_operator": "Bedah Mulut",
+  "kode_tindakan": "3.01.016",
+  "nama_tindakan": "REKONSTRUKSI FRENULUM",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "BHP00007",
+  "nama_bahan": "Kassa Roll 80 Cm X 40 Cm",
+  "satuan": "-",
+  "harga_satuan": 128500,
+  "jumlah_satuan": "0.03",
+  "total_harga": 3855,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "e0379d42-a166-48c0-99f7-94850dfc0cd7",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK074",
+  "nama_unit_kerja": "IBS",
+  "kode_operator": 3.06,
+  "nama_operator": "Bedah Umum",
+  "kode_tindakan": "3.06.019",
+  "nama_tindakan": "LAPARATOMY BIOPSI",
+  "jenis_tindakan": "IBS",
+  "kode_bahan": "OBT00599",
+  "nama_bahan": "Nacl 0,9% Infus 500 Ml",
+  "satuan": "-",
+  "harga_satuan": 5755,
+  "jumlah_satuan": 6,
+  "total_harga": 34530,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to analisa_bahan_pemeriksaan: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Sample record: {
+  "id": "f0537470-85cf-44b0-afe1-357d22ba2593",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK038",
+  "nama_unit_kerja": "Laboratorium",
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "PK.032",
+  "nama_tindakan": "Uric Acid Ca 270",
+  "jenis_tindakan": "laboratorium",
+  "kode_bahan": "ALS00257",
+  "nama_bahan": "Needle Spuit 25",
+  "satuan": "-",
+  "harga_satuan": 349,
+  "jumlah_satuan": 1,
+  "total_harga": 349,
+  "created_at": "2026-03-17 01:32:23.322752+00",
+  "updated_at": "2026-03-17 01:32:23.322752+00"
+}
+Continuing to next batch...
+
+Processing api_biaya_endpoints_rows.sql...
+   ≡ƒöì Parsing 412 bytes of data for api_biaya_endpoints...
+   Γ£à Parsing complete. Found 2 rows in 0.00s
+≡ƒôè Found 2 rows for table api_biaya_endpoints
+Γ¥î Error upserting batch to api_biaya_endpoints: Could not find the table 'public.api_biaya_endpoints' in the schema cache
+Sample record: {
+  "method": "GET",
+  "endpoint": "/api/biaya-preference",
+  "description": "Get current biaya preference",
+  "request_body": "{\"user_id\": \"uuid\"}",
+  "response_body": "{\"success\": true, \"current_preference\": \"string\", \"message\": \"string\"}"
+}
+Continuing to next batch...
+
+Processing audit_trail_rows.sql...
+   ≡ƒöì Parsing 497899 bytes of data for audit_trail...
+   Γ£à Parsing complete. Found 1616 rows in 0.02s
+≡ƒôè Found 1616 rows for table audit_trail
+Γ¥î Error upserting batch to audit_trail: new row violates row-level security policy for table "audit_trail"
+Continuing to next batch...
+Sample record: {
+  "id": "000b8733-6116-4fd2-b9bd-e7418ca579ba",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "action": "CREATE",
+  "table_name": "data_barang_farmasi",
+  "record_id": "86239cf9-046d-4980-b471-4778d549d14b",
+  "old_values": null,
+  "new_values": null,
+  "ip_address": null,
+  "user_agent": null,
+  "created_at": "2025-09-21 09:18:11.876525+00",
+  "description": "Historical data sync - Created data_barang_farmasi record",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Γ¥î Error upserting batch to audit_trail: new row violates row-level security policy for table "audit_trail"
+Sample record: {
+  "id": "4c514ab8-d57c-4029-b387-25e771a2e54f",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "action": "VIEW",
+  "table_name": "user_profiles",
+  "record_id": null,
+  "old_values": null,
+  "new_values": null,
+  "ip_address": null,
+  "user_agent": null,
+  "created_at": "2025-11-26 09:42:04.494812+00",
+  "description": "Super admin viewed users for tenant 9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to audit_trail: new row violates row-level security policy for table "audit_trail"
+Sample record: {
+  "id": "9dcbe034-eb06-45a8-86b8-eb5ec1cc889c",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "action": "VIEW",
+  "table_name": "user_profiles",
+  "record_id": null,
+  "old_values": null,
+  "new_values": null,
+  "ip_address": null,
+  "user_agent": null,
+  "created_at": "2025-11-27 21:22:10.448385+00",
+  "description": "Super admin viewed users for tenant 9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to audit_trail: new row violates row-level security policy for table "audit_trail"
+Sample record: {
+  "id": "ee28f5f3-e808-4a68-ac4c-7d8705298334",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "action": "CREATE",
+  "table_name": "data_pendapatan",
+  "record_id": "c1d29770-54b9-4143-867c-1efa7b438740",
+  "old_values": null,
+  "new_values": null,
+  "ip_address": null,
+  "user_agent": null,
+  "created_at": "2025-09-23 02:48:48.44446+00",
+  "description": "Historical data sync - Created data_pendapatan record",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing biaya_preference_rows.sql...
+   ≡ƒöì Parsing 173 bytes of data for biaya_preference...
+   Γ£à Parsing complete. Found 1 rows in 0.00s
+≡ƒôè Found 1 rows for table biaya_preference
+Γ¥î Error upserting batch to biaya_preference: Could not find the 'biaya_type' column of 'biaya_preference' in the schema cache
+Sample record: {
+  "id": 6,
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "biaya_type": "total_biaya_tanpa_jp",
+  "created_at": "2025-09-23 02:10:36.870057+00",
+  "updated_at": "2025-09-25 05:20:50.35601+00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing branding_settings_rows.sql...
+   ≡ƒöì Parsing 429 bytes of data for branding_settings...
+   Γ£à Parsing complete. Found 2 rows in 0.00s
+≡ƒôè Found 2 rows for table branding_settings
+Γ¥î Error upserting batch to branding_settings: Could not find the 'app_title' column of 'branding_settings' in the schema cache
+Continuing to next batch...
+Sample record: {
+  "id": "03d1b3fc-906a-4a19-8378-01cda233d59f",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "app_title": "PINTAR UC",
+  "logo_url": null,
+  "logo_alt_text": "Logo",
+  "created_at": "2025-10-22 11:06:27.069024+00",
+  "updated_at": "2025-10-22 11:25:15.290614+00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+
+Processing budgeting_bhp_farmasi_public_rows.sql...
+   ≡ƒöì Parsing 1884442 bytes of data for budgeting_bhp_farmasi_public...
+   Γ£à Parsing complete. Found 1251 rows in 0.27s
+≡ƒôè Found 1251 rows for table budgeting_bhp_farmasi_public
+Γ¥î Error upserting batch to budgeting_bhp_farmasi_public: Could not find the table 'public.budgeting_bhp_farmasi_public' in the schema cache
+Sample record: {
+  "id": "0023e055-fc80-41a5-8cf4-22e9716d7d0e",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "tahun": 2025,
+  "kode_jenis": 2,
+  "kode_unit_kerja": "UK050",
+  "nama_unit_kerja": "Nifas",
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "T.043",
+  "nama_tindakan": "Perawatan Luka Besar (Panjang Luka > 20 cm/ > 2 Tempat)",
+  "biaya_bahan": 41765,
+  "unit_cost_per_tindakan": 30702,
+  "jumlah_tindakan": 9,
+Continuing to next batch...
+  "rincian_bahan": "[{\"nama\":\"Sarung Tangan Non Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":630,\"harga_satuan\":630},{\"nama\":\"Sarung Tangan 7,5 Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":7595,\"harga_satuan\":7595},{\"nama\":\"Masker Bedah\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":200,\"harga_satuan\":200},{\"nama\":\"Nacl 0,9% Infus 500 Ml\",\"jumlah\":1,\"satuan\":\"FLS\",\"harga_total\":5755,\"harga_satuan\":5755},{\"nama\":\"Alkohol 70 % 1 Liter\",\"jumlah\":0.01,\"satuan\":\"BOTOL\",\"harga_total\":190,\"harga_satuan\":19000},{\"nama\":\"Under Pad 60 X 90\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":2772,\"harga_satuan\":2772},{\"nama\":\"Apron Plastik 75 X 125 Cm\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":2000,\"harga_satuan\":2000},{\"nama\":\"Kassa Steril 16 X 16\",\"jumlah\":2,\"satuan\":\"BOX\",\"harga_total\":11100,\"harga_satuan\":5550},{\"nama\":\"Double Spike\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":2175,\"harga_satuan\":2175},{\"nama\":\"Adhesive Tape 10Cm X 10M\",\"jumlah\":0.05,\"satuan\":\"ROL\",\"harga_total\":3558,\"harga_satuan\":71151},{\"nama\":\"Kassa Roll 80 Cm X 40 Cm\",\"jumlah\":0.04,\"satuan\":\"BUAH\",\"harga_total\":5140,\"harga_satuan\":128500},{\"nama\":\"KANTONG PLASTIK HDPE KUNING UK 35\",\"jumlah\":0.026,\"satuan\":\"pack\",\"harga_total\":650,\"harga_satuan\":25000}]",
+  "total_budgeting_bhp": 375885,
+  "total_budgeting_rincian": 375881,
+  "pendapatan": 3536371675,
+  "rasio_bhp_pendapatan": "0.01",
+  "sumber_tabel": "kalkulasi_tindakan_inap",
+  "created_at": "2025-11-27 08:48:49.694121+00",
+  "updated_at": "2025-11-27 08:48:49.694121+00"
+}
+Γ¥î Error upserting batch to budgeting_bhp_farmasi_public: Could not find the table 'public.budgeting_bhp_farmasi_public' in the schema cache
+Sample record: {
+  "id": "632829fe-3354-45d1-bce7-20a98fe44473",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "tahun": 2025,
+  "kode_jenis": 2,
+  "kode_unit_kerja": "UK050",
+  "nama_unit_kerja": "Nifas",
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "T.093",
+  "nama_tindakan": "Perawatan Talipusat",
+  "biaya_bahan": 8111,
+  "unit_cost_per_tindakan": 5249,
+  "jumlah_tindakan": 3,
+  "rincian_bahan": "[{\"nama\":\"Alkohol Swab ( Lembar )\",\"jumlah\":1,\"satuan\":\"LEMBAR\",\"harga_total\":84,\"harga_satuan\":84},{\"nama\":\"Sarung Tangan Non Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":630,\"harga_satuan\":630},{\"nama\":\"Nacl 0,9% Infus 100 Ml\",\"jumlah\":1,\"satuan\":\"FLS\",\"harga_total\":6413,\"harga_satuan\":6413},{\"nama\":\"Kassa Roll 80 Cm X 40 Cm\",\"jumlah\":0.0026,\"satuan\":\"BUAH\",\"harga_total\":334,\"harga_satuan\":128500},{\"nama\":\"KANTONG PLASTIK HDPE KUNING UK 35\",\"jumlah\":0.026,\"satuan\":\"pack\",\"harga_total\":650,\"harga_satuan\":25000}]",
+  "total_budgeting_bhp": 24333,
+  "total_budgeting_rincian": 24333,
+  "pendapatan": 3536371675,
+  "rasio_bhp_pendapatan": "0.00",
+  "sumber_tabel": "kalkulasi_tindakan_inap",
+  "created_at": "2025-11-27 08:48:49.694121+00",
+  "updated_at": "2025-11-27 08:48:49.694121+00"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to budgeting_bhp_farmasi_public: Could not find the table 'public.budgeting_bhp_farmasi_public' in the schema cache
+Sample record: {
+  "id": "ccfa665e-1940-4aa7-9364-6f7f2b4f4409",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "tahun": 2025,
+  "kode_jenis": 2,
+  "kode_unit_kerja": "UK041",
+  "nama_unit_kerja": "Rehab. Medik",
+Continuing to next batch...
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "T.325",
+  "nama_tindakan": "Tes Psikologi Sedang (Psikotes 1 - 2 Alat Tes)",
+  "biaya_bahan": 1140,
+  "unit_cost_per_tindakan": 105590,
+  "jumlah_tindakan": 11,
+  "rincian_bahan": "[{\"nama\":\"Kertas HVS F4 ;70 gr\",\"jumlah\":10,\"satuan\":\"pcs\",\"harga_total\":1140,\"harga_satuan\":114}]",
+  "total_budgeting_bhp": 12540,
+  "total_budgeting_rincian": 12540,
+  "pendapatan": 3108107804,
+  "rasio_bhp_pendapatan": "0.00",
+  "sumber_tabel": "kalkulasi_tindakan_rawat_jalan",
+  "created_at": "2025-11-27 08:48:49.694121+00",
+  "updated_at": "2025-11-27 08:48:49.694121+00"
+}
+
+Processing budgeting_bhp_farmasi_rows.sql...
+   ≡ƒöì Parsing 1896470 bytes of data for budgeting_bhp_farmasi...
+   Γ£à Parsing complete. Found 1251 rows in 0.29s
+≡ƒôè Found 1251 rows for table budgeting_bhp_farmasi
+Γ¥î Error upserting batch to budgeting_bhp_farmasi: Could not find the 'biaya_bahan' column of 'budgeting_bhp_farmasi' in the schema cache
+Sample record: {
+  "id": "0023e055-fc80-41a5-8cf4-22e9716d7d0e",
+  "user_id": null,
+  "tahun": 2025,
+  "kode_jenis": 2,
+  "kode_unit_kerja": "UK050",
+  "nama_unit_kerja": "Nifas",
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "T.043",
+  "nama_tindakan": "Perawatan Luka Besar (Panjang Luka > 20 cm/ > 2 Tempat)",
+  "biaya_bahan": 41765,
+  "unit_cost_per_tindakan": 30702,
+  "jumlah_tindakan": 9,
+Continuing to next batch...
+  "rincian_bahan": "[{\"nama\":\"Sarung Tangan Non Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":630,\"harga_satuan\":630},{\"nama\":\"Sarung Tangan 7,5 Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":7595,\"harga_satuan\":7595},{\"nama\":\"Masker Bedah\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":200,\"harga_satuan\":200},{\"nama\":\"Nacl 0,9% Infus 500 Ml\",\"jumlah\":1,\"satuan\":\"FLS\",\"harga_total\":5755,\"harga_satuan\":5755},{\"nama\":\"Alkohol 70 % 1 Liter\",\"jumlah\":0.01,\"satuan\":\"BOTOL\",\"harga_total\":190,\"harga_satuan\":19000},{\"nama\":\"Under Pad 60 X 90\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":2772,\"harga_satuan\":2772},{\"nama\":\"Apron Plastik 75 X 125 Cm\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":2000,\"harga_satuan\":2000},{\"nama\":\"Kassa Steril 16 X 16\",\"jumlah\":2,\"satuan\":\"BOX\",\"harga_total\":11100,\"harga_satuan\":5550},{\"nama\":\"Double Spike\",\"jumlah\":1,\"satuan\":\"BUAH\",\"harga_total\":2175,\"harga_satuan\":2175},{\"nama\":\"Adhesive Tape 10Cm X 10M\",\"jumlah\":0.05,\"satuan\":\"ROL\",\"harga_total\":3558,\"harga_satuan\":71151},{\"nama\":\"Kassa Roll 80 Cm X 40 Cm\",\"jumlah\":0.04,\"satuan\":\"BUAH\",\"harga_total\":5140,\"harga_satuan\":128500},{\"nama\":\"KANTONG PLASTIK HDPE KUNING UK 35\",\"jumlah\":0.026,\"satuan\":\"pack\",\"harga_total\":650,\"harga_satuan\":25000}]",
+  "total_budgeting_bhp": 375885,
+  "sumber_tabel": "kalkulasi_tindakan_inap",
+  "created_at": "2025-11-27 08:48:49.694121+00",
+  "updated_at": "2025-11-27 08:48:49.694121+00",
+  "total_budgeting_rincian": 375881,
+  "pendapatan": 3536371675,
+  "rasio_bhp_pendapatan": "0.01",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Γ¥î Error upserting batch to budgeting_bhp_farmasi: Could not find the 'biaya_bahan' column of 'budgeting_bhp_farmasi' in the schema cache
+Sample record: {
+  "id": "632829fe-3354-45d1-bce7-20a98fe44473",
+  "user_id": null,
+  "tahun": 2025,
+  "kode_jenis": 2,
+  "kode_unit_kerja": "UK050",
+  "nama_unit_kerja": "Nifas",
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "T.093",
+  "nama_tindakan": "Perawatan Talipusat",
+  "biaya_bahan": 8111,
+  "unit_cost_per_tindakan": 5249,
+  "jumlah_tindakan": 3,
+  "rincian_bahan": "[{\"nama\":\"Alkohol Swab ( Lembar )\",\"jumlah\":1,\"satuan\":\"LEMBAR\",\"harga_total\":84,\"harga_satuan\":84},{\"nama\":\"Sarung Tangan Non Steril\",\"jumlah\":1,\"satuan\":\"PASANG\",\"harga_total\":630,\"harga_satuan\":630},{\"nama\":\"Nacl 0,9% Infus 100 Ml\",\"jumlah\":1,\"satuan\":\"FLS\",\"harga_total\":6413,\"harga_satuan\":6413},{\"nama\":\"Kassa Roll 80 Cm X 40 Cm\",\"jumlah\":0.0026,\"satuan\":\"BUAH\",\"harga_total\":334,\"harga_satuan\":128500},{\"nama\":\"KANTONG PLASTIK HDPE KUNING UK 35\",\"jumlah\":0.026,\"satuan\":\"pack\",\"harga_total\":650,\"harga_satuan\":25000}]",
+  "total_budgeting_bhp": 24333,
+  "sumber_tabel": "kalkulasi_tindakan_inap",
+  "created_at": "2025-11-27 08:48:49.694121+00",
+  "updated_at": "2025-11-27 08:48:49.694121+00",
+  "total_budgeting_rincian": 24333,
+  "pendapatan": 3536371675,
+  "rasio_bhp_pendapatan": "0.00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+Γ¥î Error upserting batch to budgeting_bhp_farmasi: Could not find the 'biaya_bahan' column of 'budgeting_bhp_farmasi' in the schema cache
+Sample record: {
+  "id": "ccfa665e-1940-4aa7-9364-6f7f2b4f4409",
+  "user_id": null,
+  "tahun": 2025,
+  "kode_jenis": 2,
+  "kode_unit_kerja": "UK041",
+  "nama_unit_kerja": "Rehab. Medik",
+  "kode_operator": null,
+  "nama_operator": null,
+  "kode_tindakan": "T.325",
+  "nama_tindakan": "Tes Psikologi Sedang (Psikotes 1 - 2 Alat Tes)",
+  "biaya_bahan": 1140,
+  "unit_cost_per_tindakan": 105590,
+  "jumlah_tindakan": 11,
+  "rincian_bahan": "[{\"nama\":\"Kertas HVS F4 ;70 gr\",\"jumlah\":10,\"satuan\":\"pcs\",\"harga_total\":1140,\"harga_satuan\":114}]",
+  "total_budgeting_bhp": 12540,
+  "sumber_tabel": "kalkulasi_tindakan_rawat_jalan",
+  "created_at": "2025-11-27 08:48:49.694121+00",
+  "updated_at": "2025-11-27 08:48:49.694121+00",
+  "total_budgeting_rincian": 12540,
+  "pendapatan": 3108107804,
+  "rasio_bhp_pendapatan": "0.00",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing cost_recovery_rows.sql...
+   ≡ƒöì Parsing 11632 bytes of data for cost_recovery...
+   Γ£à Parsing complete. Found 41 rows in 0.00s
+≡ƒôè Found 41 rows for table cost_recovery
+Γ¥î Error upserting batch to cost_recovery: Could not find the 'pendapatan_apbd' column of 'cost_recovery' in the schema cache
+Sample record: {
+  "id": "091acccc-986a-4c02-a498-b3771b813fb0",
+  "unit_kerja_id": "7aa33634-9eb2-4c74-adc2-4d2b3e080ac2",
+  "kode_unit_kerja": "UK075",
+  "nama_unit_kerja": "Pemulasaran Jenazah",
+  "tahun": 2025,
+  "total_biaya": 360371698,
+  "pendapatan_umum": 21946600,
+  "pendapatan_bpjs": "0",
+  "total_pendapatan": 25984468,
+  "created_at": "2026-06-05 05:38:00.855527+00",
+  "updated_at": "2026-06-05 05:38:00.855527+00",
+  "pendapatan_apbd": 4037868,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing data_akomodasi_inap_rows.sql...
+   ≡ƒöì Parsing 5830 bytes of data for data_akomodasi_inap...
+   Γ£à Parsing complete. Found 18 rows in 0.00s
+≡ƒôè Found 18 rows for table data_akomodasi_inap
+Γ¥î Error upserting batch to data_akomodasi_inap: Could not find the 'total_gizi' column of 'data_akomodasi_inap' in the schema cache
+Sample record: {
+  "id": "293a6f40-ca29-42ba-b3f0-5a2524e42213",
+  "user_id": "fa0a1fef-f582-48f1-8a51-91f73d6316e3",
+  "tahun": 2025,
+  "kode_unit_kerja": "UK049",
+  "nama_unit_kerja": "Jlamprang",
+  "auc_gizi_vvip": "0",
+  "auc_gizi_vip": "0",
+  "auc_gizi_i": "0",
+  "auc_gizi_ii": "0",
+  "auc_gizi_iii": "0",
+  "hari_rawat_vvip": "0",
+  "hari_rawat_vip": "0",
+  "hari_rawat_i": 3503,
+  "hari_rawat_ii": 3637,
+  "hari_rawat_iii": 5310,
+  "created_at": "2026-06-17 03:41:31.254763+00",
+  "updated_at": "2026-06-17 03:41:31.254763+00",
+  "tempat_tidur_svip": "0",
+  "tempat_tidur_vip": "0",
+  "tempat_tidur_i": "0",
+  "tempat_tidur_ii": "0",
+  "tempat_tidur_iii": "0",
+  "jumlah_porsi_svip": "0",
+  "jumlah_porsi_vip": "0",
+  "jumlah_porsi_i": "0",
+  "jumlah_porsi_ii": "0",
+  "jumlah_porsi_iii": "0",
+  "kamar_luas_svip": "0",
+  "kamar_luas_vip": "0",
+  "kamar_luas_i": "0",
+  "kamar_luas_ii": "0",
+  "kamar_luas_iii": "0",
+  "jumlah_kali_porsi_vvip": "0",
+  "jumlah_kali_porsi_vip": "0",
+  "jumlah_kali_porsi_i": "0",
+  "jumlah_kali_porsi_ii": "0",
+  "jumlah_kali_porsi_iii": "0",
+  "total_gizi": "0",
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing data_biaya_rows.sql...
+   ≡ƒöì Parsing 38678 bytes of data for data_biaya...
+   Γ£à Parsing complete. Found 77 rows in 0.00s
+≡ƒôè Found 77 rows for table data_biaya
+Γ¥î Error upserting batch to data_biaya: Could not find the 'is_dummy' column of 'data_biaya' in the schema cache
+Sample record: {
+  "id": "06525fad-11d4-417d-be9a-c2cbbf6ad5c6",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "transaksi_ref_id": null,
+  "biaya_gaji_tunjangan": 248794324,
+  "biaya_jasa_pelayanan": 208592683,
+  "biaya_obat": "0",
+  "biaya_bhp": "0",
+  "biaya_makan_karyawan": 5784574,
+  "biaya_makan_pasien": "0",
+  "biaya_rumah_tangga": 3295635,
+  "biaya_cetak": 15853250,
+  "biaya_atk": 4169320,
+  "biaya_listrik": 13036958,
+  "biaya_air": 1015280,
+  "biaya_telp": 338966,
+  "biaya_pemeliharaan_bangunan": "0",
+  "biaya_pemeliharaan_alat_medis": 2144637,
+  "biaya_pemeliharaan_alat_non_medis": 900000,
+  "biaya_operasional_lainnya": 83446689,
+  "biaya_penyusutan_gedung": 2594477,
+  "biaya_penyusutan_jaringan": "0",
+  "biaya_penyusutan_alat_medis": 51384549,
+  "biaya_penyusutan_alat_non_medis": "0",
+  "created_at": "2025-09-25 02:08:53.065297+00",
+  "updated_at": "2025-09-25 02:08:53.065297+00",
+  "biaya_pendidikan_pelatihan": 7717300,
+  "tahun": 2025,
+  "biaya_laundry": "0",
+  "biaya_sterilisasi": "0",
+Continuing to next batch...
+  "unit_kerja_id": "d85a905a-2d65-4621-99bf-18aa396bb93b",
+  "kode_unit_kerja": "UK044",
+  "nama_unit_kerja": "BDRS",
+  "biaya_bahan": 29102779,
+  "biaya_pegawai": 465104307,
+  "biaya_daya": 14391204,
+  "biaya_pemeliharaan": 3044637,
+  "biaya_penyusutan": 53979026,
+  "total_biaya": 649068642,
+  "total_biaya_tanpa_jp": 440475959,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "is_dummy": false
+}
+
+Processing data_diklat_rows.sql...
+   ≡ƒöì Parsing 388 bytes of data for data_diklat...
+   Γ£à Parsing complete. Found 1 rows in 0.00s
+≡ƒôè Found 1 rows for table data_diklat
+Γ¥î Error upserting batch to data_diklat: Could not find the 'biaya_bahan' column of 'data_diklat' in the schema cache
+Sample record: {
+  "id": "721211f7-1410-4fa6-a9b4-4b4936ffdc6f",
+  "user_id": "3394a4f5-b2ec-444d-b290-a6bdf477dc99",
+  "kode_strata": "L.1",
+  "kode_materi": "L1.03",
+  "nama_materi": "Administrasi Perkantoran bisnis",
+  "created_at": "2025-10-23 03:12:48.602804+00",
+  "updated_at": "2025-10-23 03:12:48.602804+00",
+  "lama_hari": 12,
+  "unit_cost_per_hari": 73844380,
+  "kalkulasi_diklat_id": "53c2ab93-170c-4b0d-a422-e6b55000ace8",
+  "nama_strata": "SMA",
+  "jenis_diklat": "basis_harian",
+  "biaya_bahan": "0.00",
+  "jasa_sarana": "0.00",
+  "jasa_pel_medis": "0.00",
+  "jasa_pel_non_medis": "0.00",
+  "tarif": "0",
+  "persen_profit": "-100",
+  "persen_jasa_pel": "0",
+  "jasa_pelayanan": "0",
+  "total_uc": 886132560,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing Data_Kamar_rows.sql...
+   ≡ƒöì Parsing 1738 bytes of data for Data_Kamar...
+   Γ£à Parsing complete. Found 10 rows in 0.00s
+≡ƒôè Found 10 rows for table Data_Kamar
+Γ¥î Error upserting batch to Data_Kamar: Could not find the 'Kelas_I' column of 'Data_Kamar' in the schema cache
+Sample record: {
+  "id": 14,
+  "Kode_Kamar": "RI.01",
+  "Nama_Kamar": "Terang Bulan",
+  "created_at": "2025-09-20 02:40:04.206599+00",
+  "updated_at": "2025-09-20 02:40:04.206599+00",
+  "Kelas_SVIP": true,
+  "Kelas_VIP": true,
+  "Kelas_I": false,
+  "Kelas_II": false,
+  "Kelas_III": false,
+  "Kelas_Khusus": false,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb"
+}
+Continuing to next batch...
+
+Processing data_pendapatan_rows.sql...
+   ≡ƒöì Parsing 12789 bytes of data for data_pendapatan...
+   Γ£à Parsing complete. Found 41 rows in 0.00s
+≡ƒôè Found 41 rows for table data_pendapatan
+Γ¥î Error upserting batch to data_pendapatan: Could not find the 'is_dummy' column of 'data_pendapatan' in the schema cache
+Sample record: {
+  "id": "00f18a21-2108-4e00-b8db-a78882d9247e",
+  "user_id": "a024d81a-4458-4d34-8283-c13b7bc5bc8a",
+  "unit_kerja_id": "ca75c4ef-55c2-4adc-9aec-46c98e81add9",
+  "kode_unit_kerja": "UK065",
+  "nama_unit_kerja": "Klinik Kulit & Kelamin",
+  "pendapatan_umum": 60265919,
+  "pendapatan_bpjs": 625188400,
+  "tahun": 2025,
+  "created_at": "2025-09-23 02:48:48.44446+00",
+  "updated_at": "2025-09-23 02:48:48.44446+00",
+  "pendapatan_apbd": 126114016,
+  "total_pendapatan": 811568335,
+  "tenant_id": "9957750f-c06c-4edd-8bcc-a39474b81ecb",
+  "is_dummy": false
+}
+Continuing to next batch...
+
+≡ƒÄë Synchronization finished!

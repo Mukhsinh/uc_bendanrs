@@ -1,0 +1,86 @@
+≡ƒÜÇ Starting Robust Sync...
+
+Processing tenants (1 records)...
+Γ¥î Batch 1 failed: Could not find the 'status' column of 'tenants' in the schema cache
+
+Processing tenant_settings (1 records)...
+Γ¥î Batch 1 failed: Could not find the 'calculation_method' column of 'tenant_settings' in the schema cache
+
+Processing user_roles (13 records)...
+Γ¥î Batch 1 failed: Could not find the 'assigned_at' column of 'user_roles' in the schema cache
+
+Processing user_profiles (6 records)...
+Γ¥î Batch 1 failed: Could not find the 'avatar_url' column of 'user_profiles' in the schema cache
+
+Processing daftar_tindakan (363 records)...
+Γ¥î Batch 1 failed: new row violates row-level security policy for table "daftar_tindakan"
+Γ¥î Batch 2 failed: new row violates row-level security policy for table "daftar_tindakan"
+
+Processing data_barang_farmasi (1312 records)...
+Γ¥î Batch 1 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Γ¥î Batch 2 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Γ¥î Batch 3 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Γ¥î Batch 4 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Γ¥î Batch 5 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Γ¥î Batch 6 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+Γ¥î Batch 7 failed: Could not find the 'gudang' column of 'data_barang_farmasi' in the schema cache
+
+Processing data_barang_gizi (195 records)...
+Γ¥î Batch 1 failed: new row violates row-level security policy for table "data_barang_gizi"
+
+Processing data_dokter (51 records)...
+Γ¥î Batch 1 failed: Could not find the 'jenis_spesialistik' column of 'data_dokter' in the schema cache
+
+Processing data_kegiatan (76 records)...
+Γ¥î Batch 1 failed: Could not find the 'is_dummy' column of 'data_kegiatan' in the schema cache
+
+Processing data_kegiatan_transpose (47 records)...
+Γ¥î Batch 1 failed: new row violates row-level security policy for table "data_kegiatan_transpose"
+
+Processing Dasar_Alokasi (345 records)...
+Γ¥î Batch 1 failed: new row violates row-level security policy for table "Dasar_Alokasi"
+Γ¥î Batch 2 failed: new row violates row-level security policy for table "Dasar_Alokasi"
+
+Processing analisa_bahan_pemeriksaan (7991 records)...
+Γ¥î Batch 1 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 2 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 3 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 4 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 5 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 6 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 7 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 8 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 9 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 10 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 11 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 12 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 13 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 14 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 15 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 16 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 17 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 18 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 19 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 20 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 21 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 22 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 23 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 24 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 25 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 26 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 27 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 28 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 29 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 30 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 31 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 32 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 33 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 34 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 35 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 36 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 37 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 38 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 39 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+Γ¥î Batch 40 failed: Could not find the table 'public.analisa_bahan_pemeriksaan' in the schema cache
+
+≡ƒÅü Sync Finished.
